@@ -11,7 +11,8 @@ import {
   Users as UsersIcon, ShieldCheck, Lock,
   Plus, Send, History, Briefcase, 
   AlertCircle, ChevronRight, Filter,
-  Paperclip, Star, MoreVertical, Search
+  Paperclip, Star, MoreVertical, Search,
+  Upload
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
