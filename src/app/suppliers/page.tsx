@@ -221,10 +221,10 @@ export default function SuppliersPage() {
 
     for (let i = 0; i < fullValidData.length; i++) {
       const row = fullValidData[i];
-      const email = row["Email"] || row["email"];
+      const email = (row["Email"] || row["email"] || "").toString().toLowerCase().trim();
       const name = row["Company Name"] || row["name"];
       
-      const existing = suppliers.find(s => (s.email || "").toLowerCase() === (email || "").toLowerCase());
+      const existing = suppliers.find(s => (s.email || "").toLowerCase().trim() === email);
       
       const supplierData = {
         name,
@@ -247,7 +247,7 @@ export default function SuppliersPage() {
           export: { name: "", email: "", phone: "", whatsapp: "" },
           support: { phone: "", email: "", hours: "9-5", language: "English" }
         },
-        recordStatus: "Active - Pending Verification",
+        recordStatus: "Active - Verified",
         priorityLevel: "Medium",
         dataCompleteness: 60,
         internalRating: 3,
@@ -691,6 +691,13 @@ export default function SuppliersPage() {
                 </TableCell>
               </TableRow>
             ))}
+            {!loading && filteredSuppliers.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                  No suppliers found in Firestore. Use the import tool to populate the database.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </Card>

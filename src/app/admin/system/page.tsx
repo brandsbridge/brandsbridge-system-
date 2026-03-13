@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useState, useRef } from "react";
@@ -22,7 +21,9 @@ import {
   AlertTriangle,
   Loader2,
   ChevronRight,
-  DatabaseZap
+  DatabaseZap,
+  Info,
+  FileX
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,18 +48,31 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuPortal,
+  DropdownMenuSubContent,
+} from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
 const CORE_COLLECTIONS = [
-  { id: 'suppliers', label: 'Suppliers', icon: Factory },
-  { id: 'customers', label: 'Customers', icon: Users },
-  { id: 'products', label: 'Products', icon: Package },
-  { id: 'leads', label: 'CRM Leads', icon: DatabaseZap },
-  { id: 'employees', label: 'Employees', icon: Settings },
-  { id: 'tasks', label: 'Project Tasks', icon: FileText },
+  { id: 'suppliers', label: 'Suppliers', icon: Factory, uniqueKey: 'email' },
+  { id: 'customers', label: 'Customers', icon: Users, uniqueKey: 'email' },
+  { id: 'products', label: 'Products', icon: Package, uniqueKey: 'name' },
+  { id: 'leads', label: 'CRM Leads', icon: DatabaseZap, uniqueKey: 'name' },
+  { id: 'employees', label: 'Employees', icon: Settings, uniqueKey: 'email' },
+  { id: 'tasks', label: 'Project Tasks', icon: FileText, uniqueKey: 'title' },
 ];
 
 export default function SystemManagementPage() {
@@ -69,27 +83,33 @@ export default function SystemManagementPage() {
   const [targetCollection, setTargetCollection] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<any[]>([]);
+  const [fullValidData, setFullValidData] = useState<any[]>([]);
+  const [validationErrors, setValidationErrors] = useState<{row: number, message: string}[]>([]);
   const [importProgress, setImportProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Memoize collections to prevent infinite loops
   const suppliersCol = useMemo(() => collection(db, "suppliers"), [db]);
   const customersCol = useMemo(() => collection(db, "customers"), [db]);
   const productsCol = useMemo(() => collection(db, "products"), [db]);
   const employeesCol = useMemo(() => collection(db, "employees"), [db]);
-  const logsCol = useMemo(() => collection(db, "uploadLogs"), [db]);
+  const tasksCol = useMemo(() => collection(db, "tasks"), [db]);
+  const leadsCol = useMemo(() => collection(db, "leads"), [db]);
 
   const { data: suppliers } = useCollection(suppliersCol);
   const { data: customers } = useCollection(customersCol);
   const { data: products } = useCollection(productsCol);
   const { data: employees } = useCollection(employeesCol);
-  const { data: logs } = useCollection(logsCol);
+  const { data: tasks } = useCollection(tasksCol);
+  const { data: leads } = useCollection(leadsCol);
 
   const stats = [
     { label: "Suppliers", count: suppliers.length, icon: Factory, color: "text-blue-500" },
     { label: "Customers", count: customers.length, icon: Users, color: "text-purple-500" },
     { label: "Products", count: products.length, icon: Package, color: "text-orange-500" },
-    { label: "Employees", count: employees.length, icon: Settings, color: "text-accent" },
-    { label: "System Logs", count: logs.length, icon: FileText, color: "text-muted-foreground" },
+    { label: "Leads", count: leads.length, icon: DatabaseZap, color: "text-accent" },
+    { label: "Employees", count: employees.length, icon: Settings, color: "text-green-500" },
+    { label: "Tasks", count: tasks.length, icon: FileText, color: "text-muted-foreground" },
   ];
 
   // --- EXPORT LOGIC ---
@@ -148,8 +168,7 @@ export default function SystemManagementPage() {
       reader.onload = (e) => {
         try {
           const json = JSON.parse(e.target?.result as string);
-          setPreviewData(Array.isArray(json) ? json : [json]);
-          setImportStep("preview");
+          validateAndPreview(Array.isArray(json) ? json : [json]);
         } catch (err) {
           toast({ variant: "destructive", title: "Invalid JSON", description: "Could not parse the selected JSON file." });
         }
@@ -160,8 +179,7 @@ export default function SystemManagementPage() {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
-          setPreviewData(results.data);
-          setImportStep("preview");
+          validateAndPreview(results.data);
         }
       });
     } else {
@@ -170,40 +188,61 @@ export default function SystemManagementPage() {
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(firstSheet);
-        setPreviewData(json);
-        setImportStep("preview");
+        validateAndPreview(json);
       };
       reader.readAsArrayBuffer(file);
     }
   };
 
+  const validateAndPreview = (data: any[]) => {
+    const colInfo = CORE_COLLECTIONS.find(c => c.id === targetCollection);
+    const key = colInfo?.uniqueKey || 'name';
+    
+    const errors: {row: number, message: string}[] = [];
+    const validRows = data.filter((row, idx) => {
+      // Basic validation: ensure the primary identifier exists
+      if (!row[key] && !row['Company Name'] && !row['title']) {
+        errors.push({ row: idx + 1, message: `Missing primary field: ${key}` });
+        return false;
+      }
+      return true;
+    });
+
+    setValidationErrors(errors);
+    setPreviewData(validRows.slice(0, 5));
+    setFullValidData(validRows);
+    setImportStep("preview");
+  };
+
   const executeImport = async () => {
-    if (!targetCollection || previewData.length === 0) return;
+    if (!targetCollection || fullValidData.length === 0) return;
     setImportStep("processing");
     setImportProgress(0);
 
     const batch = writeBatch(db);
     const colRef = collection(db, targetCollection);
+    const colInfo = CORE_COLLECTIONS.find(c => c.id === targetCollection);
+    const uniqueKey = colInfo?.uniqueKey || 'email';
     
-    // Fetch existing records for duplicate prevention (basic by email or name if possible)
+    // Fetch existing records for duplicate prevention
     let existingIds = new Set<string>();
     try {
-      const existingSnap = await getDocs(query(colRef, limit(500)));
+      const existingSnap = await getDocs(query(colRef, limit(1000)));
       existingSnap.forEach(doc => {
         const data = doc.data();
-        if (data.email) existingIds.add(data.email.toLowerCase());
-        if (data.name) existingIds.add(data.name.toLowerCase());
+        const identifier = (data[uniqueKey] || data['name'] || data['title'] || "").toString().toLowerCase().trim();
+        if (identifier) existingIds.add(identifier);
       });
     } catch (e) {
-      console.warn("Could not fetch existing records for duplicate check.");
+      console.warn("Duplicate check limited to existing cache.");
     }
 
     let successCount = 0;
     let skipCount = 0;
 
-    for (let i = 0; i < previewData.length; i++) {
-      const row = previewData[i];
-      const identifier = (row.email || row.name || "").toLowerCase();
+    for (let i = 0; i < fullValidData.length; i++) {
+      const row = fullValidData[i];
+      const identifier = (row[uniqueKey] || row['Company Name'] || row['name'] || row['title'] || "").toString().toLowerCase().trim();
 
       if (identifier && existingIds.has(identifier)) {
         skipCount++;
@@ -218,8 +257,8 @@ export default function SystemManagementPage() {
       });
       successCount++;
 
-      if ((i + 1) % 50 === 0 || i === previewData.length - 1) {
-        setImportProgress(Math.round(((i + 1) / previewData.length) * 100));
+      if ((i + 1) % 50 === 0 || i === fullValidData.length - 1) {
+        setImportProgress(Math.round(((i + 1) / fullValidData.length) * 100));
       }
     }
 
@@ -233,9 +272,22 @@ export default function SystemManagementPage() {
     }
   };
 
+  const downloadErrorReport = () => {
+    if (validationErrors.length === 0) return;
+    const csv = Papa.unparse(validationErrors.map(e => ({ Row: e.row, Reason: e.message })));
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `import_errors_${targetCollection}_${new Date().toISOString()}.csv`;
+    link.click();
+  };
+
   const resetImport = () => {
     setImportFile(null);
     setPreviewData([]);
+    setFullValidData([]);
+    setValidationErrors([]);
     setImportStep("select");
     setTargetCollection("");
   };
@@ -272,7 +324,7 @@ export default function SystemManagementPage() {
                 <div key={s.label} className="p-4 rounded-xl border bg-secondary/20 flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <s.icon className={cn("h-4 w-4", s.color)} />
-                    <Badge variant="outline" className="text-[10px]">Active</Badge>
+                    <Badge variant="outline" className="text-[8px]">ACTIVE</Badge>
                   </div>
                   <div>
                     <p className="text-2xl font-bold">{s.count}</p>
@@ -294,7 +346,7 @@ export default function SystemManagementPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
-              <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Global Export</p>
+              <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Global Operations</p>
               <div className="grid grid-cols-2 gap-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -304,7 +356,7 @@ export default function SystemManagementPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>Select Collection</DropdownMenuLabel>
-                    <Separator />
+                    <DropdownMenuSeparator />
                     {CORE_COLLECTIONS.map(col => (
                       <DropdownMenuSub key={col.id}>
                         <DropdownMenuSubTrigger>
@@ -379,7 +431,7 @@ export default function SystemManagementPage() {
                       <div className="space-y-6 pt-4">
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-bold flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-primary" /> Data Validation Preview ({previewData.length} records)
+                            <FileText className="h-4 w-4 text-primary" /> Validation Preview ({fullValidData.length} records ready)
                           </h3>
                           <Badge variant="outline">{importFile?.name}</Badge>
                         </div>
@@ -394,7 +446,7 @@ export default function SystemManagementPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {previewData.slice(0, 5).map((row, i) => (
+                              {previewData.map((row, i) => (
                                 <TableRow key={i}>
                                   {Object.values(row).map((val: any, j) => (
                                     <TableCell key={j} className="text-[10px] whitespace-nowrap">{String(val)}</TableCell>
@@ -403,25 +455,34 @@ export default function SystemManagementPage() {
                               ))}
                             </TableBody>
                           </Table>
-                          {previewData.length > 5 && (
-                            <div className="p-2 text-center text-[10px] text-muted-foreground border-t">
-                              Showing 5 of {previewData.length} rows...
-                            </div>
-                          )}
                         </div>
+
+                        {validationErrors.length > 0 && (
+                          <div className="p-4 bg-destructive/10 rounded-lg border border-destructive/20 flex items-start justify-between gap-3">
+                            <div className="flex gap-3">
+                              <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+                              <div>
+                                <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows Detected</p>
+                                <p className="text-xs text-muted-foreground">These rows are missing required identifiers and will be skipped.</p>
+                              </div>
+                            </div>
+                            <Button variant="outline" size="sm" className="text-destructive" onClick={downloadErrorReport}>
+                              <FileX className="h-3 w-3 mr-2" /> Error Report
+                            </Button>
+                          </div>
+                        )}
 
                         <div className="p-4 bg-accent/5 rounded-lg border border-accent/20 flex gap-3">
                           <Info className="h-5 w-5 text-accent shrink-0" />
                           <p className="text-xs leading-relaxed">
-                            <strong>Note:</strong> System will automatically check for duplicates by email or name. 
-                            If a record matches, it will be skipped to maintain data integrity.
+                            System will automatically check for duplicates based on the collection's unique identifier. Existing records will be skipped to maintain data integrity.
                           </p>
                         </div>
 
                         <DialogFooter className="gap-2">
                           <Button variant="ghost" onClick={resetImport}>Start Over</Button>
-                          <Button onClick={executeImport} className="bg-primary">
-                            Begin Import to {CORE_COLLECTIONS.find(c => c.id === targetCollection)?.label}
+                          <Button onClick={executeImport} className="bg-primary" disabled={fullValidData.length === 0}>
+                            Import {fullValidData.length} Valid Records
                           </Button>
                         </DialogFooter>
                       </div>
@@ -445,7 +506,7 @@ export default function SystemManagementPage() {
                         </div>
                         <div className="space-y-2">
                           <h3 className="text-xl font-bold">Data Import Complete</h3>
-                          <p className="text-muted-foreground">Your records have been synchronized with the cloud database.</p>
+                          <p className="text-muted-foreground">Valid records have been synchronized with the cloud database.</p>
                         </div>
                         <Button className="w-full max-w-sm" onClick={() => setIsImportModalOpen(false)}>Close & Finish</Button>
                       </div>
@@ -505,17 +566,3 @@ export default function SystemManagementPage() {
     </div>
   );
 }
-
-// --- REUSABLE DROPDOWN COMPONENTS ---
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuPortal,
-  DropdownMenuSubContent,
-} from "@/components/ui/dropdown-menu";

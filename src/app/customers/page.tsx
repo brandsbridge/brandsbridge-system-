@@ -162,7 +162,7 @@ export default function CustomersPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `import_errors_${new Date().toISOString()}.csv`);
+    link.setAttribute("download", `customer_import_errors_${new Date().toISOString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -228,16 +228,17 @@ export default function CustomersPage() {
 
     for (let i = 0; i < fullValidData.length; i++) {
       const row = fullValidData[i];
-      const email = row["Email"] || row["email"];
+      const email = (row["Email"] || row["email"] || "").toString().toLowerCase().trim();
       const name = row["Company Name"] || row["name"];
       
-      const existing = customers.find(c => (c.email || "").toLowerCase() === (email || "").toLowerCase());
+      const existing = customers.find(c => (c.email || "").toLowerCase().trim() === email);
       
       const customerData = {
         name,
         email,
         country: row["Country"] || "Unknown",
         city: row["City"] || "",
+        companyType: row["Company Type"] || "Retailer",
         accountStatus: (row["Account Status"] || "prospect").toLowerCase(),
         departments: [currentDept],
         assignedManager: manager.name,
@@ -664,6 +665,13 @@ export default function CustomersPage() {
                 </TableCell>
               </TableRow>
             ))}
+            {!loading && filteredCustomers.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                  No customers found in Firestore. Use the import tool to get started.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </Card>
