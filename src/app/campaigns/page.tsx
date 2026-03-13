@@ -22,7 +22,8 @@ import { collection } from "firebase/firestore";
 
 export default function CampaignsPage() {
   const db = useFirestore();
-  const { data: fbCampaigns = [], loading } = useCollection(collection(db, "campaigns"));
+  const campaignsCol = useMemo(() => collection(db, "campaigns"), [db]);
+  const { data: fbCampaigns = [], loading } = useCollection(campaignsCol);
 
   const campaigns = fbCampaigns.length > 0 ? fbCampaigns : MOCK_CAMPAIGNS;
 

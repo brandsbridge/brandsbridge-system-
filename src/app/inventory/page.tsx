@@ -23,10 +23,14 @@ export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const db = useFirestore();
 
-  // Firestore Collections
-  const { data: fbProducts = [], loading: loadingProducts } = useCollection(collection(db, "products"));
-  const { data: fbStocks = [], loading: loadingStocks } = useCollection(collection(db, "stocks"));
-  const { data: fbSuppliers = [], loading: loadingSuppliers } = useCollection(collection(db, "suppliers"));
+  // Memoize Firestore Collections to prevent infinite render loops
+  const productsCol = useMemo(() => collection(db, "products"), [db]);
+  const stocksCol = useMemo(() => collection(db, "stocks"), [db]);
+  const suppliersCol = useMemo(() => collection(db, "suppliers"), [db]);
+
+  const { data: fbProducts = [], loading: loadingProducts } = useCollection(productsCol);
+  const { data: fbStocks = [], loading: loadingStocks } = useCollection(stocksCol);
+  const { data: fbSuppliers = [], loading: loadingSuppliers } = useCollection(suppliersCol);
 
   const products = fbProducts.length > 0 ? fbProducts : MOCK_PRODUCTS;
   const stocks = fbStocks.length > 0 ? fbStocks : MOCK_STOCKS;

@@ -23,7 +23,8 @@ const COLORS = ['#94A3B8', '#6366F1', '#F59E0B', '#10B981', '#EF4444'];
 
 export default function CRMPage() {
   const db = useFirestore();
-  const { data: fbLeads = [], loading } = useCollection(collection(db, "leads"));
+  const leadsCol = useMemo(() => collection(db, "leads"), [db]);
+  const { data: fbLeads = [], loading } = useCollection(leadsCol);
 
   const leads = fbLeads.length > 0 ? fbLeads : MOCK_LEADS;
 
