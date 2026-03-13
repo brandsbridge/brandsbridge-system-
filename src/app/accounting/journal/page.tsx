@@ -71,8 +71,8 @@ export default function JournalPage() {
                       {je.type}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right font-bold">${je.entries.reduce((a, b) => acc + b.debit, 0).toLocaleString()}</TableCell>
-                  <TableCell className="text-right font-bold">${je.entries.reduce((a, b) => acc + b.credit, 0).toLocaleString()}</TableCell>
+                  <TableCell className="text-right font-bold">${je.entries.reduce((acc, entry) => acc + entry.debit, 0).toLocaleString()}</TableCell>
+                  <TableCell className="text-right font-bold">${je.entries.reduce((acc, entry) => acc + entry.credit, 0).toLocaleString()}</TableCell>
                   <TableCell className="text-right">
                     <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
                   </TableCell>

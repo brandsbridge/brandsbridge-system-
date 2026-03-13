@@ -42,8 +42,8 @@ export default function ReportsPage() {
     }
   };
 
-  const totalRevenue = Object.values(plData.revenue).reduce((a, b) => acc + b, 0);
-  const totalExpenses = Object.values(plData.expenses).reduce((a, b) => acc + b, 0);
+  const totalRevenue = Object.values(plData.revenue).reduce((acc, val) => acc + val, 0);
+  const totalExpenses = Object.values(plData.expenses).reduce((acc, val) => acc + val, 0);
   const grossProfit = totalRevenue - plData.cogs;
   const netProfit = grossProfit - totalExpenses;
 
@@ -96,7 +96,7 @@ export default function ReportsPage() {
                     </div>
                     <div className="flex justify-between text-sm border-t pt-2 font-bold">
                       <span>Total Revenue</span>
-                      <span>$287,000</span>
+                      <span>${totalRevenue.toLocaleString()}</span>
                     </div>
                   </div>
                 </section>
@@ -104,11 +104,11 @@ export default function ReportsPage() {
                 <section>
                   <div className="flex justify-between text-sm text-red-500">
                     <span>Cost of Goods Sold (COGS)</span>
-                    <span className="font-medium">($185,000)</span>
+                    <span className="font-medium">(${plData.cogs.toLocaleString()})</span>
                   </div>
                   <div className="flex justify-between text-lg font-bold bg-primary/5 p-3 rounded-lg mt-4">
                     <span>Gross Profit</span>
-                    <span className="text-primary">$102,000</span>
+                    <span className="text-primary">${grossProfit.toLocaleString()}</span>
                   </div>
                 </section>
 
@@ -123,14 +123,14 @@ export default function ReportsPage() {
                     ))}
                     <div className="flex justify-between text-sm border-t pt-2 font-bold text-red-500">
                       <span>Total Operating Expenses</span>
-                      <span>($80,500)</span>
+                      <span>(${totalExpenses.toLocaleString()})</span>
                     </div>
                   </div>
                 </section>
 
                 <div className="flex justify-between text-2xl font-bold bg-green-500/10 p-4 rounded-lg border border-green-500/20 text-green-500">
                   <span>Net Profit</span>
-                  <span>$21,500</span>
+                  <span>${netProfit.toLocaleString()}</span>
                 </div>
               </div>
             </CardContent>
