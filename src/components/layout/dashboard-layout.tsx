@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -15,7 +16,11 @@ import {
   Bell,
   Sun,
   Moon,
-  Menu
+  Menu,
+  FileText,
+  Briefcase,
+  Kanban,
+  Target
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -32,7 +37,11 @@ const navigation = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
   { name: "Suppliers", href: "/suppliers", icon: Factory },
   { name: "Customers", href: "/customers", icon: Users },
+  { name: "Invoices", href: "/invoices", icon: FileText },
   { name: "Inventory", href: "/inventory", icon: Package },
+  { name: "Employees", href: "/employees", icon: Briefcase },
+  { name: "Projects", href: "/projects", icon: Kanban },
+  { name: "CRM", href: "/crm", icon: Target },
   { name: "Best Offers", href: "/offers", icon: Trophy },
   { name: "Responses", href: "/responses", icon: MessageSquare },
   { name: "Automation", href: "/automation", icon: Terminal },
