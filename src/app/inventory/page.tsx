@@ -1,7 +1,8 @@
+
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Package, Search, Filter, ArrowUpDown } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { Search, ArrowUpDown } from "lucide-react";
 import { 
   Table, 
   TableBody, 
@@ -14,46 +15,47 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { subscribeToCollection } from "@/lib/db-utils";
+import { useFirestore, useCollection } from "@/firebase";
+import { collection } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 
 export default function InventoryPage() {
-  const [stocks, setStocks] = useState<any[]>([]);
-  const [products, setProducts] = useState<Record<string, string>>({});
-  const [suppliers, setSuppliers] = useState<Record<string, string>>({});
+  const db = useFirestore();
   const [searchTerm, setSearchTerm] = useState("");
 
-  useEffect(() => {
-    const unsubStocks = subscribeToCollection("stocks", (data) => setStocks(data));
-    const unsubProducts = subscribeToCollection("products", (data) => {
-      const map: Record<string, string> = {};
-      data.forEach(p => map[p.id] = p.name);
-      setProducts(map);
+  const stocksQuery = useMemo(() => collection(db, "stocks"), [db]);
+  const productsQuery = useMemo(() => collection(db, "products"), [db]);
+  const suppliersQuery = useMemo(() => collection(db, "suppliers"), [db]);
+
+  const { data: stocks } = useCollection(stocksQuery);
+  const { data: productsList } = useCollection(productsQuery);
+  const { data: suppliersList } = useCollection(suppliersQuery);
+
+  const productsMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    productsList.forEach((p: any) => map[p.id] = p.name);
+    return map;
+  }, [productsList]);
+
+  const suppliersMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    suppliersList.forEach((s: any) => map[s.id] = s.name);
+    return map;
+  }, [suppliersList]);
+
+  const lowestPricePerProduct = useMemo(() => {
+    const map: Record<string, number> = {};
+    stocks.forEach((s: any) => {
+      if (!map[s.productId] || s.price < map[s.productId]) {
+        map[s.productId] = s.price;
+      }
     });
-    const unsubSuppliers = subscribeToCollection("suppliers", (data) => {
-      const map: Record<string, string> = {};
-      data.forEach(s => map[s.id] = s.name);
-      setSuppliers(map);
-    });
+    return map;
+  }, [stocks]);
 
-    return () => {
-      unsubStocks();
-      unsubProducts();
-      unsubSuppliers();
-    };
-  }, []);
-
-  // Find lowest price per product to highlight
-  const lowestPricePerProduct: Record<string, number> = {};
-  stocks.forEach(s => {
-    if (!lowestPricePerProduct[s.productId] || s.price < lowestPricePerProduct[s.productId]) {
-      lowestPricePerProduct[s.productId] = s.price;
-    }
-  });
-
-  const filteredStocks = stocks.filter(s => {
-    const productName = products[s.productId]?.toLowerCase() || "";
-    const supplierName = suppliers[s.supplierId]?.toLowerCase() || "";
+  const filteredStocks = stocks.filter((s: any) => {
+    const productName = productsMap[s.productId]?.toLowerCase() || "";
+    const supplierName = suppliersMap[s.supplierId]?.toLowerCase() || "";
     return productName.includes(searchTerm.toLowerCase()) || supplierName.includes(searchTerm.toLowerCase());
   });
 
@@ -99,15 +101,15 @@ export default function InventoryPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredStocks.map((stock) => {
+              filteredStocks.map((stock: any) => {
                 const isBestPrice = stock.price === lowestPricePerProduct[stock.productId];
                 return (
                   <TableRow key={stock.id} className={cn(isBestPrice && "bg-primary/5")}>
                     <TableCell>
-                      <div className="font-medium">{products[stock.productId] || "Unknown Product"}</div>
+                      <div className="font-medium">{productsMap[stock.productId] || "Unknown Product"}</div>
                       <div className="text-[10px] text-muted-foreground font-mono">{stock.productId}</div>
                     </TableCell>
-                    <TableCell>{suppliers[stock.supplierId] || "Unknown Supplier"}</TableCell>
+                    <TableCell>{suppliersMap[stock.supplierId] || "Unknown Supplier"}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">{stock.quantity}</span>

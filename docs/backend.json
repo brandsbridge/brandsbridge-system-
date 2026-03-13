@@ -1,0 +1,102 @@
+
+{
+  "entities": {
+    "Supplier": {
+      "title": "Supplier",
+      "description": "A supplier in the network.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "country": { "type": "string" },
+        "productsOffered": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["name", "email"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "A lead or existing customer.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" },
+        "interestedProducts": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["name", "email"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A product available in the catalog.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Stock": {
+      "title": "Stock",
+      "description": "Inventory level for a product from a specific supplier.",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "price": { "type": "number" },
+        "leadTime": { "type": "number" }
+      },
+      "required": ["productId", "supplierId", "quantity", "price"]
+    },
+    "BestOffer": {
+      "title": "Best Offer",
+      "description": "The current best aggregated offer for a product.",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "bestPrice": { "type": "number" },
+        "leadTime": { "type": "number" },
+        "calculatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["productId", "bestPrice"]
+    },
+    "CustomerResponse": {
+      "title": "Customer Response",
+      "description": "A customer's reaction to an offer.",
+      "type": "object",
+      "properties": {
+        "customerId": { "type": "string" },
+        "bestOfferId": { "type": "string" },
+        "responseType": { "type": "string", "enum": ["order", "quote", "interest"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["customerId", "bestOfferId", "responseType"]
+    },
+    "AutomationLog": {
+      "title": "Automation Log",
+      "description": "Log entry for background pipeline executions.",
+      "type": "object",
+      "properties": {
+        "pipelineName": { "type": "string" },
+        "event": { "type": "string" },
+        "status": { "type": "string", "enum": ["success", "failed", "pending"] },
+        "details": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "auth": {
+    "providers": ["google.com"]
+  },
+  "firestore": {
+    "/suppliers/{supplierId}": { "schema": "Supplier", "description": "Global suppliers." },
+    "/customers/{customerId}": { "schema": "Customer", "description": "Customer profiles." },
+    "/products/{productId}": { "schema": "Product", "description": "Product catalog." },
+    "/stocks/{stockId}": { "schema": "Stock", "description": "Supplier inventory entries." },
+    "/bestOffers/{offerId}": { "schema": "BestOffer", "description": "Calculated best deals." },
+    "/customerResponses/{responseId}": { "schema": "CustomerResponse", "description": "Customer engagement tracking." },
+    "/automationLogs/{logId}": { "schema": "AutomationLog", "description": "System logs." }
+  }
+}

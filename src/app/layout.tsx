@@ -1,6 +1,8 @@
+
 import type { Metadata } from 'next';
 import './globals.css';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
+import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
   title: 'BizFlow - Smart Business Management',
@@ -19,8 +21,10 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="font-body antialiased">
-        <DashboardLayout>{children}</DashboardLayout>
+      <body className="font-body antialiased" suppressHydrationWarning>
+        <FirebaseClientProvider>
+          <DashboardLayout>{children}</DashboardLayout>
+        </FirebaseClientProvider>
       </body>
     </html>
   );

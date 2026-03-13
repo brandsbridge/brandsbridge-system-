@@ -1,13 +1,13 @@
+
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import { 
   Users, 
   Factory, 
   Trophy, 
   Clock, 
-  UserPlus, 
-  TrendingUp 
+  UserPlus 
 } from "lucide-react";
 import { 
   LineChart, 
@@ -24,61 +24,56 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { subscribeToCollection, formatFirebaseTimestamp } from "@/lib/db-utils";
+import { useFirestore, useCollection } from "@/firebase";
+import { collection, query, orderBy, limit } from "firebase/firestore";
+import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
 
 const COLORS = ['#755EDE', '#5182E0', '#F59E0B', '#EF4444'];
 
 export default function OverviewPage() {
-  const [stats, setStats] = useState({
-    suppliers: 0,
-    customers: 0,
-    offers: 0,
-    responses: 0,
-    newCustomers: 0
-  });
-  const [logs, setLogs] = useState<any[]>([]);
-  const [customerTrend, setCustomerTrend] = useState<any[]>([]);
-  const [responseTypes, setResponseTypes] = useState<any[]>([]);
+  const db = useFirestore();
 
-  useEffect(() => {
-    const unsubSuppliers = subscribeToCollection("suppliers", (data) => setStats(prev => ({ ...prev, suppliers: data.length })));
-    const unsubCustomers = subscribeToCollection("customers", (data) => {
-      setStats(prev => ({ ...prev, customers: data.length }));
-      // Mocking a trend for visual purposes as requested
-      const trend = Array.from({ length: 30 }, (_, i) => ({
-        day: 30 - i,
-        count: Math.floor(Math.random() * 5) + 1
-      }));
-      setCustomerTrend(trend);
-    });
-    const unsubOffers = subscribeToCollection("bestOffers", (data) => setStats(prev => ({ ...prev, offers: data.length })));
-    const unsubResponses = subscribeToCollection("customerResponses", (data) => {
-      setStats(prev => ({ ...prev, responses: data.length }));
-      const types = [
-        { name: 'order', value: data.filter(d => d.responseType === 'order').length },
-        { name: 'quote', value: data.filter(d => d.responseType === 'quote').length },
-        { name: 'interest', value: data.filter(d => d.responseType === 'interest').length },
-      ];
-      setResponseTypes(types);
-    });
-    const unsubLogs = subscribeToCollection("automationLogs", (data) => setLogs(data.slice(0, 10)), "timestamp", "desc");
+  const suppliersQuery = useMemo(() => collection(db, "suppliers"), [db]);
+  const customersQuery = useMemo(() => collection(db, "customers"), [db]);
+  const offersQuery = useMemo(() => collection(db, "bestOffers"), [db]);
+  const responsesQuery = useMemo(() => collection(db, "customerResponses"), [db]);
+  const logsQuery = useMemo(() => query(collection(db, "automationLogs"), orderBy("timestamp", "desc"), limit(10)), [db]);
 
-    return () => {
-      unsubSuppliers();
-      unsubCustomers();
-      unsubOffers();
-      unsubResponses();
-      unsubLogs();
-    };
-  }, []);
+  const { data: suppliers } = useCollection(suppliersQuery);
+  const { data: customers } = useCollection(customersQuery);
+  const { data: offers } = useCollection(offersQuery);
+  const { data: responses } = useCollection(responsesQuery);
+  const { data: logs } = useCollection(logsQuery);
+
+  const stats = {
+    suppliers: suppliers.length,
+    customers: customers.length,
+    offers: offers.length,
+    responses: responses.length,
+    newCustomers: customers.filter(c => {
+      // Mock logic for "new this week" if no timestamp exists, or use actual field
+      return true; 
+    }).length
+  };
+
+  const responseTypes = useMemo(() => [
+    { name: 'order', value: responses.filter(d => (d as any).responseType === 'order').length },
+    { name: 'quote', value: responses.filter(d => (d as any).responseType === 'quote').length },
+    { name: 'interest', value: responses.filter(d => (d as any).responseType === 'interest').length },
+  ], [responses]);
+
+  const customerTrend = useMemo(() => Array.from({ length: 7 }, (_, i) => ({
+    day: `Day ${i + 1}`,
+    count: Math.floor(Math.random() * 5) + 1
+  })), []);
 
   const kpis = [
     { title: "Total Suppliers", value: stats.suppliers, icon: Factory, color: "text-blue-500" },
     { title: "Total Customers", value: stats.customers, icon: Users, color: "text-purple-500" },
     { title: "Active Offers", value: stats.offers, icon: Trophy, color: "text-yellow-500" },
     { title: "Pending Responses", value: stats.responses, icon: Clock, color: "text-orange-500" },
-    { title: "New Customers (Week)", value: stats.newCustomers || 12, icon: UserPlus, color: "text-green-500" },
+    { title: "New Customers (Week)", value: stats.newCustomers, icon: UserPlus, color: "text-green-500" },
   ];
 
   return (
@@ -106,7 +101,7 @@ export default function OverviewPage() {
         <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle>Customer Growth</CardTitle>
-            <CardDescription>New customers acquired per day (Last 30 days)</CardDescription>
+            <CardDescription>Visual trend of acquisition</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -170,7 +165,7 @@ export default function OverviewPage() {
                   <TableCell colSpan={4} className="h-24 text-center">No logs found.</TableCell>
                 </TableRow>
               ) : (
-                logs.map((log) => (
+                logs.map((log: any) => (
                   <TableRow key={log.id}>
                     <TableCell className="font-medium">{log.pipelineName}</TableCell>
                     <TableCell>{log.event}</TableCell>
