@@ -3,70 +3,121 @@
   "entities": {
     "Supplier": {
       "title": "Supplier",
-      "description": "A supplier in the network.",
+      "description": "A verified manufacturer or trading partner.",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "phone": { "type": "string" },
         "country": { "type": "string" },
-        "departments": { "type": "array", "items": { "type": "string", "enum": ["chocolate", "cosmetics", "detergents"] } },
-        "productsOffered": { "type": "array", "items": { "type": "string" } },
-        "leadTime": { "type": "number" },
-        "lastStockSubmission": { "type": "string", "format": "date-time" },
-        "contractStatus": { "type": "string", "enum": ["active", "pending", "expired"] },
-        "ratings": {
-          "type": "object",
-          "properties": {
-            "frequency": { "type": "number" },
-            "speed": { "type": "number" },
-            "price": { "type": "number" }
-          }
-        },
-        "interactionNotes": { "type": "object", "description": "Notes keyed by department ID" },
-        "notes": { "type": "string" }
+        "natureOfBusiness": { "type": "string" },
+        "departments": { "type": "array", "items": { "type": "string" } },
+        "priorityLevel": { "type": "string", "enum": ["High", "Medium", "Low"] },
+        "recordStatus": { "type": "string" },
+        "internalRating": { "type": "number" },
+        "dataCompleteness": { "type": "number" },
+        "lastUpdatedBy": { "type": "string" },
+        "lastUpdatedDate": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "email", "departments"]
     },
     "Customer": {
       "title": "Customer",
-      "description": "A lead or existing customer.",
+      "description": "A B2B buyer or prospect.",
       "type": "object",
       "properties": {
         "name": { "type": "string" },
         "email": { "type": "string", "format": "email" },
-        "phone": { "type": "string" },
         "country": { "type": "string" },
-        "departments": { "type": "array", "items": { "type": "string", "enum": ["chocolate", "cosmetics", "detergents"] } },
-        "interestedProducts": { "type": "array", "items": { "type": "string" } },
-        "lastReplyDate": { "type": "string", "format": "date-time" },
-        "accountStatus": { "type": "string", "enum": ["prospect", "active", "key account"] },
-        "ratings": {
-          "type": "object",
-          "properties": {
-            "responseTime": { "type": "number" },
-            "activity": { "type": "number" },
-            "volume": { "type": "number" }
-          }
-        },
-        "interactionNotes": { "type": "object", "description": "Notes keyed by department ID" },
-        "notes": { "type": "string" }
+        "accountStatus": { "type": "string" },
+        "accountHealth": { "type": "string" },
+        "totalRevenue": { "type": "number" },
+        "assignedManager": { "type": "string" },
+        "departments": { "type": "array", "items": { "type": "string" } },
+        "dataCompleteness": { "type": "number" }
       },
       "required": ["name", "email", "departments"]
     },
-    "UploadLog": {
-      "title": "Upload Log",
-      "description": "Record of a bulk data upload batch.",
+    "Product": {
+      "title": "Product",
+      "description": "An item in the global catalog.",
       "type": "object",
       "properties": {
-        "fileName": { "type": "string" },
-        "uploadDate": { "type": "string", "format": "date-time" },
-        "totalRows": { "type": "number" },
-        "successCount": { "type": "number" },
-        "failCount": { "type": "number" },
-        "uploadedBy": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
         "department": { "type": "string" },
-        "type": { "type": "string", "enum": ["suppliers", "buyers"] }
+        "margin": { "type": "number" },
+        "isFeatured": { "type": "boolean" }
+      }
+    },
+    "Stock": {
+      "title": "Stock",
+      "description": "Inventory availability from a specific supplier.",
+      "type": "object",
+      "properties": {
+        "productId": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "price": { "type": "number" },
+        "leadTime": { "type": "number" },
+        "department": { "type": "string" }
+      }
+    },
+    "Campaign": {
+      "title": "Campaign",
+      "description": "A marketing outreach initiative.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "status": { "type": "string" },
+        "department": { "type": "string" },
+        "type": { "type": "string" },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "sent": { "type": "number" },
+            "replied": { "type": "number" },
+            "revenue": { "type": "number" }
+          }
+        }
+      }
+    },
+    "Lead": {
+      "title": "Lead",
+      "description": "A sales opportunity in the CRM.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "company": { "type": "string" },
+        "value": { "type": "number" },
+        "stage": { "type": "string" }
+      }
+    },
+    "Purchase": {
+      "title": "Purchase",
+      "description": "A completed transaction.",
+      "type": "object",
+      "properties": {
+        "buyerName": { "type": "string" },
+        "productName": { "type": "string" },
+        "quantity": { "type": "number" },
+        "totalRevenue": { "type": "number" },
+        "netProfit": { "type": "number" },
+        "paymentStatus": { "type": "string" },
+        "deliveryStatus": { "type": "string" },
+        "date": { "type": "object" }
+      }
+    },
+    "Task": {
+      "title": "Task",
+      "description": "An operational task in the Kanban board.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" },
+        "assignee": { "type": "string" },
+        "dueDate": { "type": "string" }
       }
     }
   },
@@ -74,10 +125,13 @@
     "providers": ["google.com"]
   },
   "firestore": {
-    "/suppliers/{supplierId}": { "schema": "Supplier", "description": "Global suppliers." },
-    "/customers/{customerId}": { "schema": "Customer", "description": "Customer profiles." },
-    "/products/{productId}": { "schema": "Product", "description": "Product catalog." },
-    "/stocks/{stockId}": { "schema": "Stock", "description": "Supplier inventory entries." },
-    "/uploadLogs/{logId}": { "schema": "UploadLog", "description": "History of bulk uploads." }
+    "/suppliers/{supplierId}": { "schema": "Supplier", "description": "Supplier directory." },
+    "/customers/{customerId}": { "schema": "Customer", "description": "Buyer directory." },
+    "/products/{productId}": { "schema": "Product", "description": "Global product list." },
+    "/stocks/{stockId}": { "schema": "Stock", "description": "Inventory records." },
+    "/campaigns/{campaignId}": { "schema": "Campaign", "description": "Marketing campaigns." },
+    "/leads/{leadId}": { "schema": "Lead", "description": "CRM leads." },
+    "/purchases/{purchaseId}": { "schema": "Purchase", "description": "Order history." },
+    "/tasks/{taskId}": { "schema": "Task", "description": "Operational tasks." }
   }
 }

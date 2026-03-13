@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import { Kanban as KanbanIcon, Plus, MoreHorizontal, Clock, User, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MOCK_TASKS } from "@/lib/mock-data";
 import { useCollection, useFirestore } from "@/firebase";
-import { collection, updateDoc, doc } from "firebase/firestore";
+import { collection } from "firebase/firestore";
+import { taskService } from "@/services/task-service";
 
 const COLUMNS = ["To Do", "In Progress", "Review", "Done"];
 
@@ -28,10 +30,9 @@ export default function ProjectsPage() {
 
   const onDrop = (e: React.DragEvent, status: string) => {
     const taskId = e.dataTransfer.getData("taskId");
-    // If it's real firestore data, update it
     const task = tasks.find((t: any) => t.id === taskId);
     if (task && fbTasks.length > 0) {
-      updateDoc(doc(db, "tasks", taskId), { status });
+      taskService.updateTaskStatus(db, taskId, status);
     }
   };
 
@@ -53,7 +54,7 @@ export default function ProjectsPage() {
         </div>
         <div className="flex gap-2">
           {loading && <Loader2 className="h-4 w-4 animate-spin mt-3" />}
-          <Button>
+          <Button onClick={() => taskService.createTask(db, { title: 'New Task', status: 'To Do', priority: 'Medium', assignee: 'Unassigned', dueDate: 'TBD' })}>
             <Plus className="mr-2 h-4 w-4" /> New Task
           </Button>
         </div>
