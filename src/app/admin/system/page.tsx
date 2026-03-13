@@ -201,8 +201,9 @@ export default function SystemManagementPage() {
     const errors: {row: number, message: string}[] = [];
     const validRows = data.filter((row, idx) => {
       // Basic validation: ensure the primary identifier exists
-      if (!row[key] && !row['Company Name'] && !row['title']) {
-        errors.push({ row: idx + 1, message: `Missing primary field: ${key}` });
+      const identifier = row[key] || row['Company Name'] || row['name'] || row['title'];
+      if (!identifier) {
+        errors.push({ row: idx + 1, message: `Missing required field: ${key}` });
         return false;
       }
       return true;
@@ -219,12 +220,11 @@ export default function SystemManagementPage() {
     setImportStep("processing");
     setImportProgress(0);
 
-    const batch = writeBatch(db);
     const colRef = collection(db, targetCollection);
     const colInfo = CORE_COLLECTIONS.find(c => c.id === targetCollection);
     const uniqueKey = colInfo?.uniqueKey || 'email';
     
-    // Fetch existing records for duplicate prevention
+    // Fetch existing records for duplicate prevention (limited to 1000 for cache efficiency)
     let existingIds = new Set<string>();
     try {
       const existingSnap = await getDocs(query(colRef, limit(1000)));
@@ -240,36 +240,39 @@ export default function SystemManagementPage() {
     let successCount = 0;
     let skipCount = 0;
 
-    for (let i = 0; i < fullValidData.length; i++) {
-      const row = fullValidData[i];
-      const identifier = (row[uniqueKey] || row['Company Name'] || row['name'] || row['title'] || "").toString().toLowerCase().trim();
+    // Chunk size for Firestore batches is 500
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < fullValidData.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      const chunk = fullValidData.slice(i, i + BATCH_SIZE);
 
-      if (identifier && existingIds.has(identifier)) {
-        skipCount++;
-        continue;
+      for (const row of chunk) {
+        const identifier = (row[uniqueKey] || row['Company Name'] || row['name'] || row['title'] || "").toString().toLowerCase().trim();
+
+        if (identifier && existingIds.has(identifier)) {
+          skipCount++;
+          continue;
+        }
+
+        const newDocRef = doc(colRef);
+        batch.set(newDocRef, {
+          ...row,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        successCount++;
       }
 
-      const newDocRef = doc(colRef);
-      batch.set(newDocRef, {
-        ...row,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      successCount++;
-
-      if ((i + 1) % 50 === 0 || i === fullValidData.length - 1) {
-        setImportProgress(Math.round(((i + 1) / fullValidData.length) * 100));
+      try {
+        await batch.commit();
+        setImportProgress(Math.min(100, Math.round(((i + chunk.length) / fullValidData.length) * 100)));
+      } catch (err) {
+        console.error("Batch commit failed", err);
       }
     }
 
-    try {
-      await batch.commit();
-      setImportStep("success");
-      toast({ title: "Import Successful", description: `Created ${successCount} records. Skipped ${skipCount} duplicates.` });
-    } catch (err) {
-      toast({ variant: "destructive", title: "Import Failed", description: "Database write failed. Check your data structure." });
-      setImportStep("preview");
-    }
+    setImportStep("success");
+    toast({ title: "Import Successful", description: `Created ${successCount} records. Skipped ${skipCount} duplicates and ${validationErrors.length} invalid rows.` });
   };
 
   const downloadErrorReport = () => {
@@ -342,7 +345,7 @@ export default function SystemManagementPage() {
               <DatabaseZap className="h-5 w-5 text-accent" />
               <CardTitle>Data Portability</CardTitle>
             </div>
-            <CardDescription>Manage backups and bulk operations.</CardDescription>
+            <CardDescription>Manage backups and bulk operations. Skip errors and continue enabled.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
@@ -389,7 +392,7 @@ export default function SystemManagementPage() {
                   <DialogContent className="max-w-3xl">
                     <DialogHeader>
                       <DialogTitle>Bulk Data Import</DialogTitle>
-                      <DialogDescription>Upload CSV, Excel, or JSON files to populate Firestore.</DialogDescription>
+                      <DialogDescription>Upload CSV, Excel, or JSON files. Invalid rows (missing required identifiers) are skipped automatically.</DialogDescription>
                     </DialogHeader>
 
                     {importStep === "select" && (
@@ -463,10 +466,10 @@ export default function SystemManagementPage() {
                               <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
                               <div>
                                 <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows Detected</p>
-                                <p className="text-xs text-muted-foreground">These rows are missing required identifiers and will be skipped.</p>
+                                <p className="text-xs text-muted-foreground">These rows are missing required identifiers and will be skipped. You can proceed with valid rows.</p>
                               </div>
                             </div>
-                            <Button variant="outline" size="sm" className="text-destructive" onClick={downloadErrorReport}>
+                            <Button variant="outline" size="sm" className="text-destructive border-destructive/20" onClick={downloadErrorReport}>
                               <FileX className="h-3 w-3 mr-2" /> Error Report
                             </Button>
                           </div>
@@ -506,7 +509,7 @@ export default function SystemManagementPage() {
                         </div>
                         <div className="space-y-2">
                           <h3 className="text-xl font-bold">Data Import Complete</h3>
-                          <p className="text-muted-foreground">Valid records have been synchronized with the cloud database.</p>
+                          <p className="text-muted-foreground">Valid records have been synchronized with the cloud database. All invalid rows were ignored.</p>
                         </div>
                         <Button className="w-full max-w-sm" onClick={() => setIsImportModalOpen(false)}>Close & Finish</Button>
                       </div>

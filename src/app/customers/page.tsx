@@ -234,62 +234,63 @@ export default function CustomersPage() {
     const manager = savedUser ? JSON.parse(savedUser) : { name: "System", department: "all" };
     const currentDept = manager.department || "all";
 
-    const batch = writeBatch(db);
+    // Firestore batch limit is 500
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < fullValidData.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      const chunk = fullValidData.slice(i, i + BATCH_SIZE);
 
-    for (let i = 0; i < fullValidData.length; i++) {
-      const row = fullValidData[i];
-      const email = (row["Email"] || row["email"] || "").toString().toLowerCase().trim();
-      const name = row["Company Name"] || row["name"] || row["title"];
-      
-      const existing = customers.find(c => (c.email || "").toLowerCase().trim() === email);
-      
-      const customerData = {
-        name,
-        email,
-        country: row["Country"] || "Unknown",
-        city: row["City"] || "",
-        companyType: row["Company Type"] || "Retailer",
-        accountStatus: (row["Account Status"] || "prospect").toLowerCase(),
-        departments: [currentDept],
-        assignedManager: manager.name,
-        totalRevenue: parseFloat(row["Annual Budget"] || row["totalRevenue"]) || 0,
-        accountHealth: "healthy",
-        lastContactDate: new Date().toISOString(),
-        dataCompleteness: 50,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      for (const row of chunk) {
+        const email = (row["Email"] || row["email"] || "").toString().toLowerCase().trim();
+        const name = row["Company Name"] || row["name"] || row["title"];
+        
+        const existing = customers.find(c => (c.email || "").toLowerCase().trim() === email);
+        
+        const customerData = {
+          name,
+          email,
+          country: row["Country"] || "Unknown",
+          city: row["City"] || "",
+          companyType: row["Company Type"] || "Retailer",
+          accountStatus: (row["Account Status"] || "prospect").toLowerCase(),
+          departments: [currentDept],
+          assignedManager: manager.name,
+          totalRevenue: parseFloat(row["Annual Budget"] || row["totalRevenue"]) || 0,
+          accountHealth: "healthy",
+          lastContactDate: new Date().toISOString(),
+          dataCompleteness: 50,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        try {
+          if (existing && existing.id) {
+            if (duplicateMode === "update") {
+              const docRef = doc(db, "customers", existing.id);
+              batch.update(docRef, customerData);
+              updates++;
+            }
+          } else {
+            const newDocRef = doc(collection(db, "customers"));
+            batch.set(newDocRef, customerData);
+            success++;
+          }
+        } catch (e) {
+          failed++;
+        }
+      }
 
       try {
-        if (existing && existing.id) {
-          if (duplicateMode === "update") {
-            const docRef = doc(db, "customers", existing.id);
-            batch.update(docRef, customerData);
-            updates++;
-          }
-        } else {
-          const newDocRef = doc(collection(db, "customers"));
-          batch.set(newDocRef, customerData);
-          success++;
-        }
+        await batch.commit();
+        setImportProgress(Math.min(100, Math.round(((i + chunk.length) / fullValidData.length) * 100)));
       } catch (e) {
-        failed++;
-      }
-
-      if ((i + 1) % 50 === 0 || i === fullValidData.length - 1) {
-        setImportProgress(Math.round(((i + 1) / fullValidData.length) * 100));
+        failed += chunk.length;
       }
     }
 
-    try {
-      await batch.commit();
-      setImportResults({ success, failed, updated: updates, invalid: validationErrors.length });
-      setImportStep("success");
-      toast({ title: "Import Processed", description: `Finished processing ${fullValidData.length} valid records.` });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Import Failed", description: "Could not save to database." });
-      setImportStep("preview");
-    }
+    setImportResults({ success, failed, updated: updates, invalid: validationErrors.length });
+    setImportStep("success");
+    toast({ title: "Import Processed", description: `Finished processing ${fullValidData.length} valid records.` });
   };
 
   const resetImport = () => {
@@ -325,7 +326,7 @@ export default function CustomersPage() {
             <DialogContent className="max-w-3xl">
               <DialogHeader>
                 <DialogTitle>Import Customers</DialogTitle>
-                <DialogDescription>Bulk upload customer data from CSV, Excel, or JSON files.</DialogDescription>
+                <DialogDescription>Bulk upload customer data from CSV, Excel, or JSON files. Invalid rows will be skipped automatically.</DialogDescription>
               </DialogHeader>
 
               {importStep === "upload" && (
@@ -410,7 +411,7 @@ export default function CustomersPage() {
                         <div className="flex gap-3">
                           <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
                           <div>
-                            <p className="text-sm font-bold text-destructive">{validationErrors.length} Rows to Skip</p>
+                            <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows to Skip</p>
                             <p className="text-xs text-muted-foreground">These rows have missing required fields (Company Name/Email) and will be ignored.</p>
                             <ul className="mt-2 space-y-1">
                               {validationErrors.slice(0, 3).map((err, i) => (
@@ -421,7 +422,7 @@ export default function CustomersPage() {
                           </div>
                         </div>
                         <Button variant="outline" size="sm" className="text-destructive border-destructive/20" onClick={downloadErrorReport}>
-                          <FileX className="h-3 w-3 mr-2" /> Error Report
+                          <FileX className="h-3 w-3 mr-2" /> Download Error Report
                         </Button>
                       </div>
                     )}
@@ -467,7 +468,7 @@ export default function CustomersPage() {
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-xl font-bold">Import Complete</h3>
-                    <p className="text-muted-foreground">Records have been processed and saved to Firestore.</p>
+                    <p className="text-muted-foreground">Valid records have been processed and saved to Firestore. Invalid rows were skipped.</p>
                   </div>
                   <div className="grid grid-cols-4 gap-4 max-w-xl mx-auto">
                     <div className="p-3 bg-secondary/30 rounded-lg">
