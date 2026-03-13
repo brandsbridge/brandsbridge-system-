@@ -2,7 +2,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Search, Edit, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Plus, Search, Edit, Trash2, ExternalLink } from "lucide-react";
 import { 
   Table, 
   TableBody, 
@@ -122,14 +123,18 @@ export default function SuppliersPage() {
               <TableHead>Contact</TableHead>
               <TableHead>Country</TableHead>
               <TableHead>Stocks</TableHead>
-              <TableHead>Products</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredSuppliers.map((supplier) => (
               <TableRow key={supplier.id}>
-                <TableCell className="font-medium">{supplier.name}</TableCell>
+                <TableCell>
+                  <Link href={`/suppliers/${supplier.id}`} className="font-medium hover:text-primary flex items-center gap-1 group">
+                    {supplier.name}
+                    <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </Link>
+                </TableCell>
                 <TableCell>
                   <div className="text-sm">{supplier.email}</div>
                   <div className="text-xs text-muted-foreground">{supplier.phone}</div>
@@ -139,13 +144,6 @@ export default function SuppliersPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{getStockCount(supplier.id)}</span>
                     <span className="text-xs text-muted-foreground">entries</span>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1">
-                    {supplier.productsOffered?.map((p: string) => (
-                      <Badge key={p} variant="secondary" className="text-[10px]">{p}</Badge>
-                    ))}
                   </div>
                 </TableCell>
                 <TableCell className="text-right">

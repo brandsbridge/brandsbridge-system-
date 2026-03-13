@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import Link from "next/link";
 import { 
   Star, 
   Mail, 
@@ -12,7 +13,8 @@ import {
   Upload,
   Info,
   Users as UsersIcon,
-  Share2
+  Share2,
+  ExternalLink
 } from "lucide-react";
 import { 
   Table, 
@@ -44,7 +46,6 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { MOCK_SUPPLIERS, MOCK_CUSTOMERS, MOCK_PRODUCTS, MOCK_STOCKS } from "@/lib/mock-data";
-import Link from "next/link";
 
 interface Props {
   departmentId: string;
@@ -63,7 +64,6 @@ const StarRating = ({ rating }: { rating: number }) => (
 export function DepartmentPage({ departmentId, name, manager }: Props) {
   const [activeTab, setActiveTab] = useState("suppliers");
 
-  // Data Isolation: Filter by departments array
   const suppliers = useMemo(() => MOCK_SUPPLIERS.filter(s => s.departments.includes(departmentId)), [departmentId]);
   const buyers = useMemo(() => MOCK_CUSTOMERS.filter(c => c.departments.includes(departmentId)), [departmentId]);
   const products = useMemo(() => MOCK_PRODUCTS.filter(p => p.department === departmentId), [departmentId]);
@@ -200,7 +200,10 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
                   <TableRow key={s.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="font-medium">{s.name}</div>
+                        <Link href={`/suppliers/${s.id}`} className="font-medium hover:text-primary flex items-center gap-1 group">
+                          {s.name}
+                          <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </Link>
                         {s.departments.length > 1 && (
                           <TooltipProvider>
                             <Tooltip>
@@ -253,7 +256,10 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
                   <TableRow key={b.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <div className="font-medium">{b.name}</div>
+                        <Link href={`/customers/${b.id}`} className="font-medium hover:text-primary flex items-center gap-1 group">
+                          {b.name}
+                          <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </Link>
                         {b.departments.length > 1 && (
                           <Badge variant="outline" className="text-[8px] flex items-center gap-1 border-accent text-accent">
                             <Share2 className="h-2 w-2" /> Shared

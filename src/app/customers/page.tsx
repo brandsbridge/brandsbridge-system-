@@ -2,7 +2,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Search, User, Mail, Phone, Trash2, Edit } from "lucide-react";
+import Link from "next/link";
+import { Plus, Search, User, Mail, Phone, Trash2, Edit, ExternalLink } from "lucide-react";
 import { 
   Table, 
   TableBody, 
@@ -108,10 +109,12 @@ export default function CustomersPage() {
                       <User className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div>
-                      <div className="font-medium">{customer.name}</div>
+                      <Link href={`/customers/${customer.id}`} className="font-medium hover:text-primary flex items-center gap-1 group">
+                        {customer.name}
+                        <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </Link>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {customer.email}</span>
-                        <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {customer.phone}</span>
                       </div>
                     </div>
                   </div>
