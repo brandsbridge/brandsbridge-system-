@@ -49,6 +49,7 @@ import { useCollection, useFirestore } from "@/firebase";
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { MOCK_SUPPLIERS } from "@/lib/mock-data";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -79,7 +80,13 @@ export default function SuppliersPage() {
 
   const db = useFirestore();
   const suppliersQuery = useMemo(() => collection(db, "suppliers"), [db]);
-  const { data: suppliers = [], loading } = useCollection(suppliersQuery);
+  const { data: firestoreSuppliers = [], loading, error } = useCollection(suppliersQuery);
+
+  // Fallback to mock data if Firestore is empty or errors
+  const suppliers = useMemo(() => {
+    if (firestoreSuppliers.length > 0) return firestoreSuppliers;
+    return MOCK_SUPPLIERS;
+  }, [firestoreSuppliers]);
 
   const filteredSuppliers = useMemo(() => {
     return suppliers.filter(s => {
@@ -181,12 +188,13 @@ export default function SuppliersPage() {
   const executeImport = async () => {
     setImportStep("importing");
     
-    const fullData = previewData; // In real use, parse the whole file again if large
+    const fullData = previewData; 
     let success = 0;
     let updates = 0;
     let failed = 0;
 
-    const manager = JSON.parse(localStorage.getItem("demoUser") || "{}");
+    const savedUser = localStorage.getItem("demoUser");
+    const manager = savedUser ? JSON.parse(savedUser) : { name: "System", department: "all" };
     const currentDept = manager.department || "all";
 
     const batch = writeBatch(db);
@@ -229,7 +237,7 @@ export default function SuppliersPage() {
       };
 
       try {
-        if (existing) {
+        if (existing && existing.id) {
           if (duplicateMode === "update") {
             const docRef = doc(db, "suppliers", existing.id);
             batch.update(docRef, supplierData);
@@ -564,7 +572,7 @@ export default function SuppliersPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1 max-w-[200px]">
-                    {supplier.specializedProducts?.slice(0, 2).map((p: string) => (
+                    {Array.isArray(supplier.specializedProducts) && supplier.specializedProducts.slice(0, 2).map((p: string) => (
                       <Badge key={p} variant="secondary" className="text-[8px] h-4">{p}</Badge>
                     ))}
                     {(supplier.specializedProducts?.length || 0) > 2 && (

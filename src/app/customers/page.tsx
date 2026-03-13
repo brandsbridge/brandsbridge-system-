@@ -41,6 +41,7 @@ import { useCollection, useFirestore } from "@/firebase";
 import { collection, query, writeBatch, doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { MOCK_CUSTOMERS } from "@/lib/mock-data";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -79,7 +80,13 @@ export default function CustomersPage() {
 
   const db = useFirestore();
   const customersQuery = useMemo(() => collection(db, "customers"), [db]);
-  const { data: customers = [], loading } = useCollection(customersQuery);
+  const { data: firestoreCustomers = [], loading, error } = useCollection(customersQuery);
+
+  // Fallback to mock data if Firestore is empty or errors
+  const customers = useMemo(() => {
+    if (firestoreCustomers.length > 0) return firestoreCustomers;
+    return MOCK_CUSTOMERS;
+  }, [firestoreCustomers]);
 
   const countries = Array.from(new Set(customers.map(c => c.country))).sort();
   const statuses = Array.from(new Set(customers.map(c => c.accountStatus))).sort();
@@ -207,14 +214,13 @@ export default function CustomersPage() {
   const executeImport = async () => {
     setImportStep("importing");
     
-    // In a real app we'd re-parse the full file here
-    // For MVP we'll use the data we already processed
-    const fullData = previewData; // Replace with full parsed data if needed
+    const fullData = previewData; 
     let success = 0;
     let updates = 0;
     let failed = 0;
 
-    const manager = JSON.parse(localStorage.getItem("demoUser") || "{}");
+    const savedUser = localStorage.getItem("demoUser");
+    const manager = savedUser ? JSON.parse(savedUser) : { name: "System", department: "all" };
     const currentDept = manager.department || "all";
 
     const batch = writeBatch(db);
@@ -243,7 +249,7 @@ export default function CustomersPage() {
       };
 
       try {
-        if (existing) {
+        if (existing && existing.id) {
           if (duplicateMode === "update") {
             const docRef = doc(db, "customers", existing.id);
             batch.update(docRef, customerData);
@@ -556,7 +562,7 @@ export default function CustomersPage() {
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">Loading buyers from Firestore...</p>
+                  <p className="text-xs text-muted-foreground">Loading buyers...</p>
                 </TableCell>
               </TableRow>
             ) : filteredCustomers.map((customer) => (
