@@ -1,8 +1,7 @@
-
 "use client";
 
 import React, { useMemo } from "react";
-import { Target, TrendingUp, Users, ArrowRight } from "lucide-react";
+import { Target, TrendingUp, Users, ArrowRight, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -16,25 +15,32 @@ import {
   Cell
 } from "recharts";
 import { MOCK_LEADS } from "@/lib/mock-data";
+import { useCollection, useFirestore } from "@/firebase";
+import { collection } from "firebase/firestore";
 
 const STAGES = ["Lead", "Contacted", "Negotiating", "Closed Won", "Closed Lost"];
 const COLORS = ['#94A3B8', '#6366F1', '#F59E0B', '#10B981', '#EF4444'];
 
 export default function CRMPage() {
+  const db = useFirestore();
+  const { data: fbLeads = [], loading } = useCollection(collection(db, "leads"));
+
+  const leads = fbLeads.length > 0 ? fbLeads : MOCK_LEADS;
+
   const funnelData = useMemo(() => {
     return STAGES.map(stage => ({
       stage,
-      count: MOCK_LEADS.filter(l => l.stage === stage).length
+      count: leads.filter((l: any) => l.stage === stage).length
     }));
-  }, []);
+  }, [leads]);
 
-  const totalValue = MOCK_LEADS.filter(l => l.stage === 'Closed Won').reduce((sum, l) => sum + l.value, 0);
+  const totalValue = leads.filter((l: any) => l.stage === 'Closed Won').reduce((sum: number, l: any) => sum + (l.value || 0), 0);
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight font-headline">Sales CRM</h1>
-        <p className="text-muted-foreground">Manage your sales pipeline and track conversions.</p>
+        <p className="text-muted-foreground">Manage your sales pipeline and track conversions from Firestore.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -44,7 +50,7 @@ export default function CRMPage() {
             <TrendingUp className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${MOCK_LEADS.reduce((sum, l) => sum + l.value, 0).toLocaleString()}</div>
+            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">${leads.reduce((sum: number, l: any) => sum + (l.value || 0), 0).toLocaleString()}</div>}
           </CardContent>
         </Card>
         <Card>
@@ -62,7 +68,7 @@ export default function CRMPage() {
             <Users className="h-4 w-4 text-indigo-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{MOCK_LEADS.length}</div>
+            <div className="text-2xl font-bold">{leads.length}</div>
           </CardContent>
         </Card>
       </div>
@@ -102,18 +108,21 @@ export default function CRMPage() {
                 <div key={stage} className="min-w-[200px] flex-1 flex flex-col gap-3">
                   <div className="flex items-center justify-between px-1">
                     <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{stage}</span>
-                    <Badge variant="outline" className="text-[10px]">{MOCK_LEADS.filter(l => l.stage === stage).length}</Badge>
+                    <Badge variant="outline" className="text-[10px]">{leads.filter((l: any) => l.stage === stage).length}</Badge>
                   </div>
                   <div className="space-y-2">
-                    {MOCK_LEADS.filter(l => l.stage === stage).map(lead => (
+                    {leads.filter((l: any) => l.stage === stage).map((lead: any) => (
                       <div key={lead.id} className="p-3 rounded-lg border bg-card/50 text-xs flex flex-col gap-1 shadow-sm">
                         <span className="font-semibold">{lead.name}</span>
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">{lead.company}</span>
-                          <span className="font-bold text-accent">${lead.value.toLocaleString()}</span>
+                          <span className="font-bold text-accent">${(lead.value || 0).toLocaleString()}</span>
                         </div>
                       </div>
                     ))}
+                    {leads.filter((l: any) => l.stage === stage).length === 0 && (
+                      <div className="text-[10px] text-muted-foreground text-center py-4 border border-dashed rounded-lg">No leads</div>
+                    )}
                   </div>
                   {idx < STAGES.length - 1 && (
                     <div className="hidden lg:flex items-center justify-center py-2">

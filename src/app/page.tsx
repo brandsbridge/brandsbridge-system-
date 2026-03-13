@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useEffect, useState } from "react";
@@ -12,7 +11,8 @@ import {
   Upload,
   ArrowRight,
   ShieldCheck,
-  TrendingUp
+  TrendingUp,
+  Loader2
 } from "lucide-react";
 import { 
   XAxis, 
@@ -38,12 +38,20 @@ import {
 } from "@/lib/mock-data";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useCollection, useFirestore } from "@/firebase";
+import { collection } from "firebase/firestore";
 
 const COLORS = ['#755EDE', '#5182E0', '#F59E0B', '#EF4444'];
 
 export default function OverviewPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
+  const db = useFirestore();
+
+  // Firestore Collections
+  const { data: fbSuppliers = [], loading: loadingSuppliers } = useCollection(collection(db, "suppliers"));
+  const { data: fbCustomers = [], loading: loadingCustomers } = useCollection(collection(db, "customers"));
+  const { data: fbUploadLogs = [], loading: loadingLogs } = useCollection(collection(db, "uploadLogs"));
 
   useEffect(() => {
     const savedUser = localStorage.getItem("demoUser");
@@ -61,35 +69,39 @@ export default function OverviewPage() {
 
   const currentDept = currentUser?.department || 'all';
 
-  const mySuppliers = useMemo(() => 
-    currentDept === 'all' ? MOCK_SUPPLIERS : MOCK_SUPPLIERS.filter(s => s.departments.includes(currentDept))
-  , [currentDept]);
+  const suppliers = useMemo(() => {
+    const list = fbSuppliers.length > 0 ? fbSuppliers : MOCK_SUPPLIERS;
+    return currentDept === 'all' ? list : list.filter((s: any) => s.departments?.includes(currentDept));
+  }, [fbSuppliers, currentDept]);
 
-  const myBuyers = useMemo(() => 
-    currentDept === 'all' ? MOCK_CUSTOMERS : MOCK_CUSTOMERS.filter(c => c.departments.includes(currentDept))
-  , [currentDept]);
+  const customers = useMemo(() => {
+    const list = fbCustomers.length > 0 ? fbCustomers : MOCK_CUSTOMERS;
+    return currentDept === 'all' ? list : list.filter((c: any) => c.departments?.includes(currentDept));
+  }, [fbCustomers, currentDept]);
 
   const sharedWithMe = useMemo(() => 
-    [...mySuppliers, ...myBuyers].filter(e => e.departments.length > 1)
-  , [mySuppliers, myBuyers]);
+    [...suppliers, ...customers].filter((e: any) => e.departments?.length > 1)
+  , [suppliers, customers]);
 
   const responseTypes = useMemo(() => [
-    { name: 'Active', value: myBuyers.filter(b => b.accountStatus === 'active').length },
-    { name: 'Key Account', value: myBuyers.filter(b => b.accountStatus === 'key account').length },
-    { name: 'Prospect', value: myBuyers.filter(b => b.accountStatus === 'prospect').length },
-  ], [myBuyers]);
+    { name: 'Active', value: customers.filter((b: any) => b.accountStatus === 'active').length },
+    { name: 'Key Account', value: customers.filter((b: any) => b.accountStatus === 'key account').length },
+    { name: 'Prospect', value: customers.filter((b: any) => b.accountStatus === 'prospect').length },
+  ], [customers]);
 
   const kpis = [
-    { title: "Total Suppliers", value: mySuppliers.length, icon: Factory, color: "text-blue-500" },
-    { title: "Total Buyers", value: myBuyers.length, icon: Users, color: "text-purple-500" },
-    { title: "Shared Clients", value: sharedWithMe.length, icon: Share2, color: "text-accent" },
-    { title: "Engagement", value: "88%", icon: Clock, color: "text-orange-500" },
-    { title: "System Health", value: "Optimal", icon: ShieldCheck, color: "text-green-500" },
+    { title: "Total Suppliers", value: suppliers.length, icon: Factory, color: "text-blue-500", loading: loadingSuppliers },
+    { title: "Total Buyers", value: customers.length, icon: Users, color: "text-purple-500", loading: loadingCustomers },
+    { title: "Shared Clients", value: sharedWithMe.length, icon: Share2, color: "text-accent", loading: loadingSuppliers || loadingCustomers },
+    { title: "Engagement", value: "88%", icon: Clock, color: "text-orange-500", loading: false },
+    { title: "System Health", value: "Optimal", icon: ShieldCheck, color: "text-green-500", loading: false },
   ];
 
-  const recentUploads = useMemo(() => 
-    currentDept === 'all' ? MOCK_UPLOAD_LOGS.slice(0, 3) : MOCK_UPLOAD_LOGS.filter(l => l.department === currentDept).slice(0, 3)
-  , [currentDept]);
+  const recentUploads = useMemo(() => {
+    const list = fbUploadLogs.length > 0 ? fbUploadLogs : MOCK_UPLOAD_LOGS;
+    const filtered = currentDept === 'all' ? list : list.filter((l: any) => l.department === currentDept);
+    return filtered.slice(0, 5);
+  }, [fbUploadLogs, currentDept]);
 
   if (!currentUser || (currentUser.role === 'manager' && currentUser.department !== 'all')) return null;
 
@@ -120,7 +132,11 @@ export default function OverviewPage() {
               <kpi.icon className={cn("h-4 w-4", kpi.color)} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{kpi.value}</div>
+              {kpi.loading ? (
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              ) : (
+                <div className="text-2xl font-bold">{kpi.value}</div>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -138,28 +154,39 @@ export default function OverviewPage() {
             </Link>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Market</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Manager</TableHead>
-                  <TableHead>Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentUploads.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>
-                       <Badge variant="outline" className="capitalize">{log.department}</Badge>
-                    </TableCell>
-                    <TableCell className="font-medium text-xs">Bulk Import: {log.fileName}</TableCell>
-                    <TableCell className="text-xs font-bold">{log.uploadedBy}</TableCell>
-                    <TableCell className="text-[10px] text-muted-foreground">{formatFirebaseTimestamp(log.uploadDate)}</TableCell>
+            {loadingLogs ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Market</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Manager</TableHead>
+                    <TableHead>Date</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {recentUploads.map((log: any) => (
+                    <TableRow key={log.id}>
+                      <TableCell>
+                         <Badge variant="outline" className="capitalize">{log.department}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium text-xs">Bulk Import: {log.fileName}</TableCell>
+                      <TableCell className="text-xs font-bold">{log.uploadedBy}</TableCell>
+                      <TableCell className="text-[10px] text-muted-foreground">{formatFirebaseTimestamp(log.uploadDate)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {recentUploads.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No recent activity</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
 

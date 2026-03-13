@@ -1,11 +1,10 @@
-
 "use client";
 
 import React, { useMemo } from "react";
 import { 
   CreditCard, DollarSign, TrendingUp, ShoppingBag, 
   ArrowUpRight, ArrowDownRight, Package, Truck, 
-  BarChart3, PieChart as PieIcon 
+  BarChart3, PieChart as PieIcon, Loader2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -20,25 +19,32 @@ import {
 import { MOCK_PURCHASES } from "@/lib/mock-data";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
+import { useCollection, useFirestore } from "@/firebase";
+import { collection } from "firebase/firestore";
 
 const COLORS = ['#755EDE', '#5182E0', '#F59E0B'];
 
 export default function PurchasesPage() {
+  const db = useFirestore();
+  const { data: fbPurchases = [], loading } = useCollection(collection(db, "purchases"));
+
+  const purchases = fbPurchases.length > 0 ? fbPurchases : MOCK_PURCHASES;
+
   const totals = useMemo(() => {
-    const revenue = MOCK_PURCHASES.reduce((acc, p) => acc + p.totalRevenue, 0);
-    const profit = MOCK_PURCHASES.reduce((acc, p) => acc + p.netProfit, 0);
-    const avgDeal = revenue / (MOCK_PURCHASES.length || 1);
+    const revenue = purchases.reduce((acc: number, p: any) => acc + (p.totalRevenue || 0), 0);
+    const profit = purchases.reduce((acc: number, p: any) => acc + (p.netProfit || 0), 0);
+    const avgDeal = revenue / (purchases.length || 1);
     
     return { revenue, profit, avgDeal };
-  }, []);
+  }, [purchases]);
 
   const departmentData = useMemo(() => {
     const data: Record<string, number> = {};
-    MOCK_PURCHASES.forEach(p => {
-      data[p.department] = (data[p.department] || 0) + p.totalRevenue;
+    purchases.forEach((p: any) => {
+      data[p.department] = (data[p.department] || 0) + (p.totalRevenue || 0);
     });
     return Object.entries(data).map(([name, value]) => ({ name, value }));
-  }, []);
+  }, [purchases]);
 
   const trendData = [
     { month: 'Jan', revenue: 45000, profit: 9000 },
@@ -51,9 +57,12 @@ export default function PurchasesPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight font-headline">Fulfillment & Purchases</h1>
-        <p className="text-muted-foreground">Global transactional overview and financial auditing.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">Fulfillment & Purchases</h1>
+          <p className="text-muted-foreground">Global transactional overview synchronized with Firestore.</p>
+        </div>
+        {loading && <Loader2 className="h-6 w-6 animate-spin text-primary" />}
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -83,7 +92,7 @@ export default function PurchasesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-accent">${totals.avgDeal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Based on {MOCK_PURCHASES.length} transactions</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Based on {purchases.length} transactions</p>
           </CardContent>
         </Card>
         <Card>
@@ -100,7 +109,7 @@ export default function PurchasesPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Financial Trend (Last 6 Months)</CardTitle>
+            <CardTitle>Financial Trend (Static Target)</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -160,7 +169,7 @@ export default function PurchasesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {MOCK_PURCHASES.map(purchase => (
+            {purchases.map((purchase: any) => (
               <TableRow key={purchase.id}>
                 <TableCell className="text-[10px] text-muted-foreground">
                   {formatFirebaseTimestamp(purchase.date)}
@@ -174,8 +183,8 @@ export default function PurchasesPage() {
                   <div className="text-[10px] text-muted-foreground">Qty: {purchase.quantity}</div>
                 </TableCell>
                 <TableCell>
-                  <div className="text-xs font-bold text-accent">${purchase.totalRevenue.toLocaleString()}</div>
-                  <div className="text-[10px] text-green-500 font-medium">+${purchase.netProfit.toLocaleString()} Profit</div>
+                  <div className="text-xs font-bold text-accent">${(purchase.totalRevenue || 0).toLocaleString()}</div>
+                  <div className="text-[10px] text-green-500 font-medium">+${(purchase.netProfit || 0).toLocaleString()} Profit</div>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1">
@@ -192,6 +201,11 @@ export default function PurchasesPage() {
                 </TableCell>
               </TableRow>
             ))}
+            {purchases.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No purchase records found.</TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </Card>

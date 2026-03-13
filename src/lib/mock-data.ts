@@ -18,6 +18,7 @@ export interface Employee {
 }
 
 export const DEMO_USERS: Employee[] = [
+  { id: 'u-saleh', name: 'Saleh Admin', email: 'saleh@gmail.com', role: 'admin', department: 'all', status: 'active', joinDate: '2024-03-13', lastLogin: new Date().toISOString() },
   { id: 'u-admin', name: 'Alex Johnson', email: 'admin@brandsbridge.com', role: 'admin', department: 'all', status: 'active', joinDate: '2022-01-15', lastLogin: '2024-05-20T10:30:00Z' },
   { id: 'u-choc-mgr', name: 'Sarah Mitchell', email: 'sarah.m@brandsbridge.com', role: 'manager', department: 'chocolate', status: 'active', joinDate: '2022-03-10', lastLogin: '2024-05-21T09:15:00Z' },
   { id: 'u-choc-sales1', name: 'James Carter', email: 'james.c@brandsbridge.com', role: 'manager', department: 'chocolate', status: 'active', joinDate: '2023-01-05', lastLogin: '2024-05-20T14:45:00Z' },
@@ -75,7 +76,7 @@ export interface Supplier {
     samplePolicy: string;
   };
   strategicNotes: string;
-  recordStatus: 'Active - Verified' | 'Active - Pending Verification' | 'Under Review' | 'Inactive' | 'Blacklisted' | 'Checking Data';
+  recordStatus: string;
   priorityLevel: 'High' | 'Medium' | 'Low';
   internalRating: number;
   dataCompleteness: number;
@@ -189,7 +190,7 @@ export interface Customer {
     shippingMethod: string;
     specialRequirements: string;
   };
-  accountStatus: 'prospect' | 'active' | 'key account' | 'dormant' | 'at risk' | 'churned' | 'blacklisted';
+  accountStatus: string;
   accountPriority: 'High' | 'Medium' | 'Low';
   assignedManager: string;
   assignedSales: string;
@@ -205,7 +206,7 @@ export interface Customer {
   lastContactDate: string;
   lastPurchaseDate: string;
   totalRevenue: number;
-  accountHealth: 'healthy' | 'at risk' | 'dormant' | 'churned';
+  accountHealth: string;
   ratings: { responseTime: number; activity: number; volume: number };
   interestedProducts: string[];
 }
@@ -273,69 +274,6 @@ export const MOCK_CUSTOMERS: Customer[] = [
     accountHealth: 'healthy',
     ratings: { responseTime: 5, activity: 5, volume: 4 },
     interestedProducts: ['Milk Choc']
-  },
-  {
-    id: 'c-shared',
-    name: 'EuroRetail Group',
-    email: 'purchasing@euroretail.eu',
-    country: 'Netherlands',
-    city: 'Amsterdam',
-    flag: '🇳🇱',
-    departments: ['chocolate', 'cosmetics'],
-    companyType: 'Distributor',
-    natureOfBusiness: 'Pan-European consumer goods distributor',
-    yearEstablished: 1985,
-    companySize: '200+ employees',
-    website: 'https://euroretail.eu',
-    socialLinks: { linkedin: 'linkedin.com/group/euroretail' },
-    contacts: {
-      primary: { name: 'Hans De Vries', designation: 'Purchasing Manager', email: 'hans@euroretail.eu', phone: '+31 20 123 4567', whatsapp: '+31 6 123 45678', preferredTime: 'Morning', language: 'English, Dutch' },
-      secondary: { name: 'Elena Petrova', designation: 'Logistics', email: 'elena@euroretail.eu', phone: '+31 20 123 4569', whatsapp: '' },
-      finance: { name: 'Mark Jansen', designation: 'Accounts', email: 'invoice@euroretail.eu', phone: '+31 20 123 4500' }
-    },
-    interests: {
-      categories: ['chocolate', 'cosmetics'],
-      products: ['Raw Cocoa', 'Hyaluronic Acid', 'Shea Butter'],
-      brands: [],
-      quality: 'Mid-Range',
-      certifications: ['Organic', 'ISO']
-    },
-    buyingBehavior: {
-      frequency: 'Quarterly',
-      valueRange: '$50K+',
-      typicalQuantity: '5 Tons',
-      seasonalMonths: ['January', 'June'],
-      decisionTime: 'Slow 1-3 months',
-      priceSensitivity: 'Very Price Sensitive',
-      foundVia: 'Cold Outreach'
-    },
-    commercial: {
-      paymentTerms: ['TT 30 days', 'Open Account'],
-      currency: 'EUR',
-      incoterms: ['FOB', 'CIF'],
-      destination: 'Rotterdam Port',
-      shippingMethod: 'Sea',
-      specialRequirements: ''
-    },
-    accountStatus: 'key account',
-    accountPriority: 'High',
-    assignedManager: 'David Rahman',
-    assignedSales: 'Emma Davis',
-    internalRating: 4,
-    recordStatus: 'Active - Verified',
-    dataCompleteness: 85,
-    overview: 'One of the largest European distributors with a massive network across 12 countries.',
-    targetMarkets: ['EU', 'Eastern Europe'],
-    keyProducts: ['Private Label Confectionery', 'Skincare'],
-    competitiveAdvantages: ['Huge network', 'Strong logistics'],
-    strategicImportance: 'High volume account, key for moving large stocks.',
-    strategicNotes: 'Always negotiates hard on price. Volume is their leverage.',
-    lastContactDate: '2024-05-18T09:00:00Z',
-    lastPurchaseDate: '2024-04-10T11:00:00Z',
-    totalRevenue: 450000,
-    accountHealth: 'healthy',
-    ratings: { responseTime: 5, activity: 5, volume: 5 },
-    interestedProducts: ['Milk Choc', 'Serum']
   },
 ];
 
