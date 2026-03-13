@@ -23,7 +23,9 @@ import {
   Target,
   Cookie,
   Sparkles,
-  Droplets
+  Droplets,
+  Upload,
+  ShieldCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,12 +40,15 @@ import {
 
 const navigation = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
+  { type: 'separator', label: 'Market Segments' },
   { name: "Chocolate Market", href: "/department/chocolate", icon: Cookie },
   { name: "Cosmetics Market", href: "/department/cosmetics", icon: Sparkles },
   { name: "Detergents Market", href: "/department/detergents", icon: Droplets },
-  { type: 'separator' },
+  { type: 'separator', label: 'Management' },
   { name: "Suppliers", href: "/suppliers", icon: Factory },
   { name: "Customers", href: "/customers", icon: Users },
+  { name: "Bulk Uploads", href: "/uploads", icon: Upload },
+  { type: 'separator', label: 'Operations' },
   { name: "Invoices", href: "/invoices", icon: FileText },
   { name: "Inventory", href: "/inventory", icon: Package },
   { name: "Employees", href: "/employees", icon: Briefcase },
@@ -52,6 +57,8 @@ const navigation = [
   { name: "Best Offers", href: "/offers", icon: Trophy },
   { name: "Responses", href: "/responses", icon: MessageSquare },
   { name: "Automation", href: "/automation", icon: Terminal },
+  { type: 'separator', label: 'Admin' },
+  { name: "Shared Clients", href: "/admin/shared-clients", icon: ShieldCheck },
 ];
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -67,10 +74,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <span className="text-xl font-bold tracking-tight font-headline">BizFlow</span>
           </Link>
         </div>
-        <nav className="space-y-1 p-4 overflow-y-auto h-[calc(100vh-64px)]">
+        <nav className="space-y-1 p-4 overflow-y-auto h-[calc(100vh-64px)] custom-scrollbar">
           {navigation.map((item, idx) => (
             item.type === 'separator' ? (
-              <div key={idx} className="my-4 h-px bg-border" />
+              <div key={idx} className="mt-6 mb-2">
+                <span className="px-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">{item.label}</span>
+                <div className="mt-2 h-px bg-border/50" />
+              </div>
             ) : (
               <Link
                 key={item.name}
@@ -100,29 +110,24 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search everything..."
+                placeholder="Search across all departments..."
                 className="w-64 pl-9 md:w-80 lg:w-96"
               />
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="relative">
+            <Link href="/uploads">
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary">
+                <Upload className="h-5 w-5" />
+              </Button>
+            </Link>
+            <Button variant="ghost" size="icon" className="relative text-muted-foreground">
               <Bell className="h-5 w-5" />
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive"></span>
+              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-destructive animate-pulse"></span>
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                  <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>Light</DropdownMenuItem>
-                <DropdownMenuItem>Dark</DropdownMenuItem>
-                <DropdownMenuItem>System</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold border border-primary/30">
+              M1
+            </div>
           </div>
         </header>
 
