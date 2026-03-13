@@ -146,9 +146,197 @@ export const MOCK_SUPPLIERS: Supplier[] = [
   }
 ];
 
-export const MOCK_CUSTOMERS = [
-  { id: 'c1', name: 'Sweet Tooth Retail', email: 'buyer@sweettooth.com', country: 'UK', departments: ['chocolate'], interestedProducts: ['Milk Choc'], accountStatus: 'active', ratings: { responseTime: 5, activity: 5, volume: 4 } },
-  { id: 'c-shared', name: 'EuroRetail Group', email: 'purchasing@euroretail.eu', country: 'Netherlands', departments: ['chocolate', 'cosmetics'], interestedProducts: ['Milk Choc', 'Serum'], accountStatus: 'key account', ratings: { responseTime: 5, activity: 5, volume: 5 } },
+export interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  country: string;
+  city: string;
+  flag: string;
+  departments: string[];
+  companyType: string;
+  natureOfBusiness: string;
+  yearEstablished: number;
+  companySize: string;
+  website: string;
+  socialLinks: { linkedin?: string; instagram?: string; facebook?: string; whatsapp?: string };
+  contacts: {
+    primary: { name: string; designation: string; email: string; phone: string; whatsapp: string; linkedin?: string; preferredTime: string; language: string };
+    secondary: { name: string; designation: string; email: string; phone: string; whatsapp: string };
+    finance: { name: string; designation: string; email: string; phone: string };
+  };
+  interests: {
+    categories: string[];
+    products: string[];
+    brands: string[];
+    quality: string;
+    certifications: string[];
+  };
+  buyingBehavior: {
+    frequency: string;
+    valueRange: string;
+    typicalQuantity: string;
+    seasonalMonths: string[];
+    decisionTime: string;
+    priceSensitivity: string;
+    foundVia: string;
+  };
+  commercial: {
+    paymentTerms: string[];
+    currency: string;
+    incoterms: string[];
+    destination: string;
+    shippingMethod: string;
+    specialRequirements: string;
+  };
+  accountStatus: 'prospect' | 'active' | 'key account' | 'dormant' | 'at risk' | 'churned' | 'blacklisted';
+  accountPriority: 'High' | 'Medium' | 'Low';
+  assignedManager: string;
+  assignedSales: string;
+  internalRating: number;
+  recordStatus: string;
+  dataCompleteness: number;
+  overview: string;
+  targetMarkets: string[];
+  keyProducts: string[];
+  competitiveAdvantages: string[];
+  strategicImportance: string;
+  strategicNotes: string;
+  lastContactDate: string;
+  lastPurchaseDate: string;
+  totalRevenue: number;
+  accountHealth: 'healthy' | 'at risk' | 'dormant' | 'churned';
+  ratings: { responseTime: number; activity: number; volume: number };
+  interestedProducts: string[];
+}
+
+export const MOCK_CUSTOMERS: Customer[] = [
+  {
+    id: 'c1',
+    name: 'Sweet Tooth Retail',
+    email: 'purchasing@sweettooth.com',
+    country: 'UAE',
+    city: 'Dubai',
+    flag: '🇦🇪',
+    departments: ['chocolate'],
+    companyType: 'Supermarket Chain',
+    natureOfBusiness: 'Retail distribution of high-end confectionery',
+    yearEstablished: 2010,
+    companySize: '200+ employees',
+    website: 'https://sweettooth.ae',
+    socialLinks: { linkedin: 'linkedin.com/company/sweettooth', instagram: 'instagram.com/sweettooth_ae' },
+    contacts: {
+      primary: { name: 'Mariam Al-Farsi', designation: 'Procurement Director', email: 'mariam@sweettooth.ae', phone: '+971 50 123 4567', whatsapp: '+971 50 123 4567', preferredTime: '09:00 - 11:00 AM', language: 'Arabic, English' },
+      secondary: { name: 'John Doe', designation: 'Operations Manager', email: 'john@sweettooth.ae', phone: '+971 50 123 4568', whatsapp: '+971 50 123 4568' },
+      finance: { name: 'Sarah Smith', designation: 'Finance Manager', email: 'accounts@sweettooth.ae', phone: '+971 4 555 6666' }
+    },
+    interests: {
+      categories: ['chocolate'],
+      products: ['Milk Chocolate', 'Dark Chocolate 70%', 'Cocoa Butter'],
+      brands: ['Lindt', 'Godiva', 'Local Premium'],
+      quality: 'Premium',
+      certifications: ['Halal', 'ISO']
+    },
+    buyingBehavior: {
+      frequency: 'Monthly',
+      valueRange: '$5K-20K',
+      typicalQuantity: '500 KG',
+      seasonalMonths: ['December', 'April', 'October'],
+      decisionTime: 'Fast <1 week',
+      priceSensitivity: 'Balanced',
+      foundVia: 'Exhibition'
+    },
+    commercial: {
+      paymentTerms: ['TT in advance', 'LC'],
+      currency: 'AED',
+      incoterms: ['DDP'],
+      destination: 'Jebel Ali Free Zone, Dubai',
+      shippingMethod: 'Sea',
+      specialRequirements: 'Temperature controlled storage required'
+    },
+    accountStatus: 'active',
+    accountPriority: 'High',
+    assignedManager: 'Sarah Mitchell',
+    assignedSales: 'James Carter',
+    internalRating: 5,
+    recordStatus: 'Active - Verified',
+    dataCompleteness: 98,
+    overview: 'Sweet Tooth Retail is the fastest-growing premium chocolate retailer in the UAE with 15 locations.',
+    targetMarkets: ['UAE', 'Oman'],
+    keyProducts: ['Specialty Chocolate', 'Gift Boxes'],
+    competitiveAdvantages: ['Prime locations', 'Excellent cold chain'],
+    strategicImportance: 'Gateway to high-end UAE consumers.',
+    strategicNotes: 'Very quality focused. Mariam prefers direct WhatsApp communication for urgent quotes.',
+    lastContactDate: '2024-05-15T10:00:00Z',
+    lastPurchaseDate: '2024-05-01T14:30:00Z',
+    totalRevenue: 125000,
+    accountHealth: 'healthy',
+    ratings: { responseTime: 5, activity: 5, volume: 4 },
+    interestedProducts: ['Milk Choc']
+  },
+  {
+    id: 'c-shared',
+    name: 'EuroRetail Group',
+    email: 'purchasing@euroretail.eu',
+    country: 'Netherlands',
+    city: 'Amsterdam',
+    flag: '🇳🇱',
+    departments: ['chocolate', 'cosmetics'],
+    companyType: 'Distributor',
+    natureOfBusiness: 'Pan-European consumer goods distributor',
+    yearEstablished: 1985,
+    companySize: '200+ employees',
+    website: 'https://euroretail.eu',
+    socialLinks: { linkedin: 'linkedin.com/group/euroretail' },
+    contacts: {
+      primary: { name: 'Hans De Vries', designation: 'Purchasing Manager', email: 'hans@euroretail.eu', phone: '+31 20 123 4567', whatsapp: '+31 6 123 45678', preferredTime: 'Morning', language: 'English, Dutch' },
+      secondary: { name: 'Elena Petrova', designation: 'Logistics', email: 'elena@euroretail.eu', phone: '+31 20 123 4569', whatsapp: '' },
+      finance: { name: 'Mark Jansen', designation: 'Accounts', email: 'invoice@euroretail.eu', phone: '+31 20 123 4500' }
+    },
+    interests: {
+      categories: ['chocolate', 'cosmetics'],
+      products: ['Raw Cocoa', 'Hyaluronic Acid', 'Shea Butter'],
+      brands: [],
+      quality: 'Mid-Range',
+      certifications: ['Organic', 'ISO']
+    },
+    buyingBehavior: {
+      frequency: 'Quarterly',
+      valueRange: '$50K+',
+      typicalQuantity: '5 Tons',
+      seasonalMonths: ['January', 'June'],
+      decisionTime: 'Slow 1-3 months',
+      priceSensitivity: 'Very Price Sensitive',
+      foundVia: 'Cold Outreach'
+    },
+    commercial: {
+      paymentTerms: ['TT 30 days', 'Open Account'],
+      currency: 'EUR',
+      incoterms: ['FOB', 'CIF'],
+      destination: 'Rotterdam Port',
+      shippingMethod: 'Sea',
+      specialRequirements: ''
+    },
+    accountStatus: 'key account',
+    accountPriority: 'High',
+    assignedManager: 'David Rahman',
+    assignedSales: 'Emma Davis',
+    internalRating: 4,
+    recordStatus: 'Active - Verified',
+    dataCompleteness: 85,
+    overview: 'One of the largest European distributors with a massive network across 12 countries.',
+    targetMarkets: ['EU', 'Eastern Europe'],
+    keyProducts: ['Private Label Confectionery', 'Skincare'],
+    competitiveAdvantages: ['Huge network', 'Strong logistics'],
+    strategicImportance: 'High volume account, key for moving large stocks.',
+    strategicNotes: 'Always negotiates hard on price. Volume is their leverage.',
+    lastContactDate: '2024-05-18T09:00:00Z',
+    lastPurchaseDate: '2024-04-10T11:00:00Z',
+    totalRevenue: 450000,
+    accountHealth: 'healthy',
+    ratings: { responseTime: 5, activity: 5, volume: 5 },
+    interestedProducts: ['Milk Choc', 'Serum']
+  },
 ];
 
 export const MOCK_PRODUCTS = [
@@ -313,8 +501,8 @@ export const MOCK_EMAILS = Array.from({ length: 200 }).map((_, i) => {
     sentBy: emp.name,
     empId: emp.id,
     dept: emp.department === 'all' ? 'chocolate' : emp.department,
-    sentTo: cust.name,
-    custId: cust.id,
+    sentTo: cust?.name || 'Unknown',
+    custId: cust?.id || 'Unknown',
     subject: camp.name + ' - Exclusive Offer',
     campaignId: camp.id,
     type: i % 3 === 0 ? 'offer' : 'follow-up',
@@ -322,7 +510,9 @@ export const MOCK_EMAILS = Array.from({ length: 200 }).map((_, i) => {
     replyReceived: isReplied,
     replyDate: isReplied ? { seconds: (date.getTime() + 3600000 * Math.random() * 24) / 1000 } : null,
     responseTimeHours: isReplied ? Math.floor(Math.random() * 48) : null,
-    actionTaken: isReplied ? (Math.random() > 0.5 ? 'order created' : 'quote sent') : 'none'
+    actionTaken: isReplied ? (Math.random() > 0.5 ? 'order created' : 'quote sent') : 'none',
+    body: `Dear ${cust?.name},\n\nWe are pleased to offer you our latest seasonal pricing for premium raw materials. Based on your interest in ${cust?.interests?.products?.join(', ') || 'our products'}, we have prepared a special quote.\n\nBest regards,\n${emp.name}`,
+    attachments: i % 5 === 0 ? ['Quote_Details.pdf'] : []
   };
 });
 
@@ -336,7 +526,7 @@ export const MOCK_OFFERS_TRACKING = Array.from({ length: 40 }).map((_, i) => {
     id: `off-t-${i}`,
     dateSent: { seconds: (Date.now() - Math.random() * 30 * 86400000) / 1000 },
     sentBy: emp.name,
-    sentTo: cust.name,
+    sentTo: cust?.name || 'Unknown',
     department: product.department,
     productName: product.name,
     price: 10 + Math.random() * 50,
@@ -358,7 +548,7 @@ export const MOCK_PURCHASES = Array.from({ length: 25 }).map((_, i) => {
   return {
     id: `pur-${i}`,
     date: { seconds: (Date.now() - Math.random() * 60 * 86400000) / 1000 },
-    buyerName: cust.name,
+    buyerName: cust?.name || 'Unknown',
     department: product.department,
     productName: product.name,
     quantity: qty,
