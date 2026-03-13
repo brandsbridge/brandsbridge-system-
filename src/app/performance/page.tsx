@@ -16,6 +16,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
 import { DEMO_USERS, MOCK_EMAILS, MOCK_PURCHASES } from "@/lib/mock-data";
+import { cn } from "@/lib/utils";
 
 export default function PerformancePage() {
   const employeeStats = useMemo(() => {

@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { MOCK_CAMPAIGNS } from "@/lib/mock-data";
+import { cn } from "@/lib/utils";
 
 export default function CampaignsPage() {
   const stats = {
@@ -26,7 +27,7 @@ export default function CampaignsPage() {
     revenue: MOCK_CAMPAIGNS.reduce((acc, c) => acc + c.stats.revenue, 0)
   };
 
-  const avgReplyRate = (stats.replied / stats.sent) * 100;
+  const avgReplyRate = (stats.replied / (stats.sent || 1)) * 100;
 
   return (
     <div className="space-y-8">
