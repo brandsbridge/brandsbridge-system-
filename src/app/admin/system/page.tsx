@@ -67,8 +67,8 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
 const CORE_COLLECTIONS = [
-  { id: 'suppliers', label: 'Suppliers', icon: Factory, uniqueKey: 'email' },
-  { id: 'customers', label: 'Customers', icon: Users, uniqueKey: 'email' },
+  { id: 'suppliers', label: 'Suppliers', icon: Factory, uniqueKey: 'name' },
+  { id: 'customers', label: 'Customers', icon: Users, uniqueKey: 'name' },
   { id: 'products', label: 'Products', icon: Package, uniqueKey: 'name' },
   { id: 'leads', label: 'CRM Leads', icon: DatabaseZap, uniqueKey: 'name' },
   { id: 'employees', label: 'Employees', icon: Settings, uniqueKey: 'email' },
@@ -96,12 +96,12 @@ export default function SystemManagementPage() {
   const tasksCol = useMemo(() => collection(db, "tasks"), [db]);
   const leadsCol = useMemo(() => collection(db, "leads"), [db]);
 
-  const { data: suppliers } = useCollection(suppliersCol);
-  const { data: customers } = useCollection(customersCol);
-  const { data: products } = useCollection(productsCol);
-  const { data: employees } = useCollection(employeesCol);
-  const { data: tasks } = useCollection(tasksCol);
-  const { data: leads } = useCollection(leadsCol);
+  const { data: suppliers = [] } = useCollection(suppliersCol);
+  const { data: customers = [] } = useCollection(customersCol);
+  const { data: products = [] } = useCollection(productsCol);
+  const { data: employees = [] } = useCollection(employeesCol);
+  const { data: tasks = [] } = useCollection(tasksCol);
+  const { data: leads = [] } = useCollection(leadsCol);
 
   const stats = [
     { label: "Suppliers", count: suppliers.length, icon: Factory, color: "text-blue-500" },
@@ -201,9 +201,9 @@ export default function SystemManagementPage() {
     const errors: {row: number, message: string}[] = [];
     const validRows = data.filter((row, idx) => {
       // Basic validation: ensure the primary identifier exists
-      const identifier = row[key] || row['Company Name'] || row['name'] || row['title'];
+      const identifier = row[key] || row['Company Name'] || row['name'] || row['title'] || row['Email'];
       if (!identifier) {
-        errors.push({ row: idx + 1, message: `Missing required field: ${key}` });
+        errors.push({ row: idx + 1, message: `Missing Required Field: ${key}` });
         return false;
       }
       return true;
@@ -222,9 +222,9 @@ export default function SystemManagementPage() {
 
     const colRef = collection(db, targetCollection);
     const colInfo = CORE_COLLECTIONS.find(c => c.id === targetCollection);
-    const uniqueKey = colInfo?.uniqueKey || 'email';
+    const uniqueKey = colInfo?.uniqueKey || 'name';
     
-    // Fetch existing records for duplicate prevention (limited to 1000 for cache efficiency)
+    // Fetch existing records for duplicate prevention
     let existingIds = new Set<string>();
     try {
       const existingSnap = await getDocs(query(colRef, limit(1000)));
@@ -240,14 +240,13 @@ export default function SystemManagementPage() {
     let successCount = 0;
     let skipCount = 0;
 
-    // Chunk size for Firestore batches is 500
     const BATCH_SIZE = 500;
     for (let i = 0; i < fullValidData.length; i += BATCH_SIZE) {
       const batch = writeBatch(db);
       const chunk = fullValidData.slice(i, i + BATCH_SIZE);
 
       for (const row of chunk) {
-        const identifier = (row[uniqueKey] || row['Company Name'] || row['name'] || row['title'] || "").toString().toLowerCase().trim();
+        const identifier = (row[uniqueKey] || row['Company Name'] || row['name'] || row['title'] || row['Email'] || "").toString().toLowerCase().trim();
 
         if (identifier && existingIds.has(identifier)) {
           skipCount++;
@@ -255,6 +254,8 @@ export default function SystemManagementPage() {
         }
 
         const newDocRef = doc(colRef);
+        
+        // Dynamic mapping: fill all known fields from row, default missing to null
         batch.set(newDocRef, {
           ...row,
           createdAt: new Date().toISOString(),
@@ -272,7 +273,7 @@ export default function SystemManagementPage() {
     }
 
     setImportStep("success");
-    toast({ title: "Import Successful", description: `Created ${successCount} records. Skipped ${skipCount} duplicates and ${validationErrors.length} invalid rows.` });
+    toast({ title: "Import Successful", description: `Created ${successCount} records. Skipped ${skipCount} duplicates.` });
   };
 
   const downloadErrorReport = () => {
@@ -345,7 +346,7 @@ export default function SystemManagementPage() {
               <DatabaseZap className="h-5 w-5 text-accent" />
               <CardTitle>Data Portability</CardTitle>
             </div>
-            <CardDescription>Manage backups and bulk operations. Skip errors and continue enabled.</CardDescription>
+            <CardDescription>Manage backups and bulk operations. Missing columns are filled with null automatically.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
@@ -391,16 +392,16 @@ export default function SystemManagementPage() {
                   </DialogTrigger>
                   <DialogContent className="max-w-3xl">
                     <DialogHeader>
-                      <DialogTitle>Bulk Data Import</DialogTitle>
-                      <DialogDescription>Upload CSV, Excel, or JSON files. Invalid rows (missing required identifiers) are skipped automatically.</DialogDescription>
+                      <DialogTitle>Flexible Data Import</DialogTitle>
+                      <DialogDescription>Incomplete files are accepted. Only the primary name/ID is required; others will be set to null.</DialogDescription>
                     </DialogHeader>
 
                     {importStep === "select" && (
                       <div className="space-y-6 pt-4">
                         <div className="space-y-2">
-                          <label className="text-xs font-bold uppercase text-muted-foreground">1. Select Target Collection</label>
+                          <label className="text-xs font-bold uppercase text-muted-foreground">1. Target Collection</label>
                           <Select value={targetCollection} onValueChange={setTargetCollection}>
-                            <SelectTrigger><SelectValue placeholder="Choose where to import..." /></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder="Where to import..." /></SelectTrigger>
                             <SelectContent>
                               {CORE_COLLECTIONS.map(col => (
                                 <SelectItem key={col.id} value={col.id}>{col.label}</SelectItem>
@@ -416,8 +417,8 @@ export default function SystemManagementPage() {
                             onClick={() => fileInputRef.current?.click()}
                           >
                             <Upload className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
-                            <p className="text-sm font-medium">Click to select file</p>
-                            <p className="text-[10px] text-muted-foreground mt-1">Supports .csv, .xlsx, .json</p>
+                            <p className="text-sm font-medium">Click or drag file</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">Accepts CSV, Excel, JSON</p>
                             <input 
                               type="file" 
                               ref={fileInputRef} 
@@ -434,7 +435,7 @@ export default function SystemManagementPage() {
                       <div className="space-y-6 pt-4">
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-bold flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-primary" /> Validation Preview ({fullValidData.length} records ready)
+                            <FileText className="h-4 w-4 text-primary" /> Smart Preview ({fullValidData.length} records)
                           </h3>
                           <Badge variant="outline">{importFile?.name}</Badge>
                         </div>
@@ -452,7 +453,7 @@ export default function SystemManagementPage() {
                               {previewData.map((row, i) => (
                                 <TableRow key={i}>
                                   {Object.values(row).map((val: any, j) => (
-                                    <TableCell key={j} className="text-[10px] whitespace-nowrap">{String(val)}</TableCell>
+                                    <TableCell key={j} className="text-[10px] whitespace-nowrap">{val ? String(val) : "-"}</TableCell>
                                   ))}
                                 </TableRow>
                               ))}
@@ -465,8 +466,8 @@ export default function SystemManagementPage() {
                             <div className="flex gap-3">
                               <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
                               <div>
-                                <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows Detected</p>
-                                <p className="text-xs text-muted-foreground">These rows are missing required identifiers and will be skipped. You can proceed with valid rows.</p>
+                                <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows (Skipped)</p>
+                                <p className="text-xs text-muted-foreground">Rows without primary identifiers will be ignored.</p>
                               </div>
                             </div>
                             <Button variant="outline" size="sm" className="text-destructive border-destructive/20" onClick={downloadErrorReport}>
@@ -478,14 +479,14 @@ export default function SystemManagementPage() {
                         <div className="p-4 bg-accent/5 rounded-lg border border-accent/20 flex gap-3">
                           <Info className="h-5 w-5 text-accent shrink-0" />
                           <p className="text-xs leading-relaxed">
-                            System will automatically check for duplicates based on the collection's unique identifier. Existing records will be skipped to maintain data integrity.
+                            System is mapping available columns to Firestore. Missing fields will be stored as null to maintain data flexibility.
                           </p>
                         </div>
 
                         <DialogFooter className="gap-2">
                           <Button variant="ghost" onClick={resetImport}>Start Over</Button>
-                          <Button onClick={executeImport} className="bg-primary" disabled={fullValidData.length === 0}>
-                            Import {fullValidData.length} Valid Records
+                          <Button onClick={executeImport} className="bg-primary">
+                            Import {fullValidData.length} Records
                           </Button>
                         </DialogFooter>
                       </div>
@@ -495,7 +496,7 @@ export default function SystemManagementPage() {
                       <div className="py-12 flex flex-col items-center justify-center space-y-6">
                         <Loader2 className="h-12 w-12 text-primary animate-spin" />
                         <div className="text-center space-y-2 w-full max-w-sm">
-                          <p className="font-bold">Writing to Firestore...</p>
+                          <p className="font-bold">Updating Database...</p>
                           <Progress value={importProgress} className="h-2" />
                           <p className="text-xs text-muted-foreground">{importProgress}% Complete</p>
                         </div>
@@ -508,10 +509,10 @@ export default function SystemManagementPage() {
                           <CheckCircle2 className="h-10 w-10 text-green-500" />
                         </div>
                         <div className="space-y-2">
-                          <h3 className="text-xl font-bold">Data Import Complete</h3>
-                          <p className="text-muted-foreground">Valid records have been synchronized with the cloud database. All invalid rows were ignored.</p>
+                          <h3 className="text-xl font-bold">Data Synchronized</h3>
+                          <p className="text-muted-foreground">Incomplete rows were accepted and missing columns were handled as null.</p>
                         </div>
-                        <Button className="w-full max-w-sm" onClick={() => setIsImportModalOpen(false)}>Close & Finish</Button>
+                        <Button className="w-full max-w-sm" onClick={() => setIsImportModalOpen(false)}>Close Hub</Button>
                       </div>
                     )}
                   </DialogContent>

@@ -201,10 +201,10 @@ export default function SuppliersPage() {
     const errors: {row: number, message: string}[] = [];
     const validData = data.filter((row, idx) => {
       const companyName = row["Company Name"] || row["name"] || row["title"];
-      const email = row["Email"] || row["email"];
       
-      if (!companyName || !email) {
-        errors.push({ row: idx + 1, message: !companyName ? "Missing Company Name" : "Missing Email" });
+      // Only Company Name is strictly required
+      if (!companyName) {
+        errors.push({ row: idx + 1, message: "Missing Company Name (Required)" });
         return false;
       }
       return true;
@@ -227,7 +227,6 @@ export default function SuppliersPage() {
     const manager = savedUser ? JSON.parse(savedUser) : { name: "System", department: "all" };
     const currentDept = manager.department || "all";
 
-    // Firestore batch limit is 500
     const BATCH_SIZE = 500;
     for (let i = 0; i < fullValidData.length; i += BATCH_SIZE) {
       const batch = writeBatch(db);
@@ -237,28 +236,35 @@ export default function SuppliersPage() {
         const email = (row["Email"] || row["email"] || "").toString().toLowerCase().trim();
         const name = row["Company Name"] || row["name"] || row["title"];
         
-        const existing = suppliers.find(s => (s.email || "").toLowerCase().trim() === email);
+        // Flexible duplicate detection: only check if email is provided
+        const existing = email ? suppliers.find(s => (s.email || "").toLowerCase().trim() === email) : null;
         
+        // Map available fields, fill missing with null
         const supplierData = {
           name,
-          email,
-          country: row["Country"] || "Unknown",
-          natureOfBusiness: row["Nature of Business"] || "Trading Company",
-          website: row["Website"] || "",
+          email: email || null,
+          country: row["Country"] || row["country"] || null,
+          natureOfBusiness: row["Nature of Business"] || row["natureOfBusiness"] || "Manufacturing",
+          website: row["Website"] || row["website"] || null,
           departments: [currentDept],
-          specializedProducts: (row["Specialized Products"] || "").split(",").map((s: string) => s.trim()),
+          specializedProducts: (row["Specialized Products"] || "").split(",").map((s: string) => s.trim()).filter(Boolean),
           pricing: {
             tier: row["Price Tier"] || "Mid-Range",
-            paymentTerms: (row["Payment Terms"] || "").split(",").map((s: string) => s.trim()),
+            paymentTerms: (row["Payment Terms"] || "").split(",").map((s: string) => s.trim()).filter(Boolean),
             leadTime: parseInt(row["Lead Time"]) || 7,
             currency: "USD",
-            moq: "100 units",
-            mov: 1000
+            moq: row["MOQ"] || "100 units",
+            mov: parseFloat(row["MOV"]) || 1000
           },
           contacts: {
-            sales: { name: row["Contact Person"] || "Unknown", email, phone: row["Phone"] || "", whatsapp: row["WhatsApp"] || "" },
-            export: { name: "", email: "", phone: "", whatsapp: "" },
-            support: { phone: "", email: "", hours: "9-5", language: "English" }
+            sales: { 
+              name: row["Contact Person"] || "Main Contact", 
+              email: email || null, 
+              phone: row["Phone"] || null, 
+              whatsapp: row["WhatsApp"] || null 
+            },
+            export: { name: null, email: null, phone: null, whatsapp: null },
+            support: { phone: null, email: null, hours: "9-5", language: "English" }
           },
           recordStatus: "Active - Verified",
           priorityLevel: "Medium",
@@ -297,7 +303,7 @@ export default function SuppliersPage() {
 
     setImportResults({ success, failed, updated: updates, invalid: validationErrors.length });
     setImportStep("success");
-    toast({ title: "Import Processed", description: `Finished processing ${fullValidData.length} valid records.` });
+    toast({ title: "Import Complete", description: `Synchronized ${fullValidData.length} records.` });
   };
 
   const resetImport = () => {
@@ -330,7 +336,7 @@ export default function SuppliersPage() {
             <DialogContent className="max-w-3xl">
               <DialogHeader>
                 <DialogTitle>Import Suppliers</DialogTitle>
-                <DialogDescription>Bulk upload supplier profiles. Rows with missing required fields (Company Name/Email) are automatically skipped.</DialogDescription>
+                <DialogDescription>Bulk upload supplier profiles. Missing columns will be automatically filled with null values.</DialogDescription>
               </DialogHeader>
 
               {importStep === "upload" && (
@@ -338,7 +344,7 @@ export default function SuppliersPage() {
                   <div className="flex justify-between items-center bg-secondary/20 p-4 rounded-lg border border-dashed border-primary/20">
                     <div className="space-y-1">
                       <p className="text-sm font-bold">Step 1: Download Templates</p>
-                      <p className="text-xs text-muted-foreground">Use our standardized headers for a smooth import.</p>
+                      <p className="text-xs text-muted-foreground">Headers for smooth import.</p>
                     </div>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={() => downloadTemplate("csv")}>
@@ -356,7 +362,7 @@ export default function SuppliersPage() {
                   >
                     <Upload className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
                     <p className="text-sm font-medium">Click or drag & drop to upload</p>
-                    <p className="text-xs text-muted-foreground mt-1">Supports .csv, .xlsx, and .json up to 10MB</p>
+                    <p className="text-xs text-muted-foreground mt-1">Supports .csv, .xlsx, and .json</p>
                     <input 
                       type="file" 
                       ref={fileInputRef} 
@@ -372,7 +378,7 @@ export default function SuppliersPage() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-bold flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" /> Data Preview (Valid Rows)
+                      <FileText className="h-4 w-4 text-primary" /> Data Preview
                     </h3>
                     <Badge variant="outline">{importFile?.name}</Badge>
                   </div>
@@ -390,7 +396,7 @@ export default function SuppliersPage() {
                         {previewData.map((row, i) => (
                           <TableRow key={i}>
                             {Object.values(row).map((val: any, j) => (
-                              <TableCell key={j} className="text-[10px] whitespace-nowrap">{String(val)}</TableCell>
+                              <TableCell key={j} className="text-[10px] whitespace-nowrap">{val ? String(val) : <span className="text-muted-foreground italic">null</span>}</TableCell>
                             ))}
                           </TableRow>
                         ))}
@@ -404,10 +410,10 @@ export default function SuppliersPage() {
                         <CheckCircle2 className="h-5 w-5 text-green-500" />
                         <div>
                           <p className="text-sm font-bold">{fullValidData.length} Rows Ready</p>
-                          <p className="text-xs text-muted-foreground">Successfully validated and ready for import.</p>
+                          <p className="text-xs text-muted-foreground">Columns not present in file will be set to null.</p>
                         </div>
                       </div>
-                      <Badge className="bg-green-500">Valid</Badge>
+                      <Badge className="bg-green-500">Ready</Badge>
                     </div>
 
                     {validationErrors.length > 0 && (
@@ -415,18 +421,12 @@ export default function SuppliersPage() {
                         <div className="flex gap-3">
                           <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
                           <div>
-                            <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows to Skip</p>
-                            <p className="text-xs text-muted-foreground">These rows have missing required fields (Company Name/Email) and will be ignored.</p>
-                            <ul className="mt-2 space-y-1">
-                              {validationErrors.slice(0, 3).map((err, i) => (
-                                <li key={i} className="text-[10px] text-destructive">Row {err.row}: {err.message}</li>
-                              ))}
-                              {validationErrors.length > 3 && <li className="text-[10px] text-muted-foreground">...and {validationErrors.length - 3} others</li>}
-                            </ul>
+                            <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows (Missing Name)</p>
+                            <p className="text-xs text-muted-foreground">Rows without a Company Name cannot be imported.</p>
                           </div>
                         </div>
                         <Button variant="outline" size="sm" className="text-destructive border-destructive/20" onClick={downloadErrorReport}>
-                          <FileX className="h-3 w-3 mr-2" /> Download Error Report
+                          <FileX className="h-3 w-3 mr-2" /> Error Report
                         </Button>
                       </div>
                     )}
@@ -438,7 +438,7 @@ export default function SuppliersPage() {
                       <Select value={duplicateMode} onValueChange={(v: any) => setDuplicateMode(v)}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="skip">Skip All Duplicates</SelectItem>
+                          <SelectItem value="skip">Skip Existing Emails</SelectItem>
                           <SelectItem value="update">Update Existing Records</SelectItem>
                         </SelectContent>
                       </Select>
@@ -448,7 +448,7 @@ export default function SuppliersPage() {
                   <DialogFooter className="gap-2">
                     <Button variant="ghost" onClick={resetImport}>Re-upload</Button>
                     <Button onClick={executeImport} disabled={fullValidData.length === 0} className="bg-primary">
-                      Import {fullValidData.length} Valid Rows
+                      Import {fullValidData.length} Records
                     </Button>
                   </DialogFooter>
                 </div>
@@ -458,7 +458,7 @@ export default function SuppliersPage() {
                 <div className="py-12 flex flex-col items-center justify-center space-y-6">
                   <Loader2 className="h-12 w-12 text-primary animate-spin" />
                   <div className="text-center space-y-2 w-full max-w-sm">
-                    <p className="font-bold">Importing Records...</p>
+                    <p className="font-bold">Writing to Firestore...</p>
                     <Progress value={importProgress} className="h-2" />
                     <p className="text-xs text-muted-foreground">{importProgress}% Complete</p>
                   </div>
@@ -472,7 +472,7 @@ export default function SuppliersPage() {
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-xl font-bold">Import Complete</h3>
-                    <p className="text-muted-foreground">Valid records have been processed and saved to Firestore. Invalid rows were skipped.</p>
+                    <p className="text-muted-foreground">Database synchronized. Missing columns were handled automatically.</p>
                   </div>
                   <div className="grid grid-cols-4 gap-4 max-w-xl mx-auto">
                     <div className="p-3 bg-secondary/30 rounded-lg">
@@ -484,7 +484,7 @@ export default function SuppliersPage() {
                       <p className="text-xl font-bold text-blue-500">{importResults.updated}</p>
                     </div>
                     <div className="p-3 bg-secondary/30 rounded-lg">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Skipped (Err)</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Skipped</p>
                       <p className="text-xl font-bold text-orange-500">{importResults.invalid}</p>
                     </div>
                     <div className="p-3 bg-secondary/30 rounded-lg">
@@ -492,7 +492,7 @@ export default function SuppliersPage() {
                       <p className="text-xl font-bold text-destructive">{importResults.failed}</p>
                     </div>
                   </div>
-                  <Button className="w-full max-w-sm" onClick={() => setIsImportModalOpen(false)}>Close & Refresh</Button>
+                  <Button className="w-full max-w-sm" onClick={() => setIsImportModalOpen(false)}>Close & Finish</Button>
                 </div>
               )}
             </DialogContent>
@@ -626,7 +626,7 @@ export default function SuppliersPage() {
                     <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
                       <span className="font-bold">{supplier.contacts?.sales?.name || 'No Contact'}</span>
                       <span>•</span>
-                      <span>{supplier.country}</span>
+                      <span>{supplier.country || "Global"}</span>
                     </div>
                   </div>
                 </TableCell>
@@ -638,9 +638,6 @@ export default function SuppliersPage() {
                     {Array.isArray(supplier.specializedProducts) && supplier.specializedProducts.slice(0, 2).map((p: string) => (
                       <Badge key={p} variant="secondary" className="text-[8px] h-4">{p}</Badge>
                     ))}
-                    {(supplier.specializedProducts?.length || 0) > 2 && (
-                      <Badge variant="outline" className="text-[8px] h-4">+{supplier.specializedProducts.length - 2}</Badge>
-                    )}
                   </div>
                 </TableCell>
                 <TableCell>
@@ -680,8 +677,6 @@ export default function SuppliersPage() {
                 <TableCell>
                   <div className="flex gap-1">
                     {supplier.certifications?.halal?.has && <Badge className="h-4 w-4 p-0 flex items-center justify-center bg-green-500 rounded-full" title="Halal"><CheckCircle2 className="h-2.5 w-2.5 text-white" /></Badge>}
-                    {supplier.certifications?.organic?.has && <Badge className="h-4 w-4 p-0 flex items-center justify-center bg-blue-500 rounded-full" title="Organic"><Info className="h-2.5 w-2.5 text-white" /></Badge>}
-                    {supplier.certifications?.iso?.has && <Badge className="h-4 w-4 p-0 flex items-center justify-center bg-purple-500 rounded-full" title="ISO"><ShieldCheck className="h-2.5 w-2.5 text-white" /></Badge>}
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
@@ -695,7 +690,6 @@ export default function SuppliersPage() {
                       </DropdownMenuItem>
                       <DropdownMenuItem><Edit className="mr-2 h-4 w-4" /> Edit Record</DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem><Printer className="mr-2 h-4 w-4" /> Print PDF</DropdownMenuItem>
                       <DropdownMenuItem className="text-destructive"><Trash2 className="mr-2 h-4 w-4" /> Archive</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -705,7 +699,7 @@ export default function SuppliersPage() {
             {!loading && filteredSuppliers.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                  No suppliers found in Firestore. Use the import tool to populate the database.
+                  No suppliers found. Use the import tool to populate the database.
                 </TableCell>
               </TableRow>
             )}

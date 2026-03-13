@@ -208,10 +208,10 @@ export default function CustomersPage() {
     const errors: {row: number, message: string}[] = [];
     const validData = data.filter((row, idx) => {
       const companyName = row["Company Name"] || row["name"] || row["title"];
-      const email = row["Email"] || row["email"];
       
-      if (!companyName || !email) {
-        errors.push({ row: idx + 1, message: !companyName ? "Missing Company Name" : "Missing Email" });
+      // Only critical field is Company Name
+      if (!companyName) {
+        errors.push({ row: idx + 1, message: "Missing Company Name (Required)" });
         return false;
       }
       return true;
@@ -234,7 +234,6 @@ export default function CustomersPage() {
     const manager = savedUser ? JSON.parse(savedUser) : { name: "System", department: "all" };
     const currentDept = manager.department || "all";
 
-    // Firestore batch limit is 500
     const BATCH_SIZE = 500;
     for (let i = 0; i < fullValidData.length; i += BATCH_SIZE) {
       const batch = writeBatch(db);
@@ -244,18 +243,20 @@ export default function CustomersPage() {
         const email = (row["Email"] || row["email"] || "").toString().toLowerCase().trim();
         const name = row["Company Name"] || row["name"] || row["title"];
         
-        const existing = customers.find(c => (c.email || "").toLowerCase().trim() === email);
+        // Flexible duplicate detection: only check if email is provided
+        const existing = email ? customers.find(c => (c.email || "").toLowerCase().trim() === email) : null;
         
+        // Map available columns, use null for missing fields
         const customerData = {
           name,
-          email,
-          country: row["Country"] || "Unknown",
-          city: row["City"] || "",
-          companyType: row["Company Type"] || "Retailer",
-          accountStatus: (row["Account Status"] || "prospect").toLowerCase(),
+          email: email || null,
+          country: row["Country"] || row["country"] || null,
+          city: row["City"] || row["city"] || null,
+          companyType: row["Company Type"] || row["companyType"] || "Retailer",
+          accountStatus: (row["Account Status"] || row["accountStatus"] || "prospect").toLowerCase(),
           departments: [currentDept],
           assignedManager: manager.name,
-          totalRevenue: parseFloat(row["Annual Budget"] || row["totalRevenue"]) || 0,
+          totalRevenue: parseFloat(row["Annual Budget"] || row["totalRevenue"] || row["Revenue"]) || 0,
           accountHealth: "healthy",
           lastContactDate: new Date().toISOString(),
           dataCompleteness: 50,
@@ -290,7 +291,7 @@ export default function CustomersPage() {
 
     setImportResults({ success, failed, updated: updates, invalid: validationErrors.length });
     setImportStep("success");
-    toast({ title: "Import Processed", description: `Finished processing ${fullValidData.length} valid records.` });
+    toast({ title: "Import Processed", description: `Finished processing ${fullValidData.length} records.` });
   };
 
   const resetImport = () => {
@@ -326,7 +327,7 @@ export default function CustomersPage() {
             <DialogContent className="max-w-3xl">
               <DialogHeader>
                 <DialogTitle>Import Customers</DialogTitle>
-                <DialogDescription>Bulk upload customer data from CSV, Excel, or JSON files. Invalid rows will be skipped automatically.</DialogDescription>
+                <DialogDescription>Bulk upload customer data. Only "Company Name" is required; missing fields will be set to null automatically.</DialogDescription>
               </DialogHeader>
 
               {importStep === "upload" && (
@@ -334,7 +335,7 @@ export default function CustomersPage() {
                   <div className="flex justify-between items-center bg-secondary/20 p-4 rounded-lg border border-dashed border-primary/20">
                     <div className="space-y-1">
                       <p className="text-sm font-bold">Step 1: Download Templates</p>
-                      <p className="text-xs text-muted-foreground">Use our standardized headers for a smooth import.</p>
+                      <p className="text-xs text-muted-foreground">Standardized headers for a smooth import.</p>
                     </div>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" onClick={() => downloadTemplate("csv")}>
@@ -352,7 +353,7 @@ export default function CustomersPage() {
                   >
                     <Upload className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
                     <p className="text-sm font-medium">Click or drag & drop to upload</p>
-                    <p className="text-xs text-muted-foreground mt-1">Supports .csv, .xlsx, and .json up to 10MB</p>
+                    <p className="text-xs text-muted-foreground mt-1">Supports .csv, .xlsx, and .json</p>
                     <input 
                       type="file" 
                       ref={fileInputRef} 
@@ -368,7 +369,7 @@ export default function CustomersPage() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-bold flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" /> Data Preview (Valid Rows)
+                      <FileText className="h-4 w-4 text-primary" /> Data Preview
                     </h3>
                     <Badge variant="outline">{importFile?.name}</Badge>
                   </div>
@@ -386,7 +387,7 @@ export default function CustomersPage() {
                         {previewData.map((row, i) => (
                           <TableRow key={i}>
                             {Object.values(row).map((val: any, j) => (
-                              <TableCell key={j} className="text-[10px] whitespace-nowrap">{String(val)}</TableCell>
+                              <TableCell key={j} className="text-[10px] whitespace-nowrap">{val ? String(val) : <span className="text-muted-foreground italic">null</span>}</TableCell>
                             ))}
                           </TableRow>
                         ))}
@@ -400,10 +401,10 @@ export default function CustomersPage() {
                         <CheckCircle2 className="h-5 w-5 text-green-500" />
                         <div>
                           <p className="text-sm font-bold">{fullValidData.length} Rows Ready</p>
-                          <p className="text-xs text-muted-foreground">Successfully validated and ready for import.</p>
+                          <p className="text-xs text-muted-foreground">Incomplete fields will be filled with null values.</p>
                         </div>
                       </div>
-                      <Badge className="bg-green-500">Valid</Badge>
+                      <Badge className="bg-green-500">Ready</Badge>
                     </div>
 
                     {validationErrors.length > 0 && (
@@ -411,18 +412,12 @@ export default function CustomersPage() {
                         <div className="flex gap-3">
                           <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
                           <div>
-                            <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows to Skip</p>
-                            <p className="text-xs text-muted-foreground">These rows have missing required fields (Company Name/Email) and will be ignored.</p>
-                            <ul className="mt-2 space-y-1">
-                              {validationErrors.slice(0, 3).map((err, i) => (
-                                <li key={i} className="text-[10px] text-destructive">Row {err.row}: {err.message}</li>
-                              ))}
-                              {validationErrors.length > 3 && <li className="text-[10px] text-muted-foreground">...and {validationErrors.length - 3} others</li>}
-                            </ul>
+                            <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows (Missing Name)</p>
+                            <p className="text-xs text-muted-foreground">These rows are missing the required "Company Name" and will be skipped.</p>
                           </div>
                         </div>
                         <Button variant="outline" size="sm" className="text-destructive border-destructive/20" onClick={downloadErrorReport}>
-                          <FileX className="h-3 w-3 mr-2" /> Download Error Report
+                          <FileX className="h-3 w-3 mr-2" /> Error Report
                         </Button>
                       </div>
                     )}
@@ -434,7 +429,7 @@ export default function CustomersPage() {
                       <Select value={duplicateMode} onValueChange={(v: any) => setDuplicateMode(v)}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="skip">Skip All Duplicates</SelectItem>
+                          <SelectItem value="skip">Skip Existing Emails</SelectItem>
                           <SelectItem value="update">Update Existing Records</SelectItem>
                         </SelectContent>
                       </Select>
@@ -444,7 +439,7 @@ export default function CustomersPage() {
                   <DialogFooter className="gap-2">
                     <Button variant="ghost" onClick={resetImport}>Re-upload</Button>
                     <Button onClick={executeImport} disabled={fullValidData.length === 0} className="bg-primary">
-                      Import {fullValidData.length} Valid Rows
+                      Import {fullValidData.length} Records
                     </Button>
                   </DialogFooter>
                 </div>
@@ -454,7 +449,7 @@ export default function CustomersPage() {
                 <div className="py-12 flex flex-col items-center justify-center space-y-6">
                   <Loader2 className="h-12 w-12 text-primary animate-spin" />
                   <div className="text-center space-y-2 w-full max-w-sm">
-                    <p className="font-bold">Importing Records...</p>
+                    <p className="font-bold">Writing to Firestore...</p>
                     <Progress value={importProgress} className="h-2" />
                     <p className="text-xs text-muted-foreground">{importProgress}% Complete</p>
                   </div>
@@ -468,7 +463,7 @@ export default function CustomersPage() {
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-xl font-bold">Import Complete</h3>
-                    <p className="text-muted-foreground">Valid records have been processed and saved to Firestore. Invalid rows were skipped.</p>
+                    <p className="text-muted-foreground">Records have been synchronized. All missing optional fields were stored as null.</p>
                   </div>
                   <div className="grid grid-cols-4 gap-4 max-w-xl mx-auto">
                     <div className="p-3 bg-secondary/30 rounded-lg">
@@ -480,7 +475,7 @@ export default function CustomersPage() {
                       <p className="text-xl font-bold text-blue-500">{importResults.updated}</p>
                     </div>
                     <div className="p-3 bg-secondary/30 rounded-lg">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Skipped (Err)</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Skipped</p>
                       <p className="text-xl font-bold text-orange-500">{importResults.invalid}</p>
                     </div>
                     <div className="p-3 bg-secondary/30 rounded-lg">
@@ -621,7 +616,7 @@ export default function CustomersPage() {
                         <ExternalLink className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
                       </Link>
                       <div className="text-[10px] text-muted-foreground flex items-center gap-2">
-                        <span>{customer.country}</span>
+                        <span>{customer.country || "Global"}</span>
                         <span>•</span>
                         <span>{customer.assignedManager}</span>
                       </div>
@@ -679,7 +674,7 @@ export default function CustomersPage() {
             {!loading && filteredCustomers.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                  No customers found in Firestore. Use the import tool to get started.
+                  No customers found. Use the import tool to populate the database.
                 </TableCell>
               </TableRow>
             )}
