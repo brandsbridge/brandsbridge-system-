@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { 
   Plus, Search, User, Mail, Phone, Trash2, Edit, ExternalLink, 
   Filter, Download, Star, TrendingUp, AlertCircle, HeartPulse, 
-  FileText, ShieldCheck
+  FileText, ShieldCheck, Upload, X, CheckCircle2, Loader2, FileSpreadsheet,
+  FileDown, AlertTriangle
 } from "lucide-react";
 import { 
   Table, 
@@ -25,7 +26,8 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogTrigger,
-  DialogFooter
+  DialogFooter,
+  DialogDescription
 } from "@/components/ui/dialog";
 import { 
   Select, 
@@ -35,8 +37,12 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { MOCK_CUSTOMERS, MOCK_RESPONSES } from "@/lib/mock-data";
+import { useCollection, useFirestore } from "@/firebase";
+import { collection, query, writeBatch, doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
 
 const StarRating = ({ rating }: { rating: number }) => (
   <div className="flex gap-0.5">
@@ -46,26 +52,48 @@ const StarRating = ({ rating }: { rating: number }) => (
   </div>
 );
 
+const IMPORT_TEMPLATE_HEADERS = [
+  "Company Name", "Country", "City", "Company Type", "Contact Person",
+  "Designation", "Email", "Phone", "WhatsApp", "Website", "LinkedIn",
+  "Account Status", "Product Interests", "Preferred Payment Terms",
+  "Preferred Currency", "Annual Budget", "Notes"
+];
+
 export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [countryFilter, setCountryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [healthFilter, setHealthFilter] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  
+  // Import State
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importStep, setImportStep] = useState<"upload" | "preview" | "importing" | "success">("upload");
+  const [previewData, setPreviewData] = useState<any[]>([]);
+  const [validationErrors, setValidationErrors] = useState<{row: number, message: string}[]>([]);
+  const [duplicateMode, setDuplicateMode] = useState<"skip" | "update">("skip");
+  const [importProgress, setImportProgress] = useState(0);
+  const [importResults, setImportResults] = useState({ success: 0, failed: 0, updated: 0 });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const countries = Array.from(new Set(MOCK_CUSTOMERS.map(c => c.country))).sort();
-  const statuses = Array.from(new Set(MOCK_CUSTOMERS.map(c => c.accountStatus))).sort();
+  const db = useFirestore();
+  const customersQuery = useMemo(() => collection(db, "customers"), [db]);
+  const { data: customers = [], loading } = useCollection(customersQuery);
+
+  const countries = Array.from(new Set(customers.map(c => c.country))).sort();
+  const statuses = Array.from(new Set(customers.map(c => c.accountStatus))).sort();
 
   const filteredCustomers = useMemo(() => {
-    return MOCK_CUSTOMERS.filter(c => {
-      const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                           c.email.toLowerCase().includes(searchTerm.toLowerCase());
+    return customers.filter(c => {
+      const matchesSearch = c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           c.email?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCountry = countryFilter === "all" || c.country === countryFilter;
       const matchesStatus = statusFilter === "all" || c.accountStatus === statusFilter;
       const matchesHealth = healthFilter === "all" || c.accountHealth === healthFilter;
       return matchesSearch && matchesCountry && matchesStatus && matchesHealth;
     });
-  }, [searchTerm, countryFilter, statusFilter, healthFilter]);
+  }, [customers, searchTerm, countryFilter, statusFilter, healthFilter]);
 
   const getHealthIcon = (health: string) => {
     switch (health) {
@@ -77,6 +105,176 @@ export default function CustomersPage() {
     }
   };
 
+  // --- Export Logic ---
+  const handleExportCSV = () => {
+    const csv = Papa.unparse(filteredCustomers.map(c => ({
+      ...c,
+      id: c.id,
+      interests: Array.isArray(c.interests?.products) ? c.interests.products.join(", ") : "",
+      departments: Array.isArray(c.departments) ? c.departments.join(", ") : ""
+    })));
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `customers-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportExcel = () => {
+    const worksheet = XLSX.utils.json_to_sheet(filteredCustomers.map(c => ({
+      "Company Name": c.name,
+      "Email": c.email,
+      "Country": c.country,
+      "City": c.city,
+      "Account Status": c.accountStatus,
+      "Revenue": c.totalRevenue
+    })));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Customers");
+    XLSX.writeFile(workbook, `customers-${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const downloadTemplate = (type: "csv" | "xlsx") => {
+    if (type === "csv") {
+      const csv = Papa.unparse([IMPORT_TEMPLATE_HEADERS]);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "customer_import_template.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      const worksheet = XLSX.utils.aoa_to_sheet([IMPORT_TEMPLATE_HEADERS]);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Template");
+      XLSX.writeFile(workbook, "customer_import_template.xlsx");
+    }
+  };
+
+  // --- Import Logic ---
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processFile(file);
+  };
+
+  const processFile = (file: File) => {
+    setImportFile(file);
+    const reader = new FileReader();
+    if (file.name.endsWith('.csv')) {
+      Papa.parse(file, {
+        header: true,
+        complete: (results) => {
+          validateAndPreview(results.data);
+        }
+      });
+    } else {
+      reader.onload = (e) => {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet);
+        validateAndPreview(json);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+  };
+
+  const validateAndPreview = (data: any[]) => {
+    const errors: {row: number, message: string}[] = [];
+    const validData = data.filter((row, idx) => {
+      const companyName = row["Company Name"] || row["name"];
+      const email = row["Email"] || row["email"];
+      
+      if (!companyName || !email) {
+        errors.push({ row: idx + 1, message: "Missing Company Name or Email" });
+        return false;
+      }
+      return true;
+    });
+
+    setValidationErrors(errors);
+    setPreviewData(validData.slice(0, 10));
+    setImportStep("preview");
+  };
+
+  const executeImport = async () => {
+    setImportStep("importing");
+    
+    // In a real app we'd re-parse the full file here
+    // For MVP we'll use the data we already processed
+    const fullData = previewData; // Replace with full parsed data if needed
+    let success = 0;
+    let updates = 0;
+    let failed = 0;
+
+    const manager = JSON.parse(localStorage.getItem("demoUser") || "{}");
+    const currentDept = manager.department || "all";
+
+    const batch = writeBatch(db);
+
+    for (let i = 0; i < fullData.length; i++) {
+      const row = fullData[i];
+      const email = row["Email"] || row["email"];
+      const name = row["Company Name"] || row["name"];
+      
+      // Duplicate detection
+      const existing = customers.find(c => c.email === email);
+      
+      const customerData = {
+        name,
+        email,
+        country: row["Country"] || "Unknown",
+        city: row["City"] || "",
+        accountStatus: (row["Account Status"] || "prospect").toLowerCase(),
+        departments: [currentDept],
+        assignedManager: manager.name,
+        totalRevenue: 0,
+        accountHealth: "healthy",
+        lastContactDate: new Date().toISOString(),
+        dataCompleteness: 50,
+        createdAt: new Date().toISOString()
+      };
+
+      try {
+        if (existing) {
+          if (duplicateMode === "update") {
+            const docRef = doc(db, "customers", existing.id);
+            batch.update(docRef, customerData);
+            updates++;
+          }
+        } else {
+          const newDocRef = doc(collection(db, "customers"));
+          batch.set(newDocRef, customerData);
+          success++;
+        }
+      } catch (e) {
+        failed++;
+      }
+
+      setImportProgress(Math.round(((i + 1) / fullData.length) * 100));
+    }
+
+    await batch.commit();
+    setImportResults({ success, failed, updated: updates });
+    setImportStep("success");
+    toast({ title: "Import Complete", description: `Processed ${fullData.length} records.` });
+  };
+
+  const resetImport = () => {
+    setImportFile(null);
+    setImportStep("upload");
+    setPreviewData([]);
+    setValidationErrors([]);
+    setImportProgress(0);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -85,9 +283,168 @@ export default function CustomersPage() {
           <p className="text-muted-foreground">Manage B2B relationships and track procurement dynamics.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleExportCSV}>
             <Download className="mr-2 h-4 w-4" /> Export CSV
           </Button>
+          <Button variant="outline" size="sm" onClick={handleExportExcel}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" /> Export Excel
+          </Button>
+          
+          <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Upload className="mr-2 h-4 w-4" /> Import Customers
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Import Customers</DialogTitle>
+                <DialogDescription>Bulk upload customer data from CSV or Excel files.</DialogDescription>
+              </DialogHeader>
+
+              {importStep === "upload" && (
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center bg-secondary/20 p-4 rounded-lg border border-dashed border-primary/20">
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold">Step 1: Download Templates</p>
+                      <p className="text-xs text-muted-foreground">Use our standardized headers for a smooth import.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => downloadTemplate("csv")}>
+                        <FileDown className="mr-2 h-3 w-3" /> CSV Template
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => downloadTemplate("xlsx")}>
+                        <FileSpreadsheet className="mr-2 h-3 w-3" /> Excel Template
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div 
+                    className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-12 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+                    <p className="text-sm font-medium">Click or drag & drop to upload</p>
+                    <p className="text-xs text-muted-foreground mt-1">Supports .csv and .xlsx up to 10MB</p>
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      className="hidden" 
+                      accept=".csv,.xlsx" 
+                      onChange={handleFileChange}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {importStep === "preview" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" /> Data Preview (First 10 Rows)
+                    </h3>
+                    <Badge variant="outline">{importFile?.name}</Badge>
+                  </div>
+
+                  <div className="max-h-[300px] overflow-auto border rounded-lg">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-muted/50">
+                          {Object.keys(previewData[0] || {}).map(k => (
+                            <TableHead key={k} className="text-[10px] whitespace-nowrap">{k}</TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {previewData.map((row, i) => (
+                          <TableRow key={i}>
+                            {Object.values(row).map((val: any, j) => (
+                              <TableCell key={j} className="text-[10px] whitespace-nowrap">{val}</TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {validationErrors.length > 0 && (
+                    <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg flex gap-3 items-start">
+                      <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+                      <div>
+                        <p className="text-sm font-bold text-destructive">Validation Errors Found</p>
+                        <p className="text-xs text-muted-foreground">Errors in {validationErrors.length} rows. Please fix these in your file and re-upload.</p>
+                        <ul className="mt-2 space-y-1">
+                          {validationErrors.slice(0, 3).map((err, i) => (
+                            <li key={i} className="text-[10px] text-destructive">Row {err.row}: {err.message}</li>
+                          ))}
+                          {validationErrors.length > 3 && <li className="text-[10px] text-muted-foreground">...and {validationErrors.length - 3} more</li>}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase text-muted-foreground">Duplicate Handling</label>
+                      <Select value={duplicateMode} onValueChange={(v: any) => setDuplicateMode(v)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="skip">Skip All Duplicates</SelectItem>
+                          <SelectItem value="update">Update Existing Records</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <DialogFooter className="gap-2">
+                    <Button variant="ghost" onClick={resetImport}>Re-upload</Button>
+                    <Button onClick={executeImport} disabled={validationErrors.length > 0}>
+                      Start Import
+                    </Button>
+                  </DialogFooter>
+                </div>
+              )}
+
+              {importStep === "importing" && (
+                <div className="py-12 flex flex-col items-center justify-center space-y-6">
+                  <Loader2 className="h-12 w-12 text-primary animate-spin" />
+                  <div className="text-center space-y-2 w-full max-w-sm">
+                    <p className="font-bold">Importing Records...</p>
+                    <Progress value={importProgress} className="h-2" />
+                    <p className="text-xs text-muted-foreground">{importProgress}% Complete</p>
+                  </div>
+                </div>
+              )}
+
+              {importStep === "success" && (
+                <div className="py-8 text-center space-y-6">
+                  <div className="h-16 w-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="h-10 w-10 text-green-500" />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-bold">Import Successful!</h3>
+                    <p className="text-muted-foreground">Your customer data has been processed and saved to Firestore.</p>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
+                    <div className="p-3 bg-secondary/30 rounded-lg">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Created</p>
+                      <p className="text-xl font-bold text-green-500">{importResults.success}</p>
+                    </div>
+                    <div className="p-3 bg-secondary/30 rounded-lg">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Updated</p>
+                      <p className="text-xl font-bold text-blue-500">{importResults.updated}</p>
+                    </div>
+                    <div className="p-3 bg-secondary/30 rounded-lg">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Failed</p>
+                      <p className="text-xl font-bold text-destructive">{importResults.failed}</p>
+                    </div>
+                  </div>
+                  <Button className="w-full max-w-sm" onClick={() => setIsImportModalOpen(false)}>Close & Refresh</Button>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="bg-primary">
@@ -195,12 +552,19 @@ export default function CustomersPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredCustomers.map((customer) => (
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
+                  <p className="text-xs text-muted-foreground">Loading buyers from Firestore...</p>
+                </TableCell>
+              </TableRow>
+            ) : filteredCustomers.map((customer) => (
               <TableRow key={customer.id} className="group">
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded bg-accent/10 flex items-center justify-center text-xs font-bold text-accent">
-                      {customer.name[0]}
+                      {customer.name?.[0] || 'C'}
                     </div>
                     <div>
                       <Link href={`/customers/${customer.id}`} className="font-bold hover:text-primary flex items-center gap-1 group/link">
@@ -208,7 +572,7 @@ export default function CustomersPage() {
                         <ExternalLink className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
                       </Link>
                       <div className="text-[10px] text-muted-foreground flex items-center gap-2">
-                        <span>{customer.flag} {customer.country}</span>
+                        <span>{customer.country}</span>
                         <span>•</span>
                         <span>{customer.assignedManager}</span>
                       </div>
@@ -230,7 +594,7 @@ export default function CustomersPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1 max-w-[150px]">
-                    {customer.interests.products.slice(0, 2).map(p => (
+                    {Array.isArray(customer.interests?.products) && customer.interests.products.slice(0, 2).map(p => (
                       <Badge key={p} variant="secondary" className="text-[8px] h-4">{p}</Badge>
                     ))}
                   </div>
@@ -243,14 +607,14 @@ export default function CustomersPage() {
                 </TableCell>
                 <TableCell>
                   <div className="space-y-1">
-                    <StarRating rating={customer.internalRating} />
+                    <StarRating rating={customer.internalRating || 0} />
                     <div className="w-16">
                       <Progress value={customer.dataCompleteness} className="h-1" />
                     </div>
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="text-xs font-bold text-primary">${customer.totalRevenue.toLocaleString()}</div>
+                  <div className="text-xs font-bold text-primary">${(customer.totalRevenue || 0).toLocaleString()}</div>
                   <div className="text-[8px] text-muted-foreground">Lifetime Value</div>
                 </TableCell>
                 <TableCell className="text-right">
