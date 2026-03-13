@@ -4,9 +4,10 @@ import React, { useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { 
   Plus, Search, Edit, Trash2, ExternalLink, Filter, 
-  Download, Printer, CheckCircle2, AlertCircle, 
+  Download, Printer, CheckCircle2, 
   ShieldCheck, Info, Star, MoreVertical, Upload,
-  FileSpreadsheet, FileDown, Loader2, X, AlertTriangle
+  FileSpreadsheet, FileDown, Loader2, X, AlertTriangle,
+  Mail
 } from "lucide-react";
 import { 
   Table, 
@@ -41,7 +42,6 @@ import {
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
-  DropdownMenuLabel, 
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
@@ -52,6 +52,14 @@ import { toast } from "@/hooks/use-toast";
 import { MOCK_SUPPLIERS } from "@/lib/mock-data";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
+
+const StarRating = ({ rating }: { rating: number }) => (
+  <div className="flex gap-0.5">
+    {[1, 2, 3, 4, 5].map(i => (
+      <Star key={i} className={cn("h-2.5 w-2.5", i <= Math.round(rating) ? "fill-yellow-500 text-yellow-500" : "text-muted-foreground")} />
+    ))}
+  </div>
+);
 
 const IMPORT_TEMPLATE_HEADERS = [
   "Company Name", "Country", "Nature of Business", "Contact Person",
@@ -72,6 +80,7 @@ export default function SuppliersPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importStep, setImportStep] = useState<"upload" | "preview" | "importing" | "success">("upload");
   const [previewData, setPreviewData] = useState<any[]>([]);
+  const [fullValidData, setFullValidData] = useState<any[]>([]);
   const [validationErrors, setValidationErrors] = useState<{row: number, message: string}[]>([]);
   const [duplicateMode, setDuplicateMode] = useState<"skip" | "update">("skip");
   const [importProgress, setImportProgress] = useState(0);
@@ -80,9 +89,8 @@ export default function SuppliersPage() {
 
   const db = useFirestore();
   const suppliersQuery = useMemo(() => collection(db, "suppliers"), [db]);
-  const { data: firestoreSuppliers = [], loading, error } = useCollection(suppliersQuery);
+  const { data: firestoreSuppliers = [], loading } = useCollection(suppliersQuery);
 
-  // Fallback to mock data if Firestore is empty or errors
   const suppliers = useMemo(() => {
     if (firestoreSuppliers.length > 0) return firestoreSuppliers;
     return MOCK_SUPPLIERS;
@@ -105,7 +113,6 @@ export default function SuppliersPage() {
   const tiers = ['Budget', 'Mid-Range', 'Premium', 'Luxury'];
   const statuses = Array.from(new Set(suppliers.map(s => s.recordStatus))).sort();
 
-  // --- Export Logic ---
   const handleExportCSV = () => {
     const csv = Papa.unparse(filteredSuppliers);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -137,19 +144,15 @@ export default function SuppliersPage() {
     }
   };
 
-  // --- Import Logic ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    processFile(file);
-  };
-
-  const processFile = (file: File) => {
     setImportFile(file);
     const reader = new FileReader();
     if (file.name.endsWith('.csv')) {
       Papa.parse(file, {
         header: true,
+        skipEmptyLines: true,
         complete: (results) => {
           validateAndPreview(results.data);
         }
@@ -182,13 +185,13 @@ export default function SuppliersPage() {
 
     setValidationErrors(errors);
     setPreviewData(validData.slice(0, 10));
+    setFullValidData(validData);
     setImportStep("preview");
   };
 
   const executeImport = async () => {
     setImportStep("importing");
     
-    const fullData = previewData; 
     let success = 0;
     let updates = 0;
     let failed = 0;
@@ -199,12 +202,12 @@ export default function SuppliersPage() {
 
     const batch = writeBatch(db);
 
-    for (let i = 0; i < fullData.length; i++) {
-      const row = fullData[i];
+    for (let i = 0; i < fullValidData.length; i++) {
+      const row = fullValidData[i];
       const email = row["Email"] || row["email"];
       const name = row["Company Name"] || row["name"];
       
-      const existing = suppliers.find(s => s.email === email);
+      const existing = suppliers.find(s => (s.email || "").toLowerCase() === (email || "").toLowerCase());
       
       const supplierData = {
         name,
@@ -252,19 +255,27 @@ export default function SuppliersPage() {
         failed++;
       }
 
-      setImportProgress(Math.round(((i + 1) / fullData.length) * 100));
+      if ((i + 1) % 50 === 0 || i === fullValidData.length - 1) {
+        setImportProgress(Math.round(((i + 1) / fullValidData.length) * 100));
+      }
     }
 
-    await batch.commit();
-    setImportResults({ success, failed, updated: updates });
-    setImportStep("success");
-    toast({ title: "Import Complete", description: `Processed ${fullData.length} records.` });
+    try {
+      await batch.commit();
+      setImportResults({ success, failed, updated: updates });
+      setImportStep("success");
+      toast({ title: "Import Complete", description: `Processed ${fullValidData.length} records.` });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Import Failed", description: "Database error during save." });
+      setImportStep("preview");
+    }
   };
 
   const resetImport = () => {
     setImportFile(null);
     setImportStep("upload");
     setPreviewData([]);
+    setFullValidData([]);
     setValidationErrors([]);
     setImportProgress(0);
   };
@@ -341,7 +352,7 @@ export default function SuppliersPage() {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-muted/50">
-                          {Object.keys(previewData[0] || {}).map(k => (
+                          {previewData.length > 0 && Object.keys(previewData[0] || {}).map(k => (
                             <TableHead key={k} className="text-[10px] whitespace-nowrap">{k}</TableHead>
                           ))}
                         </TableRow>
@@ -350,7 +361,7 @@ export default function SuppliersPage() {
                         {previewData.map((row, i) => (
                           <TableRow key={i}>
                             {Object.values(row).map((val: any, j) => (
-                              <TableCell key={j} className="text-[10px] whitespace-nowrap">{val}</TableCell>
+                              <TableCell key={j} className="text-[10px] whitespace-nowrap">{String(val)}</TableCell>
                             ))}
                           </TableRow>
                         ))}
@@ -389,7 +400,7 @@ export default function SuppliersPage() {
                   <DialogFooter className="gap-2">
                     <Button variant="ghost" onClick={resetImport}>Re-upload</Button>
                     <Button onClick={executeImport} disabled={validationErrors.length > 0}>
-                      Start Import
+                      Start Import ({fullValidData.length} rows)
                     </Button>
                   </DialogFooter>
                 </div>

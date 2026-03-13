@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { 
-  Plus, Search, User, Mail, Phone, Trash2, Edit, ExternalLink, 
-  Filter, Download, Star, TrendingUp, AlertCircle, HeartPulse, 
-  FileText, ShieldCheck, Upload, X, CheckCircle2, Loader2, FileSpreadsheet,
-  FileDown, AlertTriangle
+  Plus, Search, Trash2, Edit, ExternalLink, 
+  Download, Star, HeartPulse, 
+  FileText, Upload, CheckCircle2, Loader2, FileSpreadsheet,
+  FileDown, AlertTriangle, Mail
 } from "lucide-react";
 import { 
   Table, 
@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { useCollection, useFirestore } from "@/firebase";
-import { collection, query, writeBatch, doc } from "firebase/firestore";
+import { collection, writeBatch, doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { MOCK_CUSTOMERS } from "@/lib/mock-data";
@@ -72,6 +72,7 @@ export default function CustomersPage() {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importStep, setImportStep] = useState<"upload" | "preview" | "importing" | "success">("upload");
   const [previewData, setPreviewData] = useState<any[]>([]);
+  const [fullValidData, setFullValidData] = useState<any[]>([]);
   const [validationErrors, setValidationErrors] = useState<{row: number, message: string}[]>([]);
   const [duplicateMode, setDuplicateMode] = useState<"skip" | "update">("skip");
   const [importProgress, setImportProgress] = useState(0);
@@ -80,9 +81,8 @@ export default function CustomersPage() {
 
   const db = useFirestore();
   const customersQuery = useMemo(() => collection(db, "customers"), [db]);
-  const { data: firestoreCustomers = [], loading, error } = useCollection(customersQuery);
+  const { data: firestoreCustomers = [], loading } = useCollection(customersQuery);
 
-  // Fallback to mock data if Firestore is empty or errors
   const customers = useMemo(() => {
     if (firestoreCustomers.length > 0) return firestoreCustomers;
     return MOCK_CUSTOMERS;
@@ -93,8 +93,8 @@ export default function CustomersPage() {
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => {
-      const matchesSearch = c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                           c.email?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (c.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           (c.email || "").toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCountry = countryFilter === "all" || c.country === countryFilter;
       const matchesStatus = statusFilter === "all" || c.accountStatus === statusFilter;
       const matchesHealth = healthFilter === "all" || c.accountHealth === healthFilter;
@@ -102,21 +102,9 @@ export default function CustomersPage() {
     });
   }, [customers, searchTerm, countryFilter, statusFilter, healthFilter]);
 
-  const getHealthIcon = (health: string) => {
-    switch (health) {
-      case 'healthy': return <HeartPulse className="h-3 w-3 text-green-500" />;
-      case 'at risk': return <AlertCircle className="h-3 w-3 text-yellow-500" />;
-      case 'dormant': return <AlertCircle className="h-3 w-3 text-orange-500" />;
-      case 'churned': return <AlertCircle className="h-3 w-3 text-red-500" />;
-      default: return null;
-    }
-  };
-
-  // --- Export Logic ---
   const handleExportCSV = () => {
     const csv = Papa.unparse(filteredCustomers.map(c => ({
       ...c,
-      id: c.id,
       interests: Array.isArray(c.interests?.products) ? c.interests.products.join(", ") : "",
       departments: Array.isArray(c.departments) ? c.departments.join(", ") : ""
     })));
@@ -163,19 +151,15 @@ export default function CustomersPage() {
     }
   };
 
-  // --- Import Logic ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    processFile(file);
-  };
-
-  const processFile = (file: File) => {
     setImportFile(file);
     const reader = new FileReader();
     if (file.name.endsWith('.csv')) {
       Papa.parse(file, {
         header: true,
+        skipEmptyLines: true,
         complete: (results) => {
           validateAndPreview(results.data);
         }
@@ -208,13 +192,13 @@ export default function CustomersPage() {
 
     setValidationErrors(errors);
     setPreviewData(validData.slice(0, 10));
+    setFullValidData(validData);
     setImportStep("preview");
   };
 
   const executeImport = async () => {
     setImportStep("importing");
     
-    const fullData = previewData; 
     let success = 0;
     let updates = 0;
     let failed = 0;
@@ -225,13 +209,12 @@ export default function CustomersPage() {
 
     const batch = writeBatch(db);
 
-    for (let i = 0; i < fullData.length; i++) {
-      const row = fullData[i];
+    for (let i = 0; i < fullValidData.length; i++) {
+      const row = fullValidData[i];
       const email = row["Email"] || row["email"];
       const name = row["Company Name"] || row["name"];
       
-      // Duplicate detection
-      const existing = customers.find(c => c.email === email);
+      const existing = customers.find(c => (c.email || "").toLowerCase() === (email || "").toLowerCase());
       
       const customerData = {
         name,
@@ -241,7 +224,7 @@ export default function CustomersPage() {
         accountStatus: (row["Account Status"] || "prospect").toLowerCase(),
         departments: [currentDept],
         assignedManager: manager.name,
-        totalRevenue: 0,
+        totalRevenue: parseFloat(row["Annual Budget"]) || 0,
         accountHealth: "healthy",
         lastContactDate: new Date().toISOString(),
         dataCompleteness: 50,
@@ -264,19 +247,27 @@ export default function CustomersPage() {
         failed++;
       }
 
-      setImportProgress(Math.round(((i + 1) / fullData.length) * 100));
+      if ((i + 1) % 50 === 0 || i === fullValidData.length - 1) {
+        setImportProgress(Math.round(((i + 1) / fullValidData.length) * 100));
+      }
     }
 
-    await batch.commit();
-    setImportResults({ success, failed, updated: updates });
-    setImportStep("success");
-    toast({ title: "Import Complete", description: `Processed ${fullData.length} records.` });
+    try {
+      await batch.commit();
+      setImportResults({ success, failed, updated: updates });
+      setImportStep("success");
+      toast({ title: "Import Complete", description: `Processed ${fullValidData.length} records.` });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Import Failed", description: "Could not save to database." });
+      setImportStep("preview");
+    }
   };
 
   const resetImport = () => {
     setImportFile(null);
     setImportStep("upload");
     setPreviewData([]);
+    setFullValidData([]);
     setValidationErrors([]);
     setImportProgress(0);
   };
@@ -356,7 +347,7 @@ export default function CustomersPage() {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-muted/50">
-                          {Object.keys(previewData[0] || {}).map(k => (
+                          {previewData.length > 0 && Object.keys(previewData[0] || {}).map(k => (
                             <TableHead key={k} className="text-[10px] whitespace-nowrap">{k}</TableHead>
                           ))}
                         </TableRow>
@@ -365,7 +356,7 @@ export default function CustomersPage() {
                         {previewData.map((row, i) => (
                           <TableRow key={i}>
                             {Object.values(row).map((val: any, j) => (
-                              <TableCell key={j} className="text-[10px] whitespace-nowrap">{val}</TableCell>
+                              <TableCell key={j} className="text-[10px] whitespace-nowrap">{String(val)}</TableCell>
                             ))}
                           </TableRow>
                         ))}
@@ -404,8 +395,8 @@ export default function CustomersPage() {
 
                   <DialogFooter className="gap-2">
                     <Button variant="ghost" onClick={resetImport}>Re-upload</Button>
-                    <Button onClick={executeImport} disabled={validationErrors.length > 0}>
-                      Start Import
+                    <Button onClick={executeImport} disabled={validationErrors.length > 0 && duplicateMode === "skip"}>
+                      Start Import ({fullValidData.length} rows)
                     </Button>
                   </DialogFooter>
                 </div>
@@ -607,7 +598,7 @@ export default function CustomersPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5">
-                    {getHealthIcon(customer.accountHealth)}
+                    <HeartPulse className={cn("h-3 w-3", customer.accountHealth === 'healthy' ? "text-green-500" : "text-destructive")} />
                     <span className="text-[10px] capitalize font-medium">{customer.accountHealth}</span>
                   </div>
                 </TableCell>
