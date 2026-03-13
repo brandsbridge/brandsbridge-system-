@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -8,11 +7,6 @@ import {
   LayoutDashboard, 
   Factory, 
   Users, 
-  Package, 
-  Trophy, 
-  MessageSquare, 
-  Terminal,
-  Search,
   Menu,
   FileText,
   Briefcase,
@@ -31,7 +25,14 @@ import {
   Mail,
   BarChart3,
   CreditCard,
-  Send
+  Send,
+  Calculator,
+  Receipt,
+  Wallet,
+  History,
+  FileBarChart,
+  Search,
+  Terminal
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -89,8 +90,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       return currentUser.department === dept;
     }
     
-    // Role checks for admin pages
-    if (path.startsWith("/admin") && currentUser.role !== 'admin') return false;
+    // Role checks for admin/finance pages
+    if ((path.startsWith("/admin") || path.startsWith("/accounting")) && currentUser.role !== 'admin') return false;
     
     return true;
   };
@@ -103,6 +104,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { name: "Chocolate Market", href: "/department/chocolate", icon: Cookie, dept: 'chocolate' },
     { name: "Cosmetics Market", href: "/department/cosmetics", icon: Sparkles, dept: 'cosmetics' },
     { name: "Detergents Market", href: "/department/detergents", icon: Droplets, dept: 'detergents' },
+    { type: 'separator', label: 'Finance' },
+    { name: "Accounting Hub", href: "/accounting", icon: Calculator },
+    { name: "Invoices", href: "/accounting/invoices", icon: Receipt },
+    { name: "Purchase Orders", href: "/accounting/purchase-orders", icon: FileText },
+    { name: "Payments", href: "/accounting/payments", icon: Wallet },
+    { name: "Financial Reports", href: "/accounting/reports", icon: FileBarChart },
+    { name: "Journal Entries", href: "/accounting/journal", icon: History },
     { type: 'separator', label: 'Marketing' },
     { name: "Campaigns", href: "/campaigns", icon: Send },
     { name: "Email Analytics", href: "/email-analytics", icon: Mail },
@@ -112,7 +120,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { name: "Customers", href: "/customers", icon: Users },
     { name: "Offers Tracking", href: "/offers-tracking", icon: Target },
     { name: "Purchase History", href: "/purchases", icon: CreditCard },
-    { name: "Invoices", href: "/invoices", icon: FileText },
     { name: "Bulk Uploads", href: "/uploads", icon: Upload },
     { type: 'separator', label: 'Admin' },
     { name: "Shared Clients", href: "/admin/shared-clients", icon: ShieldCheck },
@@ -170,7 +177,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
-                placeholder="Search across your department..."
+                placeholder="Search financials or clients..."
                 className="w-64 pl-9 md:w-80 lg:w-96"
               />
             </div>
@@ -221,10 +228,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <ShieldAlert className="h-16 w-16 text-destructive" />
               <h2 className="text-3xl font-bold font-headline">Access Denied</h2>
               <p className="text-muted-foreground max-w-md">
-                You do not have the required permissions to access this page. Please contact your department manager or the super administrator.
+                You do not have the required permissions to access this page. Professional accounting features are restricted to Super Admins.
               </p>
-              <Button onClick={() => router.push(currentUser?.department !== 'all' ? `/department/${currentUser?.department}` : '/')}>
-                Go to Dashboard
+              <Button asChild>
+                <Link href={currentUser?.department !== 'all' ? `/department/${currentUser?.department}` : '/'}>
+                  Go to Dashboard
+                </Link>
               </Button>
             </div>
           ) : (
