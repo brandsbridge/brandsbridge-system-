@@ -13,7 +13,6 @@ import {
   MessageSquare, 
   Terminal,
   Search,
-  Bell,
   Menu,
   FileText,
   Briefcase,
@@ -28,7 +27,11 @@ import {
   LogOut,
   Users as UsersIcon,
   ChevronDown,
-  ShieldAlert
+  ShieldAlert,
+  Mail,
+  BarChart3,
+  CreditCard,
+  Send
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -100,22 +103,23 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { name: "Chocolate Market", href: "/department/chocolate", icon: Cookie, dept: 'chocolate' },
     { name: "Cosmetics Market", href: "/department/cosmetics", icon: Sparkles, dept: 'cosmetics' },
     { name: "Detergents Market", href: "/department/detergents", icon: Droplets, dept: 'detergents' },
-    { type: 'separator', label: 'Management' },
+    { type: 'separator', label: 'Marketing' },
+    { name: "Campaigns", href: "/campaigns", icon: Send },
+    { name: "Email Analytics", href: "/email-analytics", icon: Mail },
+    { name: "Performance", href: "/performance", icon: BarChart3 },
+    { type: 'separator', label: 'Sales & Ops' },
     { name: "Suppliers", href: "/suppliers", icon: Factory },
     { name: "Customers", href: "/customers", icon: Users },
-    { name: "Bulk Uploads", href: "/uploads", icon: Upload },
-    { type: 'separator', label: 'Operations' },
+    { name: "Offers Tracking", href: "/offers-tracking", icon: Target },
+    { name: "Purchase History", href: "/purchases", icon: CreditCard },
     { name: "Invoices", href: "/invoices", icon: FileText },
-    { name: "Inventory", href: "/inventory", icon: Package },
-    { name: "Employees", href: "/employees", icon: Briefcase },
-    { name: "Projects", href: "/projects", icon: Kanban },
-    { name: "CRM", href: "/crm", icon: Target },
-    { name: "Best Offers", href: "/offers", icon: Trophy },
-    { name: "Responses", href: "/responses", icon: MessageSquare },
-    { name: "Automation", href: "/automation", icon: Terminal },
+    { name: "Bulk Uploads", href: "/uploads", icon: Upload },
     { type: 'separator', label: 'Admin' },
     { name: "Shared Clients", href: "/admin/shared-clients", icon: ShieldCheck },
     { name: "Permissions", href: "/admin/permissions", icon: ShieldAlert },
+    { name: "Employees", href: "/employees", icon: Briefcase },
+    { name: "Projects", href: "/projects", icon: Kanban },
+    { name: "Automation", href: "/automation", icon: Terminal },
   ];
 
   if (pathname === "/login") return <>{children}</>;
@@ -229,7 +233,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       
-      {/* Floating User Switcher for easier testing */}
       <div className="fixed bottom-4 right-4 z-50">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
