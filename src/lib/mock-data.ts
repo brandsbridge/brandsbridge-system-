@@ -81,6 +81,25 @@ export const MOCK_STOCKS = [
   { id: 'st2', productId: 'p2', supplierId: 's3', quantity: 500, price: 4.20, leadTime: 7, department: 'cosmetics' },
 ];
 
+export const MOCK_OFFERS = [
+  { id: 'off1', productId: 'p1', supplierId: 's1', bestPrice: 11.50, leadTime: 5, calculatedAt: { seconds: Date.now() / 1000 - 86400 * 2 } },
+  { id: 'off2', productId: 'p2', supplierId: 's3', bestPrice: 3.90, leadTime: 7, calculatedAt: { seconds: Date.now() / 1000 - 86400 * 1 } },
+  { id: 'off3', productId: 'p3', supplierId: 's8', bestPrice: 8.20, leadTime: 5, calculatedAt: { seconds: Date.now() / 1000 - 86400 * 5 } },
+];
+
+export const MOCK_RESPONSES = Array.from({ length: 30 }).map((_, i) => {
+  const cust = MOCK_CUSTOMERS[i % MOCK_CUSTOMERS.length];
+  const offer = MOCK_OFFERS[i % MOCK_OFFERS.length];
+  const types = ['order', 'quote', 'interest'];
+  return {
+    id: `res-${i}`,
+    customerId: cust.id,
+    bestOfferId: offer.id,
+    responseType: types[i % 3],
+    createdAt: { seconds: (Date.now() - Math.random() * 7 * 86400000) / 1000 }
+  };
+});
+
 export const MOCK_LOGS = [
   { id: 'l1', pipelineName: 'Price Recalculation', event: 'Daily Check', status: 'success', timestamp: { seconds: Date.now() / 1000 }, details: 'Processed 500 products' }
 ];
