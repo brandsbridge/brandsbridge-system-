@@ -10,9 +10,22 @@
         "email": { "type": "string", "format": "email" },
         "phone": { "type": "string" },
         "country": { "type": "string" },
-        "productsOffered": { "type": "array", "items": { "type": "string" } }
+        "department": { "type": "string", "enum": ["chocolate", "cosmetics", "detergents"] },
+        "productsOffered": { "type": "array", "items": { "type": "string" } },
+        "leadTime": { "type": "number" },
+        "lastStockSubmission": { "type": "string", "format": "date-time" },
+        "contractStatus": { "type": "string", "enum": ["active", "pending", "expired"] },
+        "ratings": {
+          "type": "object",
+          "properties": {
+            "frequency": { "type": "number" },
+            "speed": { "type": "number" },
+            "price": { "type": "number" }
+          }
+        },
+        "notes": { "type": "string" }
       },
-      "required": ["name", "email"]
+      "required": ["name", "email", "department"]
     },
     "Customer": {
       "title": "Customer",
@@ -22,9 +35,22 @@
         "name": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "phone": { "type": "string" },
-        "interestedProducts": { "type": "array", "items": { "type": "string" } }
+        "country": { "type": "string" },
+        "department": { "type": "string", "enum": ["chocolate", "cosmetics", "detergents"] },
+        "interestedProducts": { "type": "array", "items": { "type": "string" } },
+        "lastReplyDate": { "type": "string", "format": "date-time" },
+        "accountStatus": { "type": "string", "enum": ["prospect", "active", "key account"] },
+        "ratings": {
+          "type": "object",
+          "properties": {
+            "responseTime": { "type": "number" },
+            "activity": { "type": "number" },
+            "volume": { "type": "number" }
+          }
+        },
+        "notes": { "type": "string" }
       },
-      "required": ["name", "email"]
+      "required": ["name", "email", "department"]
     },
     "Product": {
       "title": "Product",
@@ -32,9 +58,16 @@
       "type": "object",
       "properties": {
         "name": { "type": "string" },
-        "category": { "type": "string" }
+        "category": { "type": "string" },
+        "department": { "type": "string", "enum": ["chocolate", "cosmetics", "detergents"] },
+        "imageUrl": { "type": "string" },
+        "isFeatured": { "type": "boolean" },
+        "isWatch": { "type": "boolean" },
+        "isBestDealToday": { "type": "boolean" },
+        "margin": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name"]
+      "required": ["name", "department"]
     },
     "Stock": {
       "title": "Stock",
@@ -43,48 +76,12 @@
       "properties": {
         "productId": { "type": "string" },
         "supplierId": { "type": "string" },
+        "department": { "type": "string" },
         "quantity": { "type": "number" },
         "price": { "type": "number" },
         "leadTime": { "type": "number" }
       },
       "required": ["productId", "supplierId", "quantity", "price"]
-    },
-    "BestOffer": {
-      "title": "Best Offer",
-      "description": "The current best aggregated offer for a product.",
-      "type": "object",
-      "properties": {
-        "productId": { "type": "string" },
-        "supplierId": { "type": "string" },
-        "bestPrice": { "type": "number" },
-        "leadTime": { "type": "number" },
-        "calculatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["productId", "bestPrice"]
-    },
-    "CustomerResponse": {
-      "title": "Customer Response",
-      "description": "A customer's reaction to an offer.",
-      "type": "object",
-      "properties": {
-        "customerId": { "type": "string" },
-        "bestOfferId": { "type": "string" },
-        "responseType": { "type": "string", "enum": ["order", "quote", "interest"] },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["customerId", "bestOfferId", "responseType"]
-    },
-    "AutomationLog": {
-      "title": "Automation Log",
-      "description": "Log entry for background pipeline executions.",
-      "type": "object",
-      "properties": {
-        "pipelineName": { "type": "string" },
-        "event": { "type": "string" },
-        "status": { "type": "string", "enum": ["success", "failed", "pending"] },
-        "details": { "type": "string" },
-        "timestamp": { "type": "string", "format": "date-time" }
-      }
     }
   },
   "auth": {
@@ -94,9 +91,6 @@
     "/suppliers/{supplierId}": { "schema": "Supplier", "description": "Global suppliers." },
     "/customers/{customerId}": { "schema": "Customer", "description": "Customer profiles." },
     "/products/{productId}": { "schema": "Product", "description": "Product catalog." },
-    "/stocks/{stockId}": { "schema": "Stock", "description": "Supplier inventory entries." },
-    "/bestOffers/{offerId}": { "schema": "BestOffer", "description": "Calculated best deals." },
-    "/customerResponses/{responseId}": { "schema": "CustomerResponse", "description": "Customer engagement tracking." },
-    "/automationLogs/{logId}": { "schema": "AutomationLog", "description": "System logs." }
+    "/stocks/{stockId}": { "schema": "Stock", "description": "Supplier inventory entries." }
   }
 }

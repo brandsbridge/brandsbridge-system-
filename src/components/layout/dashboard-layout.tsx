@@ -20,7 +20,10 @@ import {
   FileText,
   Briefcase,
   Kanban,
-  Target
+  Target,
+  Cookie,
+  Sparkles,
+  Droplets
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,6 +38,10 @@ import {
 
 const navigation = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
+  { name: "Chocolate Market", href: "/department/chocolate", icon: Cookie },
+  { name: "Cosmetics Market", href: "/department/cosmetics", icon: Sparkles },
+  { name: "Detergents Market", href: "/department/detergents", icon: Droplets },
+  { type: 'separator' },
   { name: "Suppliers", href: "/suppliers", icon: Factory },
   { name: "Customers", href: "/customers", icon: Users },
   { name: "Invoices", href: "/invoices", icon: FileText },
@@ -53,7 +60,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground dark">
-      {/* Desktop Sidebar */}
       <aside className="fixed left-0 top-0 hidden h-full w-64 border-r bg-card md:block">
         <div className="flex h-16 items-center border-b px-6">
           <Link href="/" className="flex items-center gap-2">
@@ -61,28 +67,30 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <span className="text-xl font-bold tracking-tight font-headline">BizFlow</span>
           </Link>
         </div>
-        <nav className="space-y-1 p-4">
-          {navigation.map((item) => (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={cn(
-                "group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                pathname === item.href
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground"
-              )}
-            >
-              <item.icon className={cn("mr-3 h-5 w-5 shrink-0", pathname === item.href ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
-              {item.name}
-            </Link>
+        <nav className="space-y-1 p-4 overflow-y-auto h-[calc(100vh-64px)]">
+          {navigation.map((item, idx) => (
+            item.type === 'separator' ? (
+              <div key={idx} className="my-4 h-px bg-border" />
+            ) : (
+              <Link
+                key={item.name}
+                href={item.href!}
+                className={cn(
+                  "group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  pathname === item.href
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                <item.icon className={cn("mr-3 h-5 w-5 shrink-0", pathname === item.href ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+                {item.name}
+              </Link>
+            )
           ))}
         </nav>
       </aside>
 
-      {/* Main Content Area */}
       <div className="md:pl-64">
-        {/* Header */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:px-8">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
@@ -110,9 +118,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => {}}>Light</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {}}>Dark</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {}}>System</DropdownMenuItem>
+                <DropdownMenuItem>Light</DropdownMenuItem>
+                <DropdownMenuItem>Dark</DropdownMenuItem>
+                <DropdownMenuItem>System</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
