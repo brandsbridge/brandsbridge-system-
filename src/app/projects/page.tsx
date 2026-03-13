@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo } from "react";
@@ -16,7 +15,10 @@ const COLUMNS = ["To Do", "In Progress", "Review", "Done"];
 
 export default function ProjectsPage() {
   const db = useFirestore();
-  const { data: fbTasks = [], loading } = useCollection(collection(db, "tasks"));
+  
+  // Memoize Firestore Collection to prevent infinite render loops
+  const tasksCol = useMemo(() => collection(db, "tasks"), [db]);
+  const { data: fbTasks = [], loading } = useCollection(tasksCol);
 
   const tasks = useMemo(() => fbTasks.length > 0 ? fbTasks : MOCK_TASKS, [fbTasks]);
 

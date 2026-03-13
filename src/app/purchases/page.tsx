@@ -26,7 +26,10 @@ const COLORS = ['#755EDE', '#5182E0', '#F59E0B'];
 
 export default function PurchasesPage() {
   const db = useFirestore();
-  const { data: fbPurchases = [], loading } = useCollection(collection(db, "purchases"));
+  
+  // Memoize Firestore Collection to prevent infinite render loops
+  const purchasesCol = useMemo(() => collection(db, "purchases"), [db]);
+  const { data: fbPurchases = [], loading } = useCollection(purchasesCol);
 
   const purchases = fbPurchases.length > 0 ? fbPurchases : MOCK_PURCHASES;
 

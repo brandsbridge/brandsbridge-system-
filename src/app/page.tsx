@@ -48,10 +48,14 @@ export default function OverviewPage() {
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
   const db = useFirestore();
 
-  // Firestore Collections
-  const { data: fbSuppliers = [], loading: loadingSuppliers } = useCollection(collection(db, "suppliers"));
-  const { data: fbCustomers = [], loading: loadingCustomers } = useCollection(collection(db, "customers"));
-  const { data: fbUploadLogs = [], loading: loadingLogs } = useCollection(collection(db, "uploadLogs"));
+  // Memoize Firestore Collections to prevent infinite render loops
+  const suppliersCol = useMemo(() => collection(db, "suppliers"), [db]);
+  const customersCol = useMemo(() => collection(db, "customers"), [db]);
+  const uploadLogsCol = useMemo(() => collection(db, "uploadLogs"), [db]);
+
+  const { data: fbSuppliers = [], loading: loadingSuppliers } = useCollection(suppliersCol);
+  const { data: fbCustomers = [], loading: loadingCustomers } = useCollection(customersCol);
+  const { data: fbUploadLogs = [], loading: loadingLogs } = useCollection(uploadLogsCol);
 
   useEffect(() => {
     const savedUser = localStorage.getItem("demoUser");
