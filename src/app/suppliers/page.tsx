@@ -174,6 +174,16 @@ export default function SuppliersPage() {
           validateAndPreview(results.data);
         }
       });
+    } else if (file.name.endsWith('.json')) {
+      reader.onload = (e) => {
+        try {
+          const json = JSON.parse(e.target?.result as string);
+          validateAndPreview(Array.isArray(json) ? json : [json]);
+        } catch (err) {
+          toast({ variant: "destructive", title: "Invalid JSON", description: "Could not parse JSON file." });
+        }
+      };
+      reader.readAsText(file);
     } else {
       reader.onload = (e) => {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
@@ -190,11 +200,11 @@ export default function SuppliersPage() {
   const validateAndPreview = (data: any[]) => {
     const errors: {row: number, message: string}[] = [];
     const validData = data.filter((row, idx) => {
-      const companyName = row["Company Name"] || row["name"];
+      const companyName = row["Company Name"] || row["name"] || row["title"];
       const email = row["Email"] || row["email"];
       
       if (!companyName || !email) {
-        errors.push({ row: idx + 1, message: "Missing Company Name or Email" });
+        errors.push({ row: idx + 1, message: !companyName ? "Missing Company Name" : "Missing Email" });
         return false;
       }
       return true;
@@ -222,7 +232,7 @@ export default function SuppliersPage() {
     for (let i = 0; i < fullValidData.length; i++) {
       const row = fullValidData[i];
       const email = (row["Email"] || row["email"] || "").toString().toLowerCase().trim();
-      const name = row["Company Name"] || row["name"];
+      const name = row["Company Name"] || row["name"] || row["title"];
       
       const existing = suppliers.find(s => (s.email || "").toLowerCase().trim() === email);
       
@@ -319,7 +329,7 @@ export default function SuppliersPage() {
             <DialogContent className="max-w-3xl">
               <DialogHeader>
                 <DialogTitle>Import Suppliers</DialogTitle>
-                <DialogDescription>Bulk upload supplier profiles from CSV or Excel files.</DialogDescription>
+                <DialogDescription>Bulk upload supplier profiles from CSV, Excel, or JSON files.</DialogDescription>
               </DialogHeader>
 
               {importStep === "upload" && (
@@ -345,12 +355,12 @@ export default function SuppliersPage() {
                   >
                     <Upload className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
                     <p className="text-sm font-medium">Click or drag & drop to upload</p>
-                    <p className="text-xs text-muted-foreground mt-1">Supports .csv and .xlsx up to 10MB</p>
+                    <p className="text-xs text-muted-foreground mt-1">Supports .csv, .xlsx, and .json up to 10MB</p>
                     <input 
                       type="file" 
                       ref={fileInputRef} 
                       className="hidden" 
-                      accept=".csv,.xlsx" 
+                      accept=".csv,.xlsx,.json" 
                       onChange={handleFileChange}
                     />
                   </div>
