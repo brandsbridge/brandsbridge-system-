@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -32,7 +33,8 @@ import {
   History,
   FileBarChart,
   Search,
-  Terminal
+  Terminal,
+  Settings
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -99,7 +101,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const isAccessDenied = pathname !== "/login" && pathname !== "/profile" && !canAccess(pathname);
 
   const navigation = [
-    { name: "Overview", href: "/", icon: LayoutDashboard },
+    { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { type: 'separator', label: 'Market Segments' },
     { name: "Chocolate Market", href: "/department/chocolate", icon: Cookie, dept: 'chocolate' },
     { name: "Cosmetics Market", href: "/department/cosmetics", icon: Sparkles, dept: 'cosmetics' },
@@ -126,6 +128,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { name: "Permissions", href: "/admin/permissions", icon: ShieldAlert },
     { name: "Employees", href: "/employees", icon: Briefcase },
     { name: "Projects", href: "/projects", icon: Kanban },
+    { name: "System Hub", href: "/admin/system", icon: Settings },
     { name: "Automation", href: "/automation", icon: Terminal },
   ];
 

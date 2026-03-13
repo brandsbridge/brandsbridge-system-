@@ -119,6 +119,21 @@
         "assignee": { "type": "string" },
         "dueDate": { "type": "string" }
       }
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "A system user or team member.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "manager", "sales", "viewer"] },
+        "department": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "joinDate": { "type": "string", "format": "date" },
+        "lastLogin": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "role", "department"]
     }
   },
   "auth": {
@@ -132,6 +147,7 @@
     "/campaigns/{campaignId}": { "schema": "Campaign", "description": "Marketing campaigns." },
     "/leads/{leadId}": { "schema": "Lead", "description": "CRM leads." },
     "/purchases/{purchaseId}": { "schema": "Purchase", "description": "Order history." },
-    "/tasks/{taskId}": { "schema": "Task", "description": "Operational tasks." }
+    "/tasks/{taskId}": { "schema": "Task", "description": "Operational tasks." },
+    "/employees/{employeeId}": { "schema": "Employee", "description": "System user records." }
   }
 }

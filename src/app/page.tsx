@@ -1,18 +1,20 @@
+
 "use client";
 
 import React, { useMemo, useEffect, useState } from "react";
 import { 
   Users, 
   Factory, 
-  Trophy, 
   Clock, 
   UserPlus,
   Share2,
-  Upload,
   ArrowRight,
   ShieldCheck,
+  Loader2,
   TrendingUp,
-  Loader2
+  Target,
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
 import { 
   XAxis, 
@@ -22,7 +24,10 @@ import {
   ResponsiveContainer, 
   BarChart, 
   Bar, 
-  Cell
+  Cell,
+  PieChart,
+  Pie,
+  Legend
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +46,7 @@ import { useRouter } from "next/navigation";
 import { useCollection, useFirestore } from "@/firebase";
 import { collection } from "firebase/firestore";
 
-const COLORS = ['#755EDE', '#5182E0', '#F59E0B', '#EF4444'];
+const COLORS = ['#755EDE', '#5182E0', '#F59E0B', '#EF4444', '#10B981'];
 
 export default function OverviewPage() {
   const router = useRouter();
@@ -52,17 +57,20 @@ export default function OverviewPage() {
   const suppliersCol = useMemo(() => collection(db, "suppliers"), [db]);
   const customersCol = useMemo(() => collection(db, "customers"), [db]);
   const uploadLogsCol = useMemo(() => collection(db, "uploadLogs"), [db]);
+  const leadsCol = useMemo(() => collection(db, "leads"), [db]);
+  const productsCol = useMemo(() => collection(db, "products"), [db]);
 
   const { data: fbSuppliers = [], loading: loadingSuppliers } = useCollection(suppliersCol);
   const { data: fbCustomers = [], loading: loadingCustomers } = useCollection(customersCol);
   const { data: fbUploadLogs = [], loading: loadingLogs } = useCollection(uploadLogsCol);
+  const { data: fbLeads = [] } = useCollection(leadsCol);
+  const { data: fbProducts = [] } = useCollection(productsCol);
 
   useEffect(() => {
     const savedUser = localStorage.getItem("demoUser");
     if (savedUser) {
       const user = JSON.parse(savedUser);
       setCurrentUser(user);
-      // Redirect managers to their department pages automatically
       if (user.role === 'manager' && user.department !== 'all') {
         router.push(`/department/${user.department}`);
       }
@@ -73,39 +81,30 @@ export default function OverviewPage() {
 
   const currentDept = currentUser?.department || 'all';
 
-  const suppliers = useMemo(() => {
-    const list = fbSuppliers.length > 0 ? fbSuppliers : MOCK_SUPPLIERS;
-    return currentDept === 'all' ? list : list.filter((s: any) => s.departments?.includes(currentDept));
-  }, [fbSuppliers, currentDept]);
-
-  const customers = useMemo(() => {
-    const list = fbCustomers.length > 0 ? fbCustomers : MOCK_CUSTOMERS;
-    return currentDept === 'all' ? list : list.filter((c: any) => c.departments?.includes(currentDept));
-  }, [fbCustomers, currentDept]);
+  const suppliers = fbSuppliers.length > 0 ? fbSuppliers : MOCK_SUPPLIERS;
+  const customers = fbCustomers.length > 0 ? fbCustomers : MOCK_CUSTOMERS;
 
   const sharedWithMe = useMemo(() => 
     [...suppliers, ...customers].filter((e: any) => e.departments?.length > 1)
   , [suppliers, customers]);
 
-  const responseTypes = useMemo(() => [
-    { name: 'Active', value: customers.filter((b: any) => b.accountStatus === 'active').length },
-    { name: 'Key Account', value: customers.filter((b: any) => b.accountStatus === 'key account').length },
-    { name: 'Prospect', value: customers.filter((b: any) => b.accountStatus === 'prospect').length },
-  ], [customers]);
+  const deptComposition = useMemo(() => {
+    const depts = ['chocolate', 'cosmetics', 'detergents'];
+    return depts.map(d => ({
+      name: d.charAt(0).toUpperCase() + d.slice(1),
+      value: customers.filter((c: any) => c.departments?.includes(d)).length
+    }));
+  }, [customers]);
 
   const kpis = [
-    { title: "Total Suppliers", value: suppliers.length, icon: Factory, color: "text-blue-500", loading: loadingSuppliers },
-    { title: "Total Buyers", value: customers.length, icon: Users, color: "text-purple-500", loading: loadingCustomers },
-    { title: "Shared Clients", value: sharedWithMe.length, icon: Share2, color: "text-accent", loading: loadingSuppliers || loadingCustomers },
-    { title: "Engagement", value: "88%", icon: Clock, color: "text-orange-500", loading: false },
-    { title: "System Health", value: "Optimal", icon: ShieldCheck, color: "text-green-500", loading: false },
+    { title: "Suppliers", value: suppliers.length, icon: Factory, color: "text-blue-500", loading: loadingSuppliers },
+    { title: "Customers", value: customers.length, icon: Users, color: "text-purple-500", loading: loadingCustomers },
+    { title: "Active Leads", value: fbLeads.length, icon: Target, color: "text-accent", loading: false },
+    { title: "Products", value: fbProducts.length, icon: TrendingUp, color: "text-orange-500", loading: false },
+    { title: "System", value: "Healthy", icon: ShieldCheck, color: "text-green-500", loading: false },
   ];
 
-  const recentUploads = useMemo(() => {
-    const list = fbUploadLogs.length > 0 ? fbUploadLogs : MOCK_UPLOAD_LOGS;
-    const filtered = currentDept === 'all' ? list : list.filter((l: any) => l.department === currentDept);
-    return filtered.slice(0, 5);
-  }, [fbUploadLogs, currentDept]);
+  const recentUploads = fbUploadLogs.length > 0 ? fbUploadLogs : MOCK_UPLOAD_LOGS;
 
   if (!currentUser || (currentUser.role === 'manager' && currentUser.department !== 'all')) return null;
 
@@ -113,18 +112,20 @@ export default function OverviewPage() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight font-headline">Admin Overview</h1>
-          <p className="text-muted-foreground">Welcome, <strong className="text-primary">{currentUser.name}</strong>. Global system status.</p>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">Admin Dashboard</h1>
+          <p className="text-muted-foreground">Welcome back, <strong className="text-primary">{currentUser.name}</strong>. Global system status live from Firestore.</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/admin/permissions">
+          <Link href="/admin/system">
             <Button variant="outline" size="sm">
-              <ShieldCheck className="mr-2 h-4 w-4" /> Permissions
+              <AlertCircle className="mr-2 h-4 w-4" /> System Hub
             </Button>
           </Link>
-          <Button size="sm">
-            <UserPlus className="mr-2 h-4 w-4" /> System Audit
-          </Button>
+          <Link href="/employees">
+            <Button size="sm">
+              <UserPlus className="mr-2 h-4 w-4" /> Manage Team
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -132,7 +133,7 @@ export default function OverviewPage() {
         {kpis.map((kpi) => (
           <Card key={kpi.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{kpi.title}</CardTitle>
+              <CardTitle className="text-xs font-medium uppercase text-muted-foreground">{kpi.title}</CardTitle>
               <kpi.icon className={cn("h-4 w-4", kpi.color)} />
             </CardHeader>
             <CardContent>
@@ -146,15 +147,15 @@ export default function OverviewPage() {
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+      <div className="grid gap-6 lg:grid-cols-7">
         <Card className="lg:col-span-4">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Global Activity</CardTitle>
-              <CardDescription>Recent system-wide updates and imports.</CardDescription>
+              <CardTitle>Global Activity Feed</CardTitle>
+              <CardDescription>Live system events and data synchronization.</CardDescription>
             </div>
             <Link href="/uploads">
-              <Button variant="ghost" size="sm" className="text-xs">History <ArrowRight className="ml-2 h-3 w-3" /></Button>
+              <Button variant="ghost" size="sm" className="text-xs">Full History <ArrowRight className="ml-2 h-3 w-3" /></Button>
             </Link>
           </CardHeader>
           <CardContent>
@@ -167,27 +168,27 @@ export default function OverviewPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Market</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Manager</TableHead>
-                    <TableHead>Date</TableHead>
+                    <TableHead>Event</TableHead>
+                    <TableHead>Admin</TableHead>
+                    <TableHead className="text-right">Time</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recentUploads.map((log: any) => (
+                  {recentUploads.slice(0, 6).map((log: any) => (
                     <TableRow key={log.id}>
                       <TableCell>
-                         <Badge variant="outline" className="capitalize">{log.department}</Badge>
+                         <Badge variant="secondary" className="capitalize text-[10px]">{log.department}</Badge>
                       </TableCell>
-                      <TableCell className="font-medium text-xs">Bulk Import: {log.fileName}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-3 w-3 text-green-500" />
+                          <span className="text-xs font-medium truncate max-w-[150px]">Import: {log.fileName}</span>
+                        </div>
+                      </TableCell>
                       <TableCell className="text-xs font-bold">{log.uploadedBy}</TableCell>
-                      <TableCell className="text-[10px] text-muted-foreground">{formatFirebaseTimestamp(log.uploadDate)}</TableCell>
+                      <TableCell className="text-right text-[10px] text-muted-foreground">{formatFirebaseTimestamp(log.uploadDate)}</TableCell>
                     </TableRow>
                   ))}
-                  {recentUploads.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No recent activity</TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
             )}
@@ -196,22 +197,28 @@ export default function OverviewPage() {
 
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Global Composition</CardTitle>
-            <CardDescription>Market distribution across all segments</CardDescription>
+            <CardTitle>Market Composition</CardTitle>
+            <CardDescription>Customer distribution across segments</CardDescription>
           </CardHeader>
-          <CardContent className="h-[250px]">
+          <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={responseTypes}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', fontSize: '10px' }} />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {responseTypes.map((entry, index) => (
+              <PieChart>
+                <Pie
+                  data={deptComposition}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {deptComposition.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
-                </Bar>
-              </BarChart>
+                </Pie>
+                <Tooltip />
+                <Legend verticalAlign="bottom" />
+              </PieChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
