@@ -1,4 +1,3 @@
-
 export const MOCK_DEPARTMENTS = [
   { id: 'chocolate', name: 'Chocolate Market', icon: '🍫', manager: 'Sarah Mitchell' },
   { id: 'cosmetics', name: 'Cosmetics Market', icon: '💄', manager: 'David Rahman' },
@@ -42,17 +41,218 @@ export const DEMO_USERS: Employee[] = [
 
 export const MOCK_EMPLOYEES = DEMO_USERS;
 
-export const MOCK_SUPPLIERS = [
-  { id: 's1', name: 'Cocoa Bean Co.', email: 'sales@cocoabean.com', phone: '+1 555-1001', country: 'Belgium', departments: ['chocolate'], productsOffered: ['Cocoa Butter'], leadTime: 5, contractStatus: 'active', ratings: { frequency: 5, speed: 4, price: 4 } },
-  { id: 's2', name: 'Swiss Delights', email: 'swiss@delights.ch', phone: '+41 44 123 4567', country: 'Switzerland', departments: ['chocolate'], productsOffered: ['Milk Choc'], leadTime: 3, contractStatus: 'active', ratings: { frequency: 3, speed: 5, price: 3 } },
-  { id: 's3', name: 'Glow Labs', email: 'hello@glowlabs.fr', phone: '+33 1 23 45 67 89', country: 'France', departments: ['cosmetics'], productsOffered: ['Serum'], leadTime: 7, contractStatus: 'active', ratings: { frequency: 5, speed: 5, price: 3 } },
-  { id: 's-shared', name: 'Global Chem', email: 'info@globalchem.com', country: 'Germany', departments: ['cosmetics', 'detergents'], productsOffered: ['Packaging'], leadTime: 10, contractStatus: 'active', ratings: { frequency: 4, speed: 4, price: 4 } },
-  { id: 's4', name: 'Pure Spices', email: 'pure@spices.in', phone: '+91 11 9876 5432', country: 'India', departments: ['chocolate'], productsOffered: ['Vanilla Extract'], leadTime: 12, contractStatus: 'pending', ratings: { frequency: 2, speed: 3, price: 5 } },
-  { id: 's5', name: 'Alps Dairy', email: 'alps@dairy.at', phone: '+43 1 555 9900', country: 'Austria', departments: ['chocolate'], productsOffered: ['Milk Powder'], leadTime: 4, contractStatus: 'active', ratings: { frequency: 4, speed: 4, price: 4 } },
-  { id: 's6', name: 'Parisian Scents', email: 'contact@parisscents.fr', phone: '+33 6 12 34 56 78', country: 'France', departments: ['cosmetics'], productsOffered: ['Essential Oils'], leadTime: 6, contractStatus: 'active', ratings: { frequency: 5, speed: 4, price: 2 } },
-  { id: 's7', name: 'Berlin Bio', email: 'berlin@bio.de', phone: '+49 30 123456', country: 'Germany', departments: ['detergents'], productsOffered: ['Bio enzymes'], leadTime: 8, contractStatus: 'active', ratings: { frequency: 3, speed: 3, price: 4 } },
-  { id: 's8', name: 'CleanTech Solutions', email: 'sales@cleantech.nl', phone: '+31 20 555 0123', country: 'Netherlands', departments: ['detergents'], productsOffered: ['Surfactants'], leadTime: 5, contractStatus: 'active', ratings: { frequency: 5, speed: 5, price: 5 } },
-  { id: 's9', name: 'Tokyo Tech-Chem', email: 'tokyo@techchem.jp', phone: '+81 3 5555 6666', country: 'Japan', departments: ['cosmetics'], productsOffered: ['Vitamins'], leadTime: 14, contractStatus: 'active', ratings: { frequency: 4, speed: 2, price: 3 } },
+export interface Supplier {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  country: string;
+  flag: string;
+  departments: string[];
+  natureOfBusiness: string;
+  website: string;
+  socialLinks: { linkedin?: string; instagram?: string; facebook?: string; whatsapp?: string };
+  specializedProducts: string[];
+  topSellingProducts: { name: string; unit: string; avgPrice: string }[];
+  contacts: {
+    sales: { name: string; email: string; phone: string; whatsapp: string };
+    export: { name: string; email: string; phone: string; whatsapp: string };
+    support: { phone: string; email: string; hours: string; language: string };
+  };
+  overview: string;
+  yearEstablished: number;
+  employeeCount: string;
+  annualExportVolume: string;
+  marketsServed: string[];
+  certifications: {
+    organic: { has: boolean; expiry?: string };
+    halal: { has: boolean; expiry?: string; body?: string };
+    iso: { has: boolean; expiry?: string; number?: string };
+    fda: { has: boolean };
+  };
+  pricing: {
+    tier: 'Budget' | 'Mid-Range' | 'Premium' | 'Luxury';
+    moq: string;
+    mov: number;
+    paymentTerms: string[];
+    currency: string;
+    incoterms: string[];
+    leadTime: number;
+    samplePolicy: string;
+  };
+  strategicNotes: string;
+  recordStatus: 'Active - Verified' | 'Active - Pending Verification' | 'Under Review' | 'Inactive' | 'Blacklisted' | 'Checking Data';
+  priorityLevel: 'High' | 'Medium' | 'Low';
+  internalRating: number;
+  dataCompleteness: number;
+  lastUpdatedBy: string;
+  lastUpdatedDate: string;
+  verifiedBy?: string;
+  // Keep legacy for backwards compatibility
+  leadTime?: number;
+  contractStatus?: string;
+  ratings: { frequency: number; speed: number; price: number };
+  productsOffered: string[];
+}
+
+export const MOCK_SUPPLIERS: Supplier[] = [
+  {
+    id: 's1',
+    name: 'Cocoa Bean Co.',
+    email: 'sales@cocoabean.com',
+    phone: '+90 555 123 4567',
+    country: 'Turkey',
+    flag: '🇹🇷',
+    departments: ['chocolate'],
+    natureOfBusiness: 'Manufacturer',
+    website: 'https://cocoabean.tr',
+    socialLinks: { linkedin: 'linkedin.com/company/cocoabean', whatsapp: '+90 555 123 4567' },
+    specializedProducts: ['Cocoa Butter', 'Pralines', 'Mass Cocoa'],
+    topSellingProducts: [
+      { name: 'Premium Cocoa Butter', unit: 'Metric Ton', avgPrice: '$12.50/kg' },
+      { name: 'Hazelnut Pralines', unit: 'Box', avgPrice: '$45.00' }
+    ],
+    contacts: {
+      sales: { name: 'Ahmet Yilmaz', email: 'ahmet@cocoabean.tr', phone: '+90 555 123 4567', whatsapp: '+90 555 123 4567' },
+      export: { name: 'Zeynep Kaya', email: 'export@cocoabean.tr', phone: '+ Turkish export', whatsapp: '+90 555 123 4568' },
+      support: { phone: '+90 555 123 4500', email: 'support@cocoabean.tr', hours: '09:00 - 18:00 (GMT+3)', language: 'English, Turkish' }
+    },
+    overview: 'Established in 1995, Cocoa Bean Co. is a leading manufacturer of premium cocoa products in the region. We operate state-of-the-art facilities in Istanbul and export to over 40 countries globally.',
+    yearEstablished: 1995,
+    employeeCount: '201-500',
+    annualExportVolume: '$5-20M',
+    marketsServed: ['GCC', 'Europe', 'Asia'],
+    certifications: {
+      organic: { has: true, expiry: '2024-12-31' },
+      halal: { has: true, expiry: '2025-06-15', body: 'Turkish Halal Authority' },
+      iso: { has: true, expiry: '2024-10-20', number: 'ISO 9001:2015' },
+      fda: { has: true }
+    },
+    pricing: {
+      tier: 'Mid-Range',
+      moq: '500 KG',
+      mov: 5000,
+      paymentTerms: ['TT in advance', 'LC at sight'],
+      currency: 'USD',
+      incoterms: ['FOB', 'EXW'],
+      leadTime: 5,
+      samplePolicy: 'Paid samples'
+    },
+    strategicNotes: 'Exclusive distributor agreement for KSA pending. High leverage due to their unique roasting process. Preferred partner for GCC bulk orders.',
+    recordStatus: 'Active - Verified',
+    priorityLevel: 'High',
+    internalRating: 5,
+    dataCompleteness: 95,
+    lastUpdatedBy: 'Sarah Mitchell',
+    lastUpdatedDate: '2024-05-20T10:30:00Z',
+    verifiedBy: 'Alex Johnson',
+    ratings: { frequency: 5, speed: 4, price: 4 },
+    productsOffered: ['Cocoa Butter'],
+    leadTime: 5,
+    contractStatus: 'active'
+  },
+  {
+    id: 's2',
+    name: 'Swiss Delights',
+    email: 'swiss@delights.ch',
+    phone: '+41 44 123 4567',
+    country: 'Switzerland',
+    flag: '🇨🇭',
+    departments: ['chocolate'],
+    natureOfBusiness: 'Manufacturer',
+    website: 'https://swissdelights.ch',
+    socialLinks: { linkedin: 'linkedin.com/company/swissdelights' },
+    specializedProducts: ['Milk Choc', 'Dark Choc', 'Truffles'],
+    topSellingProducts: [{ name: 'Swiss Milk Choc', unit: 'KG', avgPrice: '$18.00' }],
+    contacts: {
+      sales: { name: 'Hans Mueller', email: 'hans@delights.ch', phone: '+41 44 123 4567', whatsapp: '+41 44 123 4567' },
+      export: { name: 'Emma Schmidt', email: 'export@delights.ch', phone: '+41 export', whatsapp: '' },
+      support: { phone: '+41 support', email: 'care@delights.ch', hours: '08:00 - 17:00 (CET)', language: 'English, German, French' }
+    },
+    overview: 'Traditional Swiss chocolate manufacturer focusing on luxury truffles and premium bars.',
+    yearEstablished: 1920,
+    employeeCount: '51-200',
+    annualExportVolume: '$20M+',
+    marketsServed: ['Europe', 'USA', 'GCC'],
+    certifications: {
+      organic: { has: false },
+      halal: { has: true, expiry: '2024-07-01', body: 'HCS Switzerland' },
+      iso: { has: true, expiry: '2025-01-01', number: 'ISO 22000' },
+      fda: { has: true }
+    },
+    pricing: {
+      tier: 'Luxury',
+      moq: '100 KG',
+      mov: 2500,
+      paymentTerms: ['TT 30 days', 'Open Account'],
+      currency: 'EUR',
+      incoterms: ['FOB', 'CIF'],
+      leadTime: 3,
+      samplePolicy: 'Free samples for key accounts'
+    },
+    strategicNotes: 'Premium pricing but essential for luxury gift hampers in UAE. No price flexibility.',
+    recordStatus: 'Active - Verified',
+    priorityLevel: 'Medium',
+    internalRating: 4,
+    dataCompleteness: 88,
+    lastUpdatedBy: 'James Carter',
+    lastUpdatedDate: '2024-05-15T14:45:00Z',
+    ratings: { frequency: 3, speed: 5, price: 3 },
+    productsOffered: ['Milk Choc'],
+    leadTime: 3,
+    contractStatus: 'active'
+  },
+  {
+    id: 's3',
+    name: 'Glow Labs',
+    email: 'hello@glowlabs.fr',
+    phone: '+33 1 23 45 67 89',
+    country: 'France',
+    flag: '🇫🇷',
+    departments: ['cosmetics'],
+    natureOfBusiness: 'Manufacturer',
+    website: 'https://glowlabs.fr',
+    socialLinks: { instagram: 'instagram.com/glowlabs' },
+    specializedProducts: ['Serum', 'Moisturizers'],
+    topSellingProducts: [{ name: 'Hyaluronic Serum', unit: 'Bottle', avgPrice: '$4.20' }],
+    contacts: {
+      sales: { name: 'Jean Pierre', email: 'jp@glowlabs.fr', phone: '+33 1 23', whatsapp: '' },
+      export: { name: 'Marie Curie', email: 'export@glowlabs.fr', phone: '+33 exp', whatsapp: '' },
+      support: { phone: '+33 support', email: 'help@glowlabs.fr', hours: '09:00 - 18:00 (CET)', language: 'English, French' }
+    },
+    overview: 'Eco-friendly cosmetics research lab and manufacturer in southern France.',
+    yearEstablished: 2010,
+    employeeCount: '1-50',
+    annualExportVolume: '$1-5M',
+    marketsServed: ['Europe', 'USA'],
+    certifications: {
+      organic: { has: true, expiry: '2024-06-30' },
+      halal: { has: false },
+      iso: { has: false },
+      fda: { has: false }
+    },
+    pricing: {
+      tier: 'Premium',
+      moq: '1000 Units',
+      mov: 4000,
+      paymentTerms: ['TT in advance'],
+      currency: 'EUR',
+      incoterms: ['EXW'],
+      leadTime: 7,
+      samplePolicy: 'Paid samples'
+    },
+    strategicNotes: 'Checking Data: Need to verify if they can produce Halal certified serums for KSA market. Current lack of Halal is a barrier.',
+    recordStatus: 'Checking Data',
+    priorityLevel: 'Low',
+    internalRating: 3,
+    dataCompleteness: 45,
+    lastUpdatedBy: 'David Rahman',
+    lastUpdatedDate: '2024-05-18T09:00:00Z',
+    ratings: { frequency: 5, speed: 5, price: 3 },
+    productsOffered: ['Serum'],
+    leadTime: 7,
+    contractStatus: 'active'
+  }
 ];
 
 export const MOCK_CUSTOMERS = [
