@@ -32,10 +32,16 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip, 
+  Tooltip as RechartsTooltip, 
   ResponsiveContainer,
   Cell
 } from "recharts";
+import { 
+  Tooltip, 
+  TooltipContent, 
+  TooltipProvider, 
+  TooltipTrigger 
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { MOCK_SUPPLIERS, MOCK_CUSTOMERS, MOCK_PRODUCTS, MOCK_STOCKS } from "@/lib/mock-data";
 import Link from "next/link";
@@ -291,7 +297,7 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
                         <XAxis dataKey="name" fontSize={8} tickLine={false} axisLine={false} />
                         <YAxis fontSize={8} tickLine={false} axisLine={false} />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', fontSize: '10px' }} />
+                        <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', fontSize: '10px' }} />
                         <Bar dataKey="price" radius={[4, 4, 0, 0]}>
                           {p.allPrices.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.price === p.bestPrice ? '#10B981' : '#94A3B8'} />
@@ -331,5 +337,3 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
     </div>
   );
 }
-
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
