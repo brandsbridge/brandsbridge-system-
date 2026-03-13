@@ -6,6 +6,7 @@ import CustomerClient from "./customer-client";
  * This function must remain in a Server Component file.
  */
 export function generateStaticParams() {
+  // Resilience for empty data sets during build
   return MOCK_CUSTOMERS.map((c) => ({
     id: c.id,
   }));

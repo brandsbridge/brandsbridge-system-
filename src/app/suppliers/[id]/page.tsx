@@ -6,6 +6,8 @@ import SupplierClient from "./supplier-client";
  * This function must remain in a Server Component file.
  */
 export function generateStaticParams() {
+  // If mock data is empty, return an empty array or at least one known placeholder
+  // to prevent build errors in environments where output is static.
   return MOCK_SUPPLIERS.map((s) => ({
     id: s.id,
   }));
