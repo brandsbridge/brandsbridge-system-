@@ -24,63 +24,51 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useFirestore, useCollection } from "@/firebase";
-import { collection, query, orderBy, limit } from "firebase/firestore";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
+import { 
+  MOCK_SUPPLIERS, 
+  MOCK_CUSTOMERS, 
+  MOCK_OFFERS, 
+  MOCK_RESPONSES, 
+  MOCK_LOGS 
+} from "@/lib/mock-data";
 
 const COLORS = ['#755EDE', '#5182E0', '#F59E0B', '#EF4444'];
 
 export default function OverviewPage() {
-  const db = useFirestore();
-
-  const suppliersQuery = useMemo(() => collection(db, "suppliers"), [db]);
-  const customersQuery = useMemo(() => collection(db, "customers"), [db]);
-  const offersQuery = useMemo(() => collection(db, "bestOffers"), [db]);
-  const responsesQuery = useMemo(() => collection(db, "customerResponses"), [db]);
-  const logsQuery = useMemo(() => query(collection(db, "automationLogs"), orderBy("timestamp", "desc"), limit(10)), [db]);
-
-  const { data: suppliers } = useCollection(suppliersQuery);
-  const { data: customers } = useCollection(customersQuery);
-  const { data: offers } = useCollection(offersQuery);
-  const { data: responses } = useCollection(responsesQuery);
-  const { data: logs } = useCollection(logsQuery);
-
   const stats = {
-    suppliers: suppliers.length,
-    customers: customers.length,
-    offers: offers.length,
-    responses: responses.length,
-    newCustomers: customers.filter(c => {
-      // Mock logic for "new this week" if no timestamp exists, or use actual field
-      return true; 
-    }).length
+    suppliers: MOCK_SUPPLIERS.length,
+    customers: MOCK_CUSTOMERS.length,
+    offers: MOCK_OFFERS.length,
+    responses: MOCK_RESPONSES.length,
+    newCustomers: 5 // Demo static value
   };
 
   const responseTypes = useMemo(() => [
-    { name: 'order', value: responses.filter(d => (d as any).responseType === 'order').length },
-    { name: 'quote', value: responses.filter(d => (d as any).responseType === 'quote').length },
-    { name: 'interest', value: responses.filter(d => (d as any).responseType === 'interest').length },
-  ], [responses]);
+    { name: 'order', value: MOCK_RESPONSES.filter(d => d.responseType === 'order').length },
+    { name: 'quote', value: MOCK_RESPONSES.filter(d => d.responseType === 'quote').length },
+    { name: 'interest', value: MOCK_RESPONSES.filter(d => d.responseType === 'interest').length },
+  ], []);
 
   const customerTrend = useMemo(() => Array.from({ length: 7 }, (_, i) => ({
     day: `Day ${i + 1}`,
-    count: Math.floor(Math.random() * 5) + 1
+    count: [2, 5, 3, 8, 4, 10, 15][i]
   })), []);
 
   const kpis = [
     { title: "Total Suppliers", value: stats.suppliers, icon: Factory, color: "text-blue-500" },
     { title: "Total Customers", value: stats.customers, icon: Users, color: "text-purple-500" },
     { title: "Active Offers", value: stats.offers, icon: Trophy, color: "text-yellow-500" },
-    { title: "Pending Responses", value: stats.responses, icon: Clock, color: "text-orange-500" },
-    { title: "New Customers (Week)", value: stats.newCustomers, icon: UserPlus, color: "text-green-500" },
+    { title: "Responses", value: stats.responses, icon: Clock, color: "text-orange-500" },
+    { title: "New This Week", value: stats.newCustomers, icon: UserPlus, color: "text-green-500" },
   ];
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight font-headline">Dashboard Overview</h1>
-        <p className="text-muted-foreground">Real-time pulse of your business operations.</p>
+        <p className="text-muted-foreground">Real-time pulse of your business operations (Mock Data).</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
@@ -101,7 +89,7 @@ export default function OverviewPage() {
         <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle>Customer Growth</CardTitle>
-            <CardDescription>Visual trend of acquisition</CardDescription>
+            <CardDescription>Visual trend of acquisition over 7 days</CardDescription>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -147,7 +135,7 @@ export default function OverviewPage() {
       <Card>
         <CardHeader>
           <CardTitle>Recent Automation Activity</CardTitle>
-          <CardDescription>Last 10 pipeline events across all workflows.</CardDescription>
+          <CardDescription>Last pipeline events across all workflows.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -160,24 +148,18 @@ export default function OverviewPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {logs.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">No logs found.</TableCell>
+              {MOCK_LOGS.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell className="font-medium">{log.pipelineName}</TableCell>
+                  <TableCell>{log.event}</TableCell>
+                  <TableCell>
+                    <Badge variant={log.status === 'success' ? 'default' : 'destructive'} className={log.status === 'success' ? 'bg-green-500 hover:bg-green-600' : ''}>
+                      {log.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">{formatFirebaseTimestamp(log.timestamp)}</TableCell>
                 </TableRow>
-              ) : (
-                logs.map((log: any) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="font-medium">{log.pipelineName}</TableCell>
-                    <TableCell>{log.event}</TableCell>
-                    <TableCell>
-                      <Badge variant={log.status === 'success' ? 'default' : 'destructive'} className={log.status === 'success' ? 'bg-green-500 hover:bg-green-600' : ''}>
-                        {log.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{formatFirebaseTimestamp(log.timestamp)}</TableCell>
-                  </TableRow>
-                ))
-              )}
+              ))}
             </TableBody>
           </Table>
         </CardContent>

@@ -1,6 +1,6 @@
 import { collection, onSnapshot, query, orderBy, limit, doc, addDoc, updateDoc, deleteDoc, Timestamp, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, isValid } from "date-fns";
 
 export function subscribeToCollection(collectionName: string, callback: (data: any[]) => void, sortField: string = "createdAt", direction: "asc" | "desc" = "desc", limitCount?: number) {
   let q = query(collection(db, collectionName), orderBy(sortField, direction));
@@ -35,7 +35,25 @@ export async function deleteDocument(collectionName: string, id: string) {
 
 export function formatFirebaseTimestamp(timestamp: any): string {
   if (!timestamp) return "N/A";
-  const date = timestamp instanceof Timestamp ? timestamp.toDate() : new Date(timestamp);
+  
+  let date: Date;
+
+  if (timestamp instanceof Timestamp) {
+    date = timestamp.toDate();
+  } else if (typeof timestamp === 'object' && timestamp.seconds !== undefined) {
+    // Handle plain objects with seconds (common in mock data)
+    date = new Date(timestamp.seconds * 1000);
+  } else if (timestamp instanceof Date) {
+    date = timestamp;
+  } else {
+    // Fallback for strings or numbers
+    date = new Date(timestamp);
+  }
+
+  if (!isValid(date)) {
+    return "Invalid date";
+  }
+
   return formatDistanceToNow(date, { addSuffix: true });
 }
 

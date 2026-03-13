@@ -15,45 +15,35 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useFirestore, useCollection } from "@/firebase";
-import { collection } from "firebase/firestore";
 import { cn } from "@/lib/utils";
+import { MOCK_STOCKS, MOCK_PRODUCTS, MOCK_SUPPLIERS } from "@/lib/mock-data";
 
 export default function InventoryPage() {
-  const db = useFirestore();
   const [searchTerm, setSearchTerm] = useState("");
-
-  const stocksQuery = useMemo(() => collection(db, "stocks"), [db]);
-  const productsQuery = useMemo(() => collection(db, "products"), [db]);
-  const suppliersQuery = useMemo(() => collection(db, "suppliers"), [db]);
-
-  const { data: stocks } = useCollection(stocksQuery);
-  const { data: productsList } = useCollection(productsQuery);
-  const { data: suppliersList } = useCollection(suppliersQuery);
 
   const productsMap = useMemo(() => {
     const map: Record<string, string> = {};
-    productsList.forEach((p: any) => map[p.id] = p.name);
+    MOCK_PRODUCTS.forEach((p: any) => map[p.id] = p.name);
     return map;
-  }, [productsList]);
+  }, []);
 
   const suppliersMap = useMemo(() => {
     const map: Record<string, string> = {};
-    suppliersList.forEach((s: any) => map[s.id] = s.name);
+    MOCK_SUPPLIERS.forEach((s: any) => map[s.id] = s.name);
     return map;
-  }, [suppliersList]);
+  }, []);
 
   const lowestPricePerProduct = useMemo(() => {
     const map: Record<string, number> = {};
-    stocks.forEach((s: any) => {
+    MOCK_STOCKS.forEach((s: any) => {
       if (!map[s.productId] || s.price < map[s.productId]) {
         map[s.productId] = s.price;
       }
     });
     return map;
-  }, [stocks]);
+  }, []);
 
-  const filteredStocks = stocks.filter((s: any) => {
+  const filteredStocks = MOCK_STOCKS.filter((s: any) => {
     const productName = productsMap[s.productId]?.toLowerCase() || "";
     const supplierName = suppliersMap[s.supplierId]?.toLowerCase() || "";
     return productName.includes(searchTerm.toLowerCase()) || supplierName.includes(searchTerm.toLowerCase());
@@ -63,7 +53,7 @@ export default function InventoryPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight font-headline">Inventory & Stocks</h1>
-        <p className="text-muted-foreground">Live stock levels across all registered suppliers.</p>
+        <p className="text-muted-foreground">Live stock levels across all registered suppliers (Mock Data).</p>
       </div>
 
       <div className="flex gap-4">
@@ -94,46 +84,38 @@ export default function InventoryPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredStocks.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  No inventory data available.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredStocks.map((stock: any) => {
-                const isBestPrice = stock.price === lowestPricePerProduct[stock.productId];
-                return (
-                  <TableRow key={stock.id} className={cn(isBestPrice && "bg-primary/5")}>
-                    <TableCell>
-                      <div className="font-medium">{productsMap[stock.productId] || "Unknown Product"}</div>
-                      <div className="text-[10px] text-muted-foreground font-mono">{stock.productId}</div>
-                    </TableCell>
-                    <TableCell>{suppliersMap[stock.supplierId] || "Unknown Supplier"}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{stock.quantity}</span>
-                        {stock.quantity < 10 && <Badge variant="destructive" className="h-4 text-[8px] px-1 uppercase">Low</Badge>}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-accent">${stock.price.toFixed(2)}</span>
-                        {isBestPrice && <Badge className="bg-green-500 text-[8px] h-4 px-1 uppercase">Best Price</Badge>}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-muted-foreground">{stock.leadTime} days</span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px] uppercase">
-                        {stock.quantity > 0 ? "In Stock" : "Out of Stock"}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
+            {filteredStocks.map((stock: any) => {
+              const isBestPrice = stock.price === lowestPricePerProduct[stock.productId];
+              return (
+                <TableRow key={stock.id} className={cn(isBestPrice && "bg-primary/5")}>
+                  <TableCell>
+                    <div className="font-medium">{productsMap[stock.productId] || "Unknown Product"}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">{stock.productId}</div>
+                  </TableCell>
+                  <TableCell>{suppliersMap[stock.supplierId] || "Unknown Supplier"}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{stock.quantity}</span>
+                      {stock.quantity < 10 && <Badge variant="destructive" className="h-4 text-[8px] px-1 uppercase">Low</Badge>}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-accent">${stock.price.toFixed(2)}</span>
+                      {isBestPrice && <Badge className="bg-green-500 text-[8px] h-4 px-1 uppercase">Best Price</Badge>}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-muted-foreground">{stock.leadTime} days</span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-[10px] uppercase">
+                      {stock.quantity > 0 ? "In Stock" : "Out of Stock"}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </Card>

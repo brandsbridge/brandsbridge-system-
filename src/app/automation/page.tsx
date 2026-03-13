@@ -1,7 +1,8 @@
+
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Terminal, Search, ChevronDown, ChevronRight, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import React, { useState } from "react";
+import { Search, ChevronDown, ChevronRight, AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import { 
   Table, 
   TableBody, 
@@ -11,21 +12,15 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { subscribeToCollection, formatFirebaseTimestamp } from "@/lib/db-utils";
+import { formatFirebaseTimestamp } from "@/lib/db-utils";
+import { MOCK_LOGS } from "@/lib/mock-data";
 
 export default function AutomationLogsPage() {
-  const [logs, setLogs] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const unsub = subscribeToCollection("automationLogs", (data) => setLogs(data), "timestamp", "desc");
-    return () => unsub();
-  }, []);
-
-  const filteredLogs = logs.filter(l => 
+  const filteredLogs = MOCK_LOGS.filter(l => 
     l.pipelineName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     l.event.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -42,7 +37,7 @@ export default function AutomationLogsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight font-headline">Automation Logs</h1>
-        <p className="text-muted-foreground">Monitor the health and status of all background pipelines.</p>
+        <p className="text-muted-foreground">Monitor the health and status of background pipelines (Mock Data).</p>
       </div>
 
       <div className="relative">
@@ -67,47 +62,39 @@ export default function AutomationLogsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredLogs.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                  No automation events recorded yet.
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredLogs.map((log) => (
-                <React.Fragment key={log.id}>
-                  <TableRow 
-                    className="cursor-pointer hover:bg-secondary/50"
-                    onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
-                  >
-                    <TableCell>
-                      {expandedId === log.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    </TableCell>
-                    <TableCell className="font-medium">{log.pipelineName}</TableCell>
-                    <TableCell>{log.event}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(log.status)}
-                        <span className="capitalize text-xs font-medium">{log.status}</span>
+            {filteredLogs.map((log) => (
+              <React.Fragment key={log.id}>
+                <TableRow 
+                  className="cursor-pointer hover:bg-secondary/50"
+                  onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
+                >
+                  <TableCell>
+                    {expandedId === log.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  </TableCell>
+                  <TableCell className="font-medium">{log.pipelineName}</TableCell>
+                  <TableCell>{log.event}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {getStatusIcon(log.status)}
+                      <span className="capitalize text-xs font-medium">{log.status}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs">{formatFirebaseTimestamp(log.timestamp)}</TableCell>
+                </TableRow>
+                {expandedId === log.id && (
+                  <TableRow className="bg-muted/30">
+                    <TableCell colSpan={5} className="p-4">
+                      <div className="rounded-lg border bg-card p-4">
+                        <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Execution Details</h4>
+                        <pre className="overflow-x-auto rounded bg-secondary p-3 text-xs font-code">
+                          {log.details || "No details provided."}
+                        </pre>
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-xs">{formatFirebaseTimestamp(log.timestamp)}</TableCell>
                   </TableRow>
-                  {expandedId === log.id && (
-                    <TableRow className="bg-muted/30">
-                      <TableCell colSpan={5} className="p-4">
-                        <div className="rounded-lg border bg-card p-4">
-                          <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">Execution Details</h4>
-                          <pre className="overflow-x-auto rounded bg-secondary p-3 text-xs font-code">
-                            {typeof log.details === 'object' ? JSON.stringify(log.details, null, 2) : log.details || "No details provided."}
-                          </pre>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </React.Fragment>
-              ))
-            )}
+                )}
+              </React.Fragment>
+            ))}
           </TableBody>
         </Table>
       </Card>
