@@ -7,7 +7,7 @@ import {
   Download, Printer, CheckCircle2, 
   ShieldCheck, Info, Star, MoreVertical, Upload,
   FileSpreadsheet, FileDown, Loader2, X, AlertTriangle,
-  Mail
+  Mail, FileX
 } from "lucide-react";
 import { 
   Table, 
@@ -84,7 +84,7 @@ export default function SuppliersPage() {
   const [validationErrors, setValidationErrors] = useState<{row: number, message: string}[]>([]);
   const [duplicateMode, setDuplicateMode] = useState<"skip" | "update">("skip");
   const [importProgress, setImportProgress] = useState(0);
-  const [importResults, setImportResults] = useState({ success: 0, failed: 0, updated: 0 });
+  const [importResults, setImportResults] = useState({ success: 0, failed: 0, updated: 0, invalid: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const db = useFirestore();
@@ -142,6 +142,23 @@ export default function SuppliersPage() {
       XLSX.utils.book_append_sheet(workbook, worksheet, "Template");
       XLSX.writeFile(workbook, "supplier_import_template.xlsx");
     }
+  };
+
+  const downloadErrorReport = () => {
+    if (validationErrors.length === 0) return;
+    const csvData = validationErrors.map(e => ({
+      Row: e.row,
+      Error: e.message
+    }));
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `supplier_import_errors_${new Date().toISOString()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -236,7 +253,8 @@ export default function SuppliersPage() {
         internalRating: 3,
         lastUpdatedBy: manager.name,
         lastUpdatedDate: new Date().toISOString(),
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
       try {
@@ -262,9 +280,9 @@ export default function SuppliersPage() {
 
     try {
       await batch.commit();
-      setImportResults({ success, failed, updated: updates });
+      setImportResults({ success, failed, updated: updates, invalid: validationErrors.length });
       setImportStep("success");
-      toast({ title: "Import Complete", description: `Processed ${fullValidData.length} records.` });
+      toast({ title: "Import Processed", description: `Finished processing ${fullValidData.length} valid records.` });
     } catch (e) {
       toast({ variant: "destructive", title: "Import Failed", description: "Database error during save." });
       setImportStep("preview");
@@ -343,7 +361,7 @@ export default function SuppliersPage() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-bold flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" /> Data Preview (First 10 Rows)
+                      <FileText className="h-4 w-4 text-primary" /> Data Preview (Valid Rows)
                     </h3>
                     <Badge variant="outline">{importFile?.name}</Badge>
                   </div>
@@ -369,20 +387,39 @@ export default function SuppliersPage() {
                     </Table>
                   </div>
 
-                  {validationErrors.length > 0 && (
-                    <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg flex gap-3 items-start">
-                      <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
-                      <div>
-                        <p className="text-sm font-bold text-destructive">Validation Errors Found</p>
-                        <p className="text-xs text-muted-foreground">Errors in {validationErrors.length} rows. Please fix these in your file and re-upload.</p>
-                        <ul className="mt-2 space-y-1">
-                          {validationErrors.slice(0, 3).map((err, i) => (
-                            <li key={i} className="text-[10px] text-destructive">Row {err.row}: {err.message}</li>
-                          ))}
-                        </ul>
+                  <div className="flex flex-col gap-4">
+                    <div className="bg-secondary/20 p-4 rounded-lg flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <div>
+                          <p className="text-sm font-bold">{fullValidData.length} Rows Ready</p>
+                          <p className="text-xs text-muted-foreground">Successfully validated and ready for import.</p>
+                        </div>
                       </div>
+                      <Badge className="bg-green-500">Valid</Badge>
                     </div>
-                  )}
+
+                    {validationErrors.length > 0 && (
+                      <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg flex items-start justify-between gap-3">
+                        <div className="flex gap-3">
+                          <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
+                          <div>
+                            <p className="text-sm font-bold text-destructive">{validationErrors.length} Rows to Skip</p>
+                            <p className="text-xs text-muted-foreground">These rows have missing required fields (Company Name/Email) and will be ignored.</p>
+                            <ul className="mt-2 space-y-1">
+                              {validationErrors.slice(0, 3).map((err, i) => (
+                                <li key={i} className="text-[10px] text-destructive">Row {err.row}: {err.message}</li>
+                              ))}
+                              {validationErrors.length > 3 && <li className="text-[10px] text-muted-foreground">...and {validationErrors.length - 3} others</li>}
+                            </ul>
+                          </div>
+                        </div>
+                        <Button variant="outline" size="sm" className="text-destructive border-destructive/20" onClick={downloadErrorReport}>
+                          <FileX className="h-3 w-3 mr-2" /> Error Report
+                        </Button>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -399,8 +436,8 @@ export default function SuppliersPage() {
 
                   <DialogFooter className="gap-2">
                     <Button variant="ghost" onClick={resetImport}>Re-upload</Button>
-                    <Button onClick={executeImport} disabled={validationErrors.length > 0}>
-                      Start Import ({fullValidData.length} rows)
+                    <Button onClick={executeImport} disabled={fullValidData.length === 0} className="bg-primary">
+                      Import {fullValidData.length} Valid Rows
                     </Button>
                   </DialogFooter>
                 </div>
@@ -423,10 +460,10 @@ export default function SuppliersPage() {
                     <CheckCircle2 className="h-10 w-10 text-green-500" />
                   </div>
                   <div className="space-y-2">
-                    <h3 className="text-xl font-bold">Import Successful!</h3>
-                    <p className="text-muted-foreground">Supplier records have been added to Firestore.</p>
+                    <h3 className="text-xl font-bold">Import Complete</h3>
+                    <p className="text-muted-foreground">Supplier records have been processed and saved to Firestore.</p>
                   </div>
-                  <div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
+                  <div className="grid grid-cols-4 gap-4 max-w-xl mx-auto">
                     <div className="p-3 bg-secondary/30 rounded-lg">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase">Created</p>
                       <p className="text-xl font-bold text-green-500">{importResults.success}</p>
@@ -434,6 +471,10 @@ export default function SuppliersPage() {
                     <div className="p-3 bg-secondary/30 rounded-lg">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase">Updated</p>
                       <p className="text-xl font-bold text-blue-500">{importResults.updated}</p>
+                    </div>
+                    <div className="p-3 bg-secondary/30 rounded-lg">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Skipped (Err)</p>
+                      <p className="text-xl font-bold text-orange-500">{importResults.invalid}</p>
                     </div>
                     <div className="p-3 bg-secondary/30 rounded-lg">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase">Failed</p>
