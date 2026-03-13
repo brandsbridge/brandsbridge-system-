@@ -1,13 +1,12 @@
-
 "use client";
 
 import React, { useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
   ArrowLeft, Mail, Phone, Globe, Calendar, Clock, 
-  FileText, TrendingUp, AlertTriangle, ShieldCheck, 
-  Download, Share2, MoreVertical, MessageSquare, 
-  Package, DollarSign, BarChart3, Star, MapPin
+  TrendingUp, AlertTriangle, ShieldCheck, 
+  Download, Share2, MessageSquare, 
+  Star, MapPin, DollarSign
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,10 +16,19 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, 
-  CartesianGrid, Tooltip, ResponsiveContainer, Cell 
+  LineChart, Line, XAxis, YAxis, 
+  CartesianGrid, Tooltip, ResponsiveContainer 
 } from "recharts";
 import { MOCK_SUPPLIERS, MOCK_STOCKS, MOCK_PRODUCTS } from "@/lib/mock-data";
+
+/**
+ * generateStaticParams is required for dynamic routes when using output: 'export'
+ */
+export function generateStaticParams() {
+  return MOCK_SUPPLIERS.map((s) => ({
+    id: s.id,
+  }));
+}
 
 export default function SupplierProfilePage() {
   const params = useParams();

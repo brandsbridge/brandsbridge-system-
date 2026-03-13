@@ -1,16 +1,15 @@
-
 "use client";
 
 import React, { useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
-  ArrowLeft, Mail, Phone, Globe, Calendar, Clock, 
-  FileText, TrendingUp, Heart, Target, 
-  Download, Share2, MessageSquare, 
-  DollarSign, BarChart3, Star, MapPin, 
-  CheckCircle2, AlertCircle
+  ArrowLeft, Mail, Globe, Calendar, 
+  TrendingUp, Target, 
+  Download, Share2, 
+  BarChart3, MapPin, 
+  CheckCircle2
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -18,10 +17,18 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, 
-  CartesianGrid, Tooltip, ResponsiveContainer, Cell 
+  BarChart, Bar, ResponsiveContainer 
 } from "recharts";
-import { MOCK_CUSTOMERS, MOCK_RESPONSES, MOCK_OFFERS, MOCK_PRODUCTS } from "@/lib/mock-data";
+import { MOCK_CUSTOMERS, MOCK_RESPONSES } from "@/lib/mock-data";
+
+/**
+ * generateStaticParams is required for dynamic routes when using output: 'export'
+ */
+export function generateStaticParams() {
+  return MOCK_CUSTOMERS.map((c) => ({
+    id: c.id,
+  }));
+}
 
 export default function CustomerProfilePage() {
   const params = useParams();
