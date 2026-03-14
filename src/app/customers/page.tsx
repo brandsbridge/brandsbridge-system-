@@ -89,10 +89,10 @@ export default function CustomersPage() {
   const db = useFirestore();
   const { user } = useUser();
   const customersQuery = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
-  const { data: firestoreCustomers = [], loading } = useCollection(customersQuery);
+  const { data: firestoreCustomers, loading } = useCollection(customersQuery);
 
   const customers = useMemo(() => {
-    if (firestoreCustomers.length > 0) return firestoreCustomers;
+    if (firestoreCustomers && firestoreCustomers.length > 0) return firestoreCustomers;
     return MOCK_CUSTOMERS;
   }, [firestoreCustomers]);
 

@@ -25,9 +25,9 @@ export default function CRMPage() {
   const db = useFirestore();
   const { user } = useUser();
   const leadsCol = useMemoFirebase(() => user ? collection(db, "leads") : null, [db, user]);
-  const { data: fbLeads = [], loading } = useCollection(leadsCol);
+  const { data: fbLeads, loading } = useCollection(leadsCol);
 
-  const leads = fbLeads.length > 0 ? fbLeads : MOCK_LEADS;
+  const leads = (fbLeads && fbLeads.length > 0) ? fbLeads : MOCK_LEADS;
 
   const funnelData = useMemo(() => {
     return STAGES.map(stage => ({

@@ -24,9 +24,9 @@ export default function CampaignsPage() {
   const db = useFirestore();
   const { user } = useUser();
   const campaignsCol = useMemoFirebase(() => user ? collection(db, "campaigns") : null, [db, user]);
-  const { data: fbCampaigns = [], loading } = useCollection(campaignsCol);
+  const { data: fbCampaigns, loading } = useCollection(campaignsCol);
 
-  const campaigns = fbCampaigns.length > 0 ? fbCampaigns : MOCK_CAMPAIGNS;
+  const campaigns = (fbCampaigns && fbCampaigns.length > 0) ? fbCampaigns : MOCK_CAMPAIGNS;
 
   const stats = useMemo(() => {
     return {

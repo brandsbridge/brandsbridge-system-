@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -47,13 +46,13 @@ export default function InventoryPage() {
   const stocksCol = useMemoFirebase(() => user ? collection(db, "stocks") : null, [db, user]);
   const suppliersCol = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
 
-  const { data: fbProducts = [], loading: loadingProducts } = useCollection(productsCol);
-  const { data: fbStocks = [], loading: loadingStocks } = useCollection(stocksCol);
-  const { data: fbSuppliers = [], loading: loadingSuppliers } = useCollection(suppliersCol);
+  const { data: fbProducts, loading: loadingProducts } = useCollection(productsCol);
+  const { data: fbStocks, loading: loadingStocks } = useCollection(stocksCol);
+  const { data: fbSuppliers, loading: loadingSuppliers } = useCollection(suppliersCol);
 
-  const products = fbProducts.length > 0 ? fbProducts : MOCK_PRODUCTS;
-  const stocks = fbStocks.length > 0 ? fbStocks : MOCK_STOCKS;
-  const suppliers = fbSuppliers.length > 0 ? fbSuppliers : MOCK_SUPPLIERS;
+  const products = (fbProducts && fbProducts.length > 0) ? fbProducts : MOCK_PRODUCTS;
+  const stocks = (fbStocks && fbStocks.length > 0) ? fbStocks : MOCK_STOCKS;
+  const suppliers = (fbSuppliers && fbSuppliers.length > 0) ? fbSuppliers : MOCK_SUPPLIERS;
 
   const productsMap = useMemo(() => {
     const map: Record<string, string> = {};

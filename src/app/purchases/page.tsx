@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo } from "react";
@@ -39,9 +38,9 @@ export default function PurchasesPage() {
   
   // Memoize Firestore Collection
   const purchasesCol = useMemoFirebase(() => user ? collection(db, "purchases") : null, [db, user]);
-  const { data: fbPurchases = [], loading } = useCollection(purchasesCol);
+  const { data: fbPurchases, loading } = useCollection(purchasesCol);
 
-  const purchases = useMemo(() => fbPurchases.length > 0 ? fbPurchases : MOCK_PURCHASES, [fbPurchases]);
+  const purchases = useMemo(() => (fbPurchases && fbPurchases.length > 0) ? fbPurchases : MOCK_PURCHASES, [fbPurchases]);
 
   const totals = useMemo(() => {
     const revenue = purchases.reduce((acc: number, p: any) => acc + (p.totalRevenue || 0), 0);

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -20,9 +19,9 @@ export default function ProjectsPage() {
   
   // Memoize Firestore Collection
   const tasksCol = useMemoFirebase(() => user ? collection(db, "tasks") : null, [db, user]);
-  const { data: fbTasks = [], loading } = useCollection(tasksCol);
+  const { data: fbTasks, loading } = useCollection(tasksCol);
 
-  const tasks = useMemo(() => fbTasks.length > 0 ? fbTasks : MOCK_TASKS, [fbTasks]);
+  const tasks = useMemo(() => (fbTasks && fbTasks.length > 0) ? fbTasks : MOCK_TASKS, [fbTasks]);
 
   const onDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -35,7 +34,7 @@ export default function ProjectsPage() {
   const onDrop = (e: React.DragEvent, status: string) => {
     const taskId = e.dataTransfer.getData("taskId");
     const task = tasks.find((t: any) => t.id === taskId);
-    if (task && fbTasks.length > 0) {
+    if (task && fbTasks && fbTasks.length > 0) {
       taskService.updateTaskStatus(db, taskId, status);
     }
   };
