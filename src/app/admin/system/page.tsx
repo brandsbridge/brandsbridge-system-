@@ -453,14 +453,14 @@ export default function SystemManagementPage() {
                           <Badge variant="outline">{importFile?.name}</Badge>
                         </div>
 
-                        <div className="max-h-[400px] overflow-auto border rounded-lg custom-scrollbar">
-                          <Table className="min-w-[1000px] table-fixed">
+                        <div className="max-h-[400px] overflow-x-auto border rounded-lg custom-scrollbar">
+                          <Table className="min-w-max w-full">
                             <TableHeader className="sticky top-0 bg-background z-10">
                               <TableRow className="bg-muted/50">
                                 {previewData.length > 0 && Object.keys(previewData[0] || {}).map(k => (
                                   <TableHead key={k} className={cn(
-                                    "text-[10px] whitespace-nowrap px-3 h-10 font-bold uppercase tracking-wider",
-                                    (k === "Company Name" || k === "name" || k === "title") && "text-primary w-[200px]"
+                                    "text-[10px] whitespace-nowrap px-3 h-10 font-bold uppercase tracking-wider max-w-[220px] overflow-hidden text-ellipsis",
+                                    (k === "Company Name" || k === "name" || k === "title") && "text-primary sticky left-0 z-20 bg-muted/50"
                                   )}>
                                     {k}
                                   </TableHead>
@@ -472,8 +472,8 @@ export default function SystemManagementPage() {
                                 <TableRow key={i} className="hover:bg-muted/20">
                                   {Object.entries(row).map(([key, val]: [string, any], j) => (
                                     <TableCell key={j} className={cn(
-                                      "text-[11px] px-3 py-2 border-r last:border-r-0 truncate max-w-[200px]",
-                                      (key === "Company Name" || key === "name" || key === "title") && "font-bold text-foreground bg-primary/5"
+                                      "text-[11px] px-3 py-2 border-r last:border-r-0 whitespace-nowrap overflow-hidden text-ellipsis max-w-[220px]",
+                                      (key === "Company Name" || key === "name" || key === "title") && "font-bold text-foreground bg-primary/5 sticky left-0 z-10"
                                     )}>
                                       <span title={val ? String(val) : "null"}>
                                         {val ? String(val) : <span className="text-muted-foreground/40 italic">null</span>}

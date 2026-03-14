@@ -405,17 +405,14 @@ export default function CustomersPage() {
                     <Badge variant="outline" className="font-mono text-[10px]">{importFile?.name}</Badge>
                   </div>
 
-                  <div className="max-h-[450px] overflow-auto border rounded-xl bg-card shadow-inner custom-scrollbar">
-                    <Table className="min-w-full table-fixed border-collapse">
+                  <div className="max-h-[450px] overflow-x-auto border rounded-xl bg-card shadow-inner custom-scrollbar">
+                    <Table className="min-w-max w-full border-collapse">
                       <TableHeader className="sticky top-0 bg-secondary/95 backdrop-blur-sm z-20 shadow-sm">
                         <TableRow className="border-b">
                           {previewData.length > 0 && Object.keys(previewData[0] || {}).map(k => (
                             <TableHead key={k} className={cn(
-                              "text-[10px] whitespace-nowrap px-4 h-12 font-bold uppercase tracking-wider border-r last:border-r-0",
-                              k === "Company Name" && "text-primary w-[250px] bg-primary/5",
-                              k === "Email" && "w-[200px]",
-                              k === "Country" && "w-[120px]",
-                              !PRIORITY_KEYS.includes(k) && "w-[180px] text-muted-foreground"
+                              "text-[10px] whitespace-nowrap px-4 h-12 font-bold uppercase tracking-wider border-r last:border-r-0 max-w-[250px] overflow-hidden text-ellipsis",
+                              k === "Company Name" && "text-primary bg-primary/5 sticky left-0 z-30"
                             )}>
                               {k}
                             </TableHead>
@@ -427,8 +424,8 @@ export default function CustomersPage() {
                           <TableRow key={i} className="hover:bg-muted/30 transition-colors border-b last:border-b-0">
                             {Object.entries(row).map(([key, val]: [string, any], j) => (
                               <TableCell key={j} className={cn(
-                                "text-[11px] px-4 py-3 border-r last:border-r-0 truncate",
-                                key === "Company Name" && "font-bold text-foreground bg-primary/5"
+                                "text-[11px] px-4 py-3 border-r last:border-r-0 whitespace-nowrap overflow-hidden text-ellipsis max-w-[250px]",
+                                key === "Company Name" && "font-bold text-foreground bg-primary/5 sticky left-0 z-20"
                               )}>
                                 <span title={val ? String(val) : "null"}>
                                   {val ? String(val) : <span className="text-muted-foreground/30 italic">&lt;null&gt;</span>}
