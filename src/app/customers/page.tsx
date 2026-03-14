@@ -230,7 +230,7 @@ export default function CustomersPage() {
     });
 
     // Reorder keys for professional preview
-    const processedPreview = validData.slice(0, 10).map(row => {
+    const processedPreview = validData.slice(0, 15).map(row => {
       const reordered: any = {};
       PRIORITY_KEYS.forEach(k => {
         if (row[k] !== undefined) reordered[k] = row[k];
@@ -267,8 +267,10 @@ export default function CustomersPage() {
         const email = (row["Email"] || row["email"] || "").toString().toLowerCase().trim();
         const name = row["Company Name"] || row["name"] || row["title"];
         
-        // Flexible duplicate detection: only check if email is provided
-        const existing = email ? customers.find(c => (c.email || "").toLowerCase().trim() === email) : null;
+        // Flexible duplicate detection: only check if email or name is provided
+        const existingByEmail = email ? customers.find(c => (c.email || "").toLowerCase().trim() === email) : null;
+        const existingByName = name ? customers.find(c => (c.name || "").toLowerCase().trim() === name.toLowerCase().trim()) : null;
+        const existing = existingByEmail || existingByName;
         
         // Map available columns, use null for missing fields
         const customerData = {
@@ -325,6 +327,7 @@ export default function CustomersPage() {
     setFullValidData([]);
     setValidationErrors([]);
     setImportProgress(0);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   return (
@@ -348,10 +351,10 @@ export default function CustomersPage() {
                 <Upload className="mr-2 h-4 w-4" /> Import Customers
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl">
+            <DialogContent className="max-w-5xl">
               <DialogHeader>
                 <DialogTitle>Bulk Customer Import</DialogTitle>
-                <DialogDescription>Synchronize your database with external spreadsheets. Missing optional columns will be handled automatically.</DialogDescription>
+                <DialogDescription>Synchronize your database with external spreadsheets. Imports are additive and check for duplicates automatically.</DialogDescription>
               </DialogHeader>
 
               {importStep === "upload" && (
@@ -397,21 +400,22 @@ export default function CustomersPage() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-bold flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" /> Data Preview (Pinned Fields First)
+                      <FileText className="h-4 w-4 text-primary" /> Professional Preview (Pinned Fields First)
                     </h3>
-                    <Badge variant="outline">{importFile?.name}</Badge>
+                    <Badge variant="outline" className="font-mono text-[10px]">{importFile?.name}</Badge>
                   </div>
 
-                  <div className="max-h-[400px] overflow-auto border rounded-lg custom-scrollbar">
-                    <Table className="min-w-[1000px] table-fixed">
-                      <TableHeader className="sticky top-0 bg-background z-10">
-                        <TableRow className="bg-muted/50">
+                  <div className="max-h-[450px] overflow-auto border rounded-xl bg-card shadow-inner custom-scrollbar">
+                    <Table className="min-w-full table-fixed border-collapse">
+                      <TableHeader className="sticky top-0 bg-secondary/95 backdrop-blur-sm z-20 shadow-sm">
+                        <TableRow className="border-b">
                           {previewData.length > 0 && Object.keys(previewData[0] || {}).map(k => (
                             <TableHead key={k} className={cn(
-                              "text-[10px] whitespace-nowrap px-3 h-10 font-bold uppercase tracking-wider",
-                              k === "Company Name" && "text-primary w-[200px]",
-                              k === "Email" && "w-[180px]",
-                              k === "Country" && "w-[120px]"
+                              "text-[10px] whitespace-nowrap px-4 h-12 font-bold uppercase tracking-wider border-r last:border-r-0",
+                              k === "Company Name" && "text-primary w-[250px] bg-primary/5",
+                              k === "Email" && "w-[200px]",
+                              k === "Country" && "w-[120px]",
+                              !PRIORITY_KEYS.includes(k) && "w-[180px] text-muted-foreground"
                             )}>
                               {k}
                             </TableHead>
@@ -420,14 +424,14 @@ export default function CustomersPage() {
                       </TableHeader>
                       <TableBody>
                         {previewData.map((row, i) => (
-                          <TableRow key={i} className="hover:bg-muted/20">
+                          <TableRow key={i} className="hover:bg-muted/30 transition-colors border-b last:border-b-0">
                             {Object.entries(row).map(([key, val]: [string, any], j) => (
                               <TableCell key={j} className={cn(
-                                "text-[11px] px-3 py-2 border-r last:border-r-0 truncate max-w-[200px]",
+                                "text-[11px] px-4 py-3 border-r last:border-r-0 truncate",
                                 key === "Company Name" && "font-bold text-foreground bg-primary/5"
                               )}>
                                 <span title={val ? String(val) : "null"}>
-                                  {val ? String(val) : <span className="text-muted-foreground/40 italic">null</span>}
+                                  {val ? String(val) : <span className="text-muted-foreground/30 italic">&lt;null&gt;</span>}
                                 </span>
                               </TableCell>
                             ))}
@@ -438,94 +442,103 @@ export default function CustomersPage() {
                   </div>
 
                   <div className="flex flex-col gap-4">
-                    <div className="bg-secondary/20 p-4 rounded-lg flex items-center justify-between">
+                    <div className="bg-primary/5 p-4 rounded-xl border border-primary/20 flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <CheckCircle2 className="h-5 w-5 text-primary" />
+                        </div>
                         <div>
-                          <p className="text-sm font-bold">{fullValidData.length} Rows Ready</p>
-                          <p className="text-xs text-muted-foreground">Optional columns not present in file will be filled with null.</p>
+                          <p className="text-sm font-bold">{fullValidData.length} Rows Ready for Firestore</p>
+                          <p className="text-[10px] text-muted-foreground">Columns not present in file will be intelligently mapped to null.</p>
                         </div>
                       </div>
-                      <Badge className="bg-green-500">Validated</Badge>
+                      <Badge className="bg-primary px-3 py-1">Ready to Sync</Badge>
                     </div>
 
                     {validationErrors.length > 0 && (
-                      <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-lg flex items-start justify-between gap-3">
+                      <div className="bg-destructive/10 border border-destructive/20 p-4 rounded-xl flex items-start justify-between gap-3">
                         <div className="flex gap-3">
                           <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
                           <div>
-                            <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows (Missing Name)</p>
-                            <p className="text-xs text-muted-foreground">These rows are missing the required "Company Name" and will be skipped.</p>
+                            <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows (Will be Skipped)</p>
+                            <p className="text-[10px] text-muted-foreground">These rows are missing "Company Name" and cannot be processed.</p>
                           </div>
                         </div>
-                        <Button variant="outline" size="sm" className="text-destructive border-destructive/20" onClick={downloadErrorReport}>
-                          <FileX className="h-3 w-3 mr-2" /> Error Report
+                        <Button variant="outline" size="sm" className="text-destructive border-destructive/20 h-8" onClick={downloadErrorReport}>
+                          <FileX className="h-3 w-3 mr-2" /> Download Error Log
                         </Button>
                       </div>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-6 pt-2">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase text-muted-foreground">Duplicate Handling</label>
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Duplicate Strategy</label>
                       <Select value={duplicateMode} onValueChange={(v: any) => setDuplicateMode(v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-10 border-primary/20 focus:ring-primary/30"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="skip">Skip Existing Emails</SelectItem>
-                          <SelectItem value="update">Update Existing Records</SelectItem>
+                          <SelectItem value="skip">Skip Exact Duplicates (Email/Name)</SelectItem>
+                          <SelectItem value="update">Overwrite Existing Records</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
 
-                  <DialogFooter className="gap-2">
-                    <Button variant="ghost" onClick={resetImport}>Re-upload</Button>
-                    <Button onClick={executeImport} disabled={fullValidData.length === 0} className="bg-primary">
-                      Import {fullValidData.length} Records
+                  <DialogFooter className="gap-3 pt-4 border-t">
+                    <Button variant="ghost" onClick={resetImport} className="h-10">Choose Different File</Button>
+                    <Button onClick={executeImport} disabled={fullValidData.length === 0} className="bg-primary h-10 px-8">
+                      Sync {fullValidData.length} Records to Firestore
                     </Button>
                   </DialogFooter>
                 </div>
               )}
 
               {importStep === "importing" && (
-                <div className="py-12 flex flex-col items-center justify-center space-y-6">
-                  <Loader2 className="h-12 w-12 text-primary animate-spin" />
-                  <div className="text-center space-y-2 w-full max-w-sm">
-                    <p className="font-bold">Writing to Firestore...</p>
+                <div className="py-20 flex flex-col items-center justify-center space-y-8">
+                  <div className="relative">
+                    <Loader2 className="h-16 w-16 text-primary animate-spin" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Upload className="h-6 w-6 text-primary/50" />
+                    </div>
+                  </div>
+                  <div className="text-center space-y-3 w-full max-w-sm">
+                    <p className="font-bold text-lg">Pushing Data to Cloud...</p>
                     <Progress value={importProgress} className="h-2" />
-                    <p className="text-xs text-muted-foreground">{importProgress}% Complete</p>
+                    <p className="text-xs text-muted-foreground font-mono">{importProgress}% Complete</p>
                   </div>
                 </div>
               )}
 
               {importStep === "success" && (
-                <div className="py-8 text-center space-y-6">
-                  <div className="h-16 w-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="h-10 w-10 text-green-500" />
+                <div className="py-12 text-center space-y-8">
+                  <div className="h-20 w-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto ring-8 ring-green-500/5">
+                    <CheckCircle2 className="h-12 w-12 text-green-500" />
                   </div>
                   <div className="space-y-2">
-                    <h3 className="text-xl font-bold">Import Complete</h3>
-                    <p className="text-muted-foreground">Records have been synchronized. All missing optional fields were stored as null.</p>
+                    <h3 className="text-2xl font-bold">Cloud Synchronization Complete</h3>
+                    <p className="text-muted-foreground">Your dynamic database has been updated successfully.</p>
                   </div>
-                  <div className="grid grid-cols-4 gap-4 max-w-xl mx-auto">
-                    <div className="p-3 bg-secondary/30 rounded-lg">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Created</p>
-                      <p className="text-xl font-bold text-green-500">{importResults.success}</p>
-                    </div>
-                    <div className="p-3 bg-secondary/30 rounded-lg">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Updated</p>
-                      <p className="text-xl font-bold text-blue-500">{importResults.updated}</p>
-                    </div>
-                    <div className="p-3 bg-secondary/30 rounded-lg">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Skipped</p>
-                      <p className="text-xl font-bold text-orange-500">{importResults.invalid}</p>
-                    </div>
-                    <div className="p-3 bg-secondary/30 rounded-lg">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Failed</p>
-                      <p className="text-xl font-bold text-destructive">{importResults.failed}</p>
-                    </div>
+                  <div className="grid grid-cols-4 gap-4 max-w-2xl mx-auto">
+                    {[
+                      { label: "New Records", val: importResults.success, color: "text-green-500" },
+                      { label: "Updates", val: importResults.updated, color: "text-blue-500" },
+                      { label: "Invalid/Skipped", val: importResults.invalid, color: "text-orange-500" },
+                      { label: "Failures", val: importResults.failed, color: "text-destructive" }
+                    ].map(res => (
+                      <div key={res.label} className="p-4 bg-secondary/30 rounded-2xl border flex flex-col gap-1 shadow-sm">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{res.label}</p>
+                        <p className={cn("text-2xl font-bold", res.color)}>{res.val}</p>
+                      </div>
+                    ))}
                   </div>
-                  <Button className="w-full max-w-sm" onClick={() => setIsImportModalOpen(false)}>Close & Finish</Button>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+                    <Button variant="outline" className="h-11 px-8" onClick={resetImport}>
+                      <Upload className="mr-2 h-4 w-4" /> Import Another File
+                    </Button>
+                    <Button className="h-11 px-8" onClick={() => setIsImportModalOpen(false)}>
+                      <ExternalLink className="mr-2 h-4 w-4" /> View Records in Table
+                    </Button>
+                  </div>
                 </div>
               )}
             </DialogContent>
