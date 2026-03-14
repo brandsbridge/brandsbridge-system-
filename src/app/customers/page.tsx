@@ -60,6 +60,8 @@ const IMPORT_TEMPLATE_HEADERS = [
   "Preferred Currency", "Annual Budget", "Notes"
 ];
 
+const PRIORITY_KEYS = ["Company Name", "Email", "Country", "Company Type", "Contact Person"];
+
 export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [countryFilter, setCountryFilter] = useState("all");
@@ -217,8 +219,20 @@ export default function CustomersPage() {
       return true;
     });
 
+    // Reorder keys for professional preview
+    const processedPreview = validData.slice(0, 10).map(row => {
+      const reordered: any = {};
+      PRIORITY_KEYS.forEach(k => {
+        if (row[k] !== undefined) reordered[k] = row[k];
+      });
+      Object.keys(row).forEach(k => {
+        if (!PRIORITY_KEYS.includes(k)) reordered[k] = row[k];
+      });
+      return reordered;
+    });
+
     setValidationErrors(errors);
-    setPreviewData(validData.slice(0, 10));
+    setPreviewData(processedPreview);
     setFullValidData(validData);
     setImportStep("preview");
   };
@@ -324,7 +338,7 @@ export default function CustomersPage() {
                 <Upload className="mr-2 h-4 w-4" /> Import Customers
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="max-w-4xl">
               <DialogHeader>
                 <DialogTitle>Import Customers</DialogTitle>
                 <DialogDescription>Bulk upload customer data. Only "Company Name" is required; missing fields will be set to null automatically.</DialogDescription>
@@ -369,25 +383,40 @@ export default function CustomersPage() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-bold flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" /> Data Preview
+                      <FileText className="h-4 w-4 text-primary" /> Data Preview (Pinned Fields First)
                     </h3>
                     <Badge variant="outline">{importFile?.name}</Badge>
                   </div>
 
-                  <div className="max-h-[300px] overflow-auto border rounded-lg">
-                    <Table>
-                      <TableHeader>
+                  <div className="max-h-[400px] overflow-auto border rounded-lg custom-scrollbar">
+                    <Table className="min-w-[1000px] table-fixed">
+                      <TableHeader className="sticky top-0 bg-background z-10">
                         <TableRow className="bg-muted/50">
                           {previewData.length > 0 && Object.keys(previewData[0] || {}).map(k => (
-                            <TableHead key={k} className="text-[10px] whitespace-nowrap">{k}</TableHead>
+                            <TableHead key={k} className={cn(
+                              "text-[10px] whitespace-nowrap px-3 h-10 font-bold uppercase tracking-wider",
+                              k === "Company Name" && "text-primary w-[200px]",
+                              k === "Email" && "w-[180px]",
+                              k === "Country" && "w-[120px]",
+                              k === "Notes" && "w-[250px]"
+                            )}>
+                              {k}
+                            </TableHead>
                           ))}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {previewData.map((row, i) => (
-                          <TableRow key={i}>
-                            {Object.values(row).map((val: any, j) => (
-                              <TableCell key={j} className="text-[10px] whitespace-nowrap">{val ? String(val) : <span className="text-muted-foreground italic">null</span>}</TableCell>
+                          <TableRow key={i} className="hover:bg-muted/20">
+                            {Object.entries(row).map(([key, val]: [string, any], j) => (
+                              <TableCell key={j} className={cn(
+                                "text-[11px] px-3 py-2 border-r last:border-r-0 truncate max-w-[200px]",
+                                key === "Company Name" && "font-bold text-foreground bg-primary/5"
+                              )}>
+                                <span title={val ? String(val) : "null"}>
+                                  {val ? String(val) : <span className="text-muted-foreground/40 italic">null</span>}
+                                </span>
+                              </TableCell>
                             ))}
                           </TableRow>
                         ))}
@@ -401,7 +430,7 @@ export default function CustomersPage() {
                         <CheckCircle2 className="h-5 w-5 text-green-500" />
                         <div>
                           <p className="text-sm font-bold">{fullValidData.length} Rows Ready</p>
-                          <p className="text-xs text-muted-foreground">Incomplete fields will be filled with null values.</p>
+                          <p className="text-xs text-muted-foreground">Optional columns not present in file will be filled with null.</p>
                         </div>
                       </div>
                       <Badge className="bg-green-500">Ready</Badge>

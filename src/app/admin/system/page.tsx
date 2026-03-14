@@ -67,12 +67,12 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
 const CORE_COLLECTIONS = [
-  { id: 'suppliers', label: 'Suppliers', icon: Factory, uniqueKey: 'name' },
-  { id: 'customers', label: 'Customers', icon: Users, uniqueKey: 'name' },
-  { id: 'products', label: 'Products', icon: Package, uniqueKey: 'name' },
-  { id: 'leads', label: 'CRM Leads', icon: DatabaseZap, uniqueKey: 'name' },
-  { id: 'employees', label: 'Employees', icon: Settings, uniqueKey: 'email' },
-  { id: 'tasks', label: 'Project Tasks', icon: FileText, uniqueKey: 'title' },
+  { id: 'suppliers', label: 'Suppliers', icon: Factory, uniqueKey: 'name', priorityKeys: ["Company Name", "name", "Email", "Country"] },
+  { id: 'customers', label: 'Customers', icon: Users, uniqueKey: 'name', priorityKeys: ["Company Name", "name", "Email", "Country"] },
+  { id: 'products', label: 'Products', icon: Package, uniqueKey: 'name', priorityKeys: ["name", "category", "department"] },
+  { id: 'leads', label: 'CRM Leads', icon: DatabaseZap, uniqueKey: 'name', priorityKeys: ["name", "company", "value", "stage"] },
+  { id: 'employees', label: 'Employees', icon: Settings, uniqueKey: 'email', priorityKeys: ["name", "email", "role", "department"] },
+  { id: 'tasks', label: 'Project Tasks', icon: FileText, uniqueKey: 'title', priorityKeys: ["title", "status", "priority", "assignee"] },
 ];
 
 export default function SystemManagementPage() {
@@ -197,6 +197,7 @@ export default function SystemManagementPage() {
   const validateAndPreview = (data: any[]) => {
     const colInfo = CORE_COLLECTIONS.find(c => c.id === targetCollection);
     const key = colInfo?.uniqueKey || 'name';
+    const priorityKeys = colInfo?.priorityKeys || [];
     
     const errors: {row: number, message: string}[] = [];
     const validRows = data.filter((row, idx) => {
@@ -209,8 +210,20 @@ export default function SystemManagementPage() {
       return true;
     });
 
+    // Reorder keys for professional preview
+    const processedPreview = validRows.slice(0, 10).map(row => {
+      const reordered: any = {};
+      priorityKeys.forEach(k => {
+        if (row[k] !== undefined) reordered[k] = row[k];
+      });
+      Object.keys(row).forEach(k => {
+        if (!priorityKeys.includes(k)) reordered[k] = row[k];
+      });
+      return reordered;
+    });
+
     setValidationErrors(errors);
-    setPreviewData(validRows.slice(0, 5));
+    setPreviewData(processedPreview);
     setFullValidData(validRows);
     setImportStep("preview");
   };
@@ -390,7 +403,7 @@ export default function SystemManagementPage() {
                       <Upload className="mr-2 h-3 w-3" /> Import Data
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-3xl">
+                  <DialogContent className="max-w-4xl">
                     <DialogHeader>
                       <DialogTitle>Flexible Data Import</DialogTitle>
                       <DialogDescription>Incomplete files are accepted. Only the primary name/ID is required; others will be set to null.</DialogDescription>
@@ -435,25 +448,37 @@ export default function SystemManagementPage() {
                       <div className="space-y-6 pt-4">
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-bold flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-primary" /> Smart Preview ({fullValidData.length} records)
+                            <FileText className="h-4 w-4 text-primary" /> Smart Preview (Pinned Fields First)
                           </h3>
                           <Badge variant="outline">{importFile?.name}</Badge>
                         </div>
 
-                        <div className="max-h-[300px] overflow-auto border rounded-lg">
-                          <Table>
-                            <TableHeader>
+                        <div className="max-h-[400px] overflow-auto border rounded-lg custom-scrollbar">
+                          <Table className="min-w-[1000px] table-fixed">
+                            <TableHeader className="sticky top-0 bg-background z-10">
                               <TableRow className="bg-muted/50">
                                 {previewData.length > 0 && Object.keys(previewData[0] || {}).map(k => (
-                                  <TableHead key={k} className="text-[10px] whitespace-nowrap">{k}</TableHead>
+                                  <TableHead key={k} className={cn(
+                                    "text-[10px] whitespace-nowrap px-3 h-10 font-bold uppercase tracking-wider",
+                                    (k === "Company Name" || k === "name" || k === "title") && "text-primary w-[200px]"
+                                  )}>
+                                    {k}
+                                  </TableHead>
                                 ))}
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {previewData.map((row, i) => (
-                                <TableRow key={i}>
-                                  {Object.values(row).map((val: any, j) => (
-                                    <TableCell key={j} className="text-[10px] whitespace-nowrap">{val ? String(val) : "-"}</TableCell>
+                                <TableRow key={i} className="hover:bg-muted/20">
+                                  {Object.entries(row).map(([key, val]: [string, any], j) => (
+                                    <TableCell key={j} className={cn(
+                                      "text-[11px] px-3 py-2 border-r last:border-r-0 truncate max-w-[200px]",
+                                      (key === "Company Name" || key === "name" || key === "title") && "font-bold text-foreground bg-primary/5"
+                                    )}>
+                                      <span title={val ? String(val) : "null"}>
+                                        {val ? String(val) : <span className="text-muted-foreground/40 italic">null</span>}
+                                      </span>
+                                    </TableCell>
                                   ))}
                                 </TableRow>
                               ))}
