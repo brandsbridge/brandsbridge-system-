@@ -1,9 +1,8 @@
-
 export const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyDummyKeyForInitialization",
-  authDomain: "brands-bridge.firebaseapp.com",
-  projectId: "brands-bridge",
-  storageBucket: "brands-bridge.appspot.com",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  "projectId": "brands-bridge",
+  "appId": "1:479315293752:web:1e173bd184af1edba9d8cd",
+  "apiKey": "AIzaSyCiDUpRZunrmRGFujXRfkvroHdxjJQAXyw",
+  "authDomain": "brands-bridge.firebaseapp.com",
+  "measurementId": "",
+  "messagingSenderId": "479315293752"
 };
