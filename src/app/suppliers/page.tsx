@@ -421,7 +421,7 @@ export default function SuppliersPage() {
                         <TableRow className="border-b">
                           {previewData.length > 0 && Object.keys(previewData[0] || {}).map(k => (
                             <TableHead key={k} className={cn(
-                              "text-[10px] whitespace-nowrap px-4 h-12 font-bold uppercase tracking-wider border-r last:border-r-0 max-w-[250px] overflow-hidden text-ellipsis",
+                              "text-[10px] whitespace-nowrap px-4 h-12 font-bold uppercase tracking-wider border-r last:border-r-0 min-w-[150px]",
                               k === "Company Name" && "text-primary bg-primary/5 sticky left-0 z-30"
                             )}>
                               {k}
@@ -434,12 +434,12 @@ export default function SuppliersPage() {
                           <TableRow key={i} className="hover:bg-muted/30 transition-colors border-b last:border-b-0">
                             {Object.entries(row).map(([key, val]: [string, any], j) => (
                               <TableCell key={j} className={cn(
-                                "text-[11px] px-4 py-3 border-r last:border-r-0 whitespace-nowrap overflow-hidden text-ellipsis max-w-[250px]",
+                                "text-[11px] px-4 py-3 border-r last:border-r-0 min-w-[150px]",
                                 key === "Company Name" && "font-bold text-foreground bg-primary/5 sticky left-0 z-20"
                               )}>
-                                <span title={val ? String(val) : "null"}>
+                                <div className="max-w-[220px] truncate" title={val ? String(val) : "null"}>
                                   {val ? String(val) : <span className="text-muted-foreground/30 italic">&lt;null&gt;</span>}
-                                </span>
+                                </div>
                               </TableCell>
                             ))}
                           </TableRow>
