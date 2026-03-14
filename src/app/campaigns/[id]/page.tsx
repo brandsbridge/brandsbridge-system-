@@ -7,8 +7,8 @@ import CampaignClient from "./campaign-client";
  */
 export function generateStaticParams() {
   // If data is empty, return a placeholder to satisfy Next.js build requirements
-  if (MOCK_CAMPAIGNS.length === 0) {
-    return [{ id: 'placeholder' }];
+  if (!MOCK_CAMPAIGNS || MOCK_CAMPAIGNS.length === 0) {
+    return [{ id: 'default' }];
   }
 
   return MOCK_CAMPAIGNS.map((c) => ({

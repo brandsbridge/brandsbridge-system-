@@ -7,8 +7,8 @@ import SupplierClient from "./supplier-client";
  */
 export function generateStaticParams() {
   // If data is empty, return a placeholder to satisfy Next.js build requirements
-  if (MOCK_SUPPLIERS.length === 0) {
-    return [{ id: 'placeholder' }];
+  if (!MOCK_SUPPLIERS || MOCK_SUPPLIERS.length === 0) {
+    return [{ id: 'default' }];
   }
 
   return MOCK_SUPPLIERS.map((s) => ({

@@ -7,8 +7,8 @@ import CustomerClient from "./customer-client";
  */
 export function generateStaticParams() {
   // If data is empty, return a placeholder to satisfy Next.js build requirements
-  if (MOCK_CUSTOMERS.length === 0) {
-    return [{ id: 'placeholder' }];
+  if (!MOCK_CUSTOMERS || MOCK_CUSTOMERS.length === 0) {
+    return [{ id: 'default' }];
   }
   
   return MOCK_CUSTOMERS.map((c) => ({
