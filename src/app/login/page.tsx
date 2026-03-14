@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -10,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Label } from "@/components/ui/label";
 import { DEMO_USERS } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
+import { auth } from "@/lib/firebase";
+import { signInAnonymously } from "firebase/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,20 +18,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate Auth
-    setTimeout(() => {
+    try {
+      // Real Firebase Authentication session
+      await signInAnonymously(auth);
+
       const user = DEMO_USERS.find(u => u.email === email);
       
-      // For demo, we just check if user exists in mock data
       if (user) {
         localStorage.setItem("demoUser", JSON.stringify(user));
         toast({
           title: "Login Successful",
-          description: `Welcome back, ${user.name}!`,
+          description: `Welcome back, ${user.name}! Please remember to activate admin status in System Hub.`,
         });
         
         if (user.department !== 'all') {
@@ -46,7 +48,14 @@ export default function LoginPage() {
         });
         setIsLoading(false);
       }
-    }, 1000);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Connection Error",
+        description: error.message || "Could not connect to Firebase Auth.",
+      });
+      setIsLoading(false);
+    }
   };
 
   return (

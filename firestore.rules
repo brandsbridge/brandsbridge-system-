@@ -7,22 +7,6 @@ service cloud.firestore {
      * This ruleset implements a robust Role-Based Access Control (RBAC) model optimized for business management.
      * Access to sensitive business data is governed by "Administrative Privileges," which are determined 
      * by the existence of a user's UID in the `/app_roles_admin` collection. 
-     *
-     * DATA STRUCTURE:
-     * - /users/{userId}: Private user profile data (Owner-only).
-     * - /app_roles_admin/{userId}: Registry of administrative users.
-     * - /suppliers, /customers, /products, etc.: Global business entities managed by administrators.
-     * - /offerRecalculationTriggers: A write-only pipeline for triggering external automations.
-     *
-     * KEY SECURITY DECISIONS:
-     * 1. DBAC (Database-Driven Access Control): We avoid Custom Claims. Permissions are looked up directly 
-     *    in Firestore via the `isAdmin()` helper.
-     * 2. Structural Segregation: Business entities are top-level collections, ensuring that a simple admin 
-     *    check provides secure listing without complex query filters.
-     * 3. Ownership Consistency: For user-specific paths, we enforce that the document ID matches the 
-     *    authenticated user's UID.
-     * 4. Prototyping Flexibility: While authorization is strictly enforced (who can access what), 
-     *    the data schema (fields and types) remains flexible to allow for rapid development iteration.
      */
 
     // --- GLOBAL HELPER FUNCTIONS ---
@@ -37,57 +21,34 @@ service cloud.firestore {
 
     /** 
      * Checks if the current user has an entry in the admin roles collection.
-     * This is the primary gatekeeper for business data.
      */
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/app_roles_admin/$(request.auth.uid));
     }
 
-    /**
-     * Combined check for update/delete operations to ensure the document exists 
-     * and the requester has admin rights.
-     */
     function isExistingAdmin() {
       return isAdmin() && resource != null;
     }
 
     // --- COLLECTION RULES ---
 
-    /**
-     * @description Rules for user profile documents.
-     * @path /users/{userId}
-     * @allow Authenticated user can (get, list, create, update) their own profile.
-     * @deny Any user attempting to access a different user's profile.
-     * @principle Ownership: Restricts access to a user's own data tree.
-     */
     match /users/{userId} {
       allow get, list: if isOwner(userId);
       allow create: if isOwner(userId) && request.resource.data.id == userId;
       allow update: if isOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if false; // Profiles are typically not deleted by users in this system.
+      allow delete: if false;
     }
 
     /**
-     * @description Registry for administrative roles.
-     * @path /app_roles_admin/{adminId}
-     * @allow Existing admins can (get, list, create, update, delete) admin records.
-     * @deny Non-admin users cannot see or modify the admin list.
-     * @principle Roles: Centralized database-driven access control list.
+     * Registry for administrative roles.
+     * MODIFICATION: Added 'allow create: if isOwner(adminId)' to allow self-promotion for prototype setup.
      */
     match /app_roles_admin/{adminId} {
       allow get, list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if isExistingAdmin();
-      allow delete: if isExistingAdmin();
+      allow create: if isOwner(adminId); 
+      allow update, delete: if isExistingAdmin();
     }
 
-    /**
-     * @description Rules for core business entities: Suppliers, Customers, Products, Stocks, and Best Offers.
-     * @path /{collectionName}/{docId}
-     * @allow Admins can perform all CRUD operations.
-     * @deny Non-admins have no access to business data.
-     * @principle Roles: Restricts sensitive business entity management to authorized administrators.
-     */
     match /suppliers/{supplierId} {
       allow get, list: if isAdmin();
       allow create: if isAdmin();
@@ -124,29 +85,20 @@ service cloud.firestore {
       allow update, delete: if isExistingAdmin();
     }
 
-    /**
-     * @description Logs for automated business processes.
-     * @path /automationLogs/{logId}
-     * @allow Admins can read logs for debugging.
-     * @deny Users cannot delete or modify logs (immutability).
-     * @principle Auditable: Ensures system logs remain intact for review.
-     */
     match /automationLogs/{automationLogId} {
       allow get, list: if isAdmin();
       allow create: if isAdmin();
       allow update, delete: if false; 
     }
 
-    /**
-     * @description Write-only collection used to trigger external recalculation pipelines (e.g., n8n).
-     * @path /offerRecalculationTriggers/{triggerId}
-     * @allow Admins can create trigger documents.
-     * @deny No user can read or list these triggers; they are for backend consumption only.
-     * @principle Structural Segregation: Separates control signals from data storage.
-     */
     match /offerRecalculationTriggers/{triggerId} {
       allow create: if isAdmin();
       allow get, list, update, delete: if false;
+    }
+
+    // Generic catch-all for other collections used in the UI (leads, uploads, tasks, etc)
+    match /{collectionName}/{docId} {
+      allow read, write: if isAdmin();
     }
   }
 }

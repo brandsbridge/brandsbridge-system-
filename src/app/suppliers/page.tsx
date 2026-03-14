@@ -45,7 +45,7 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -95,7 +95,8 @@ export default function SuppliersPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const db = useFirestore();
-  const suppliersQuery = useMemoFirebase(() => collection(db, "suppliers"), [db]);
+  const { user } = useUser();
+  const suppliersQuery = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
   const { data: suppliers = [], isLoading: loading } = useCollection(suppliersQuery);
 
   const filteredSuppliers = useMemo(() => {
@@ -394,12 +395,12 @@ export default function SuppliersPage() {
                 <div className="space-y-6">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-bold flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" /> Professional Preview (Pinned Fields First)
+                      <FileText className="h-4 w-4 text-primary" /> Professional Preview
                     </h3>
                     <Badge variant="outline" className="font-mono text-[10px]">{importFile?.name}</Badge>
                   </div>
 
-                  <div className="max-h-[450px] overflow-x-auto border rounded-xl bg-card shadow-inner custom-scrollbar">
+                  <div className="max-h-[450px] overflow-x-auto border rounded-xl bg-card">
                     <Table className="min-w-max w-full border-collapse">
                       <TableHeader className="sticky top-0 bg-secondary/95 backdrop-blur-sm z-20 shadow-sm">
                         <TableRow className="border-b">
@@ -440,7 +441,7 @@ export default function SuppliersPage() {
                         </div>
                         <div>
                           <p className="text-sm font-bold">{fullValidData.length} Rows Validated for Sync</p>
-                          <p className="text-[10px] text-muted-foreground">System will intelligently map available columns and handle missing data as null.</p>
+                          <p className="text-[10px] text-muted-foreground">System will intelligently map available columns.</p>
                         </div>
                       </div>
                       <Badge className="bg-primary px-3 py-1">Verified</Badge>
@@ -452,7 +453,7 @@ export default function SuppliersPage() {
                           <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
                           <div>
                             <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows (Missing Company Name)</p>
-                            <p className="text-[10px] text-muted-foreground">These rows will be ignored. Required fields must be populated.</p>
+                            <p className="text-[10px] text-muted-foreground">These rows will be ignored.</p>
                           </div>
                         </div>
                         <Button variant="outline" size="sm" className="text-destructive border-destructive/20 h-8" onClick={downloadErrorReport}>
@@ -736,7 +737,7 @@ export default function SuppliersPage() {
             {!loading && filteredSuppliers.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                  No suppliers found. Use the import tool to populate the database.
+                  No suppliers found. Try activating Admin Status in System Hub.
                 </TableCell>
               </TableRow>
             )}

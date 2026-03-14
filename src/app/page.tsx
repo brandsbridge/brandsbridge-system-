@@ -33,22 +33,23 @@ import { cn } from "@/lib/utils";
 import { Employee } from "@/lib/mock-data";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
 
 const COLORS = ['#755EDE', '#5182E0', '#F59E0B', '#EF4444', '#10B981'];
 
 export default function OverviewPage() {
   const router = useRouter();
+  const { user, isUserLoading } = useUser();
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
   const db = useFirestore();
 
-  // Memoize Firestore Collections to prevent infinite render loops
-  const suppliersCol = useMemoFirebase(() => collection(db, "suppliers"), [db]);
-  const customersCol = useMemoFirebase(() => collection(db, "customers"), [db]);
-  const uploadLogsCol = useMemoFirebase(() => collection(db, "uploadLogs"), [db]);
-  const leadsCol = useMemoFirebase(() => collection(db, "leads"), [db]);
-  const productsCol = useMemoFirebase(() => collection(db, "products"), [db]);
+  // Memoize Firestore Collections - Only fetch if user is present to prevent permission errors
+  const suppliersCol = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
+  const customersCol = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
+  const uploadLogsCol = useMemoFirebase(() => user ? collection(db, "uploadLogs") : null, [db, user]);
+  const leadsCol = useMemoFirebase(() => user ? collection(db, "leads") : null, [db, user]);
+  const productsCol = useMemoFirebase(() => user ? collection(db, "products") : null, [db, user]);
 
   const { data: fbSuppliers = [], isLoading: loadingSuppliers } = useCollection(suppliersCol);
   const { data: fbCustomers = [], isLoading: loadingCustomers } = useCollection(customersCol);
@@ -59,10 +60,10 @@ export default function OverviewPage() {
   useEffect(() => {
     const savedUser = localStorage.getItem("demoUser");
     if (savedUser) {
-      const user = JSON.parse(savedUser);
-      setCurrentUser(user);
-      if (user.role === 'manager' && user.department !== 'all') {
-        router.push(`/department/${user.department}`);
+      const u = JSON.parse(savedUser);
+      setCurrentUser(u);
+      if (u.role === 'manager' && u.department !== 'all') {
+        router.push(`/department/${u.department}`);
       }
     } else {
       router.push("/login");
@@ -79,11 +80,11 @@ export default function OverviewPage() {
   }, [fbCustomers]);
 
   const kpis = [
-    { title: "Suppliers", value: fbSuppliers?.length || 0, icon: Factory, color: "text-blue-500", loading: loadingSuppliers },
-    { title: "Customers", value: fbCustomers?.length || 0, icon: Users, color: "text-purple-500", loading: loadingCustomers },
-    { title: "Active Leads", value: fbLeads?.length || 0, icon: Target, color: "text-accent", loading: loadingLeads },
-    { title: "Products", value: fbProducts?.length || 0, icon: TrendingUp, color: "text-orange-500", loading: loadingProducts },
-    { title: "System", value: "Healthy", icon: ShieldCheck, color: "text-green-500", loading: false },
+    { title: "Suppliers", value: fbSuppliers?.length || 0, icon: Factory, color: "text-blue-500", loading: loadingSuppliers || isUserLoading },
+    { title: "Customers", value: fbCustomers?.length || 0, icon: Users, color: "text-purple-500", loading: loadingCustomers || isUserLoading },
+    { title: "Active Leads", value: fbLeads?.length || 0, icon: Target, color: "text-accent", loading: loadingLeads || isUserLoading },
+    { title: "Products", value: fbProducts?.length || 0, icon: TrendingUp, color: "text-orange-500", loading: loadingProducts || isUserLoading },
+    { title: "System", value: "Active", icon: ShieldCheck, color: "text-green-500", loading: false },
   ];
 
   if (!currentUser || (currentUser.role === 'manager' && currentUser.department !== 'all')) return null;
@@ -173,7 +174,7 @@ export default function OverviewPage() {
               </Table>
             ) : (
               <div className="py-12 text-center text-sm text-muted-foreground italic">
-                No recent activity logs found.
+                {isUserLoading ? "Initializing session..." : "No recent activity logs found. Try activating Admin Status in System Hub."}
               </div>
             )}
           </CardContent>
