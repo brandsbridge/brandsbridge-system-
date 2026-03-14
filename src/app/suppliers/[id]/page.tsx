@@ -3,11 +3,14 @@ import SupplierClient from "./supplier-client";
 
 /**
  * generateStaticParams is required for dynamic routes when using output: 'export'
- * This function must remain in a Server Component file.
+ * This function must return at least one parameter to prevent build errors.
  */
 export function generateStaticParams() {
-  // If mock data is empty, return an empty array or at least one known placeholder
-  // to prevent build errors in environments where output is static.
+  // If data is empty, return a placeholder to satisfy Next.js build requirements
+  if (MOCK_SUPPLIERS.length === 0) {
+    return [{ id: 'placeholder' }];
+  }
+
   return MOCK_SUPPLIERS.map((s) => ({
     id: s.id,
   }));

@@ -3,10 +3,14 @@ import CustomerClient from "./customer-client";
 
 /**
  * generateStaticParams is required for dynamic routes when using output: 'export'
- * This function must remain in a Server Component file.
+ * This function must return at least one parameter to prevent build errors.
  */
 export function generateStaticParams() {
-  // Resilience for empty data sets during build
+  // If data is empty, return a placeholder to satisfy Next.js build requirements
+  if (MOCK_CUSTOMERS.length === 0) {
+    return [{ id: 'placeholder' }];
+  }
+  
   return MOCK_CUSTOMERS.map((c) => ({
     id: c.id,
   }));
