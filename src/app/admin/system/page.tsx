@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState, useRef } from "react";
@@ -23,7 +24,8 @@ import {
   Info,
   FileX,
   ShieldCheck,
-  Zap
+  Zap,
+  Code2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,8 +73,9 @@ const CORE_COLLECTIONS = [
   { id: 'customers', label: 'Customers', icon: Users, uniqueKey: 'name', priorityKeys: ["Company Name", "name", "Email", "Country"] },
   { id: 'products', label: 'Products', icon: Package, uniqueKey: 'name', priorityKeys: ["name", "category", "department"] },
   { id: 'leads', label: 'CRM Leads', icon: DatabaseZap, uniqueKey: 'name', priorityKeys: ["name", "company", "value", "stage"] },
-  { id: 'employees', label: 'Employees', icon: Settings, uniqueKey: 'email', priorityKeys: ["name", "email", "role", "department"] },
+  { id: 'campaigns', label: 'Campaigns', icon: Code2, uniqueKey: 'name', priorityKeys: ["name", "status", "department"] },
   { id: 'tasks', label: 'Project Tasks', icon: FileText, uniqueKey: 'title', priorityKeys: ["title", "status", "priority", "assignee"] },
+  { id: 'purchases', label: 'Purchases', icon: Database, uniqueKey: 'id', priorityKeys: ["buyerName", "totalRevenue", "date"] },
 ];
 
 export default function SystemManagementPage() {
@@ -90,27 +93,27 @@ export default function SystemManagementPage() {
   const [importProgress, setImportProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Memoize collections - Wait for user to be available to prevent permission errors
+  // Memoize collections
   const suppliersCol = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
   const customersCol = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
   const productsCol = useMemoFirebase(() => user ? collection(db, "products") : null, [db, user]);
-  const employeesCol = useMemoFirebase(() => user ? collection(db, "employees") : null, [db, user]);
   const tasksCol = useMemoFirebase(() => user ? collection(db, "tasks") : null, [db, user]);
   const leadsCol = useMemoFirebase(() => user ? collection(db, "leads") : null, [db, user]);
+  const campaignsCol = useMemoFirebase(() => user ? collection(db, "campaigns") : null, [db, user]);
 
   const { data: suppliers = [] } = useCollection(suppliersCol);
   const { data: customers = [] } = useCollection(customersCol);
   const { data: products = [] } = useCollection(productsCol);
-  const { data: employees = [] } = useCollection(employeesCol);
   const { data: tasks = [] } = useCollection(tasksCol);
   const { data: leads = [] } = useCollection(leadsCol);
+  const { data: campaigns = [] } = useCollection(campaignsCol);
 
   const stats = [
     { label: "Suppliers", count: suppliers?.length || 0, icon: Factory, color: "text-blue-500" },
     { label: "Customers", count: customers?.length || 0, icon: Users, color: "text-purple-500" },
     { label: "Products", count: products?.length || 0, icon: Package, color: "text-orange-500" },
     { label: "Leads", count: leads?.length || 0, icon: DatabaseZap, color: "text-accent" },
-    { label: "Employees", count: employees?.length || 0, icon: Settings, color: "text-green-500" },
+    { label: "Campaigns", count: campaigns?.length || 0, icon: Code2, color: "text-green-500" },
     { label: "Tasks", count: tasks?.length || 0, icon: FileText, color: "text-muted-foreground" },
   ];
 
@@ -136,7 +139,6 @@ export default function SystemManagementPage() {
     }
   };
 
-  // --- EXPORT LOGIC ---
   const handleExport = async (collectionId: string, format: "csv" | "xlsx" | "json") => {
     setIsExporting(true);
     try {
@@ -173,7 +175,7 @@ export default function SystemManagementPage() {
         XLSX.writeFile(workbook, `${filename}.xlsx`);
       }
 
-      toast({ title: "Export Complete", description: `Successfully exported ${data.length} records.` });
+      toast({ title: "Export Complete", description: `Successfully exported ${data.length} records for your automation.` });
     } catch (error) {
       toast({ variant: "destructive", title: "Export Failed", description: "Could not fetch data from Firestore." });
     } finally {
@@ -181,7 +183,6 @@ export default function SystemManagementPage() {
     }
   };
 
-  // --- IMPORT LOGIC ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -259,34 +260,13 @@ export default function SystemManagementPage() {
     const colInfo = CORE_COLLECTIONS.find(c => c.id === targetCollection);
     const uniqueKey = colInfo?.uniqueKey || 'name';
     
-    let existingIds = new Set<string>();
-    try {
-      const existingSnap = await getDocs(query(colRef, limit(1000)));
-      existingSnap.forEach(doc => {
-        const data = doc.data();
-        const identifier = (data[uniqueKey] || data['name'] || data['title'] || "").toString().toLowerCase().trim();
-        if (identifier) existingIds.add(identifier);
-      });
-    } catch (e) {
-      console.warn("Duplicate check limited to existing cache.");
-    }
-
     let successCount = 0;
-    let skipCount = 0;
-
     const BATCH_SIZE = 500;
     for (let i = 0; i < fullValidData.length; i += BATCH_SIZE) {
       const batch = writeBatch(db);
       const chunk = fullValidData.slice(i, i + BATCH_SIZE);
 
       for (const row of chunk) {
-        const identifier = (row[uniqueKey] || row['Company Name'] || row['name'] || row['title'] || row['Email'] || "").toString().toLowerCase().trim();
-
-        if (identifier && existingIds.has(identifier)) {
-          skipCount++;
-          continue;
-        }
-
         const newDocRef = doc(colRef);
         batch.set(newDocRef, {
           ...row,
@@ -296,36 +276,12 @@ export default function SystemManagementPage() {
         successCount++;
       }
 
-      try {
-        await batch.commit();
-        setImportProgress(Math.min(100, Math.round(((i + chunk.length) / fullValidData.length) * 100)));
-      } catch (err) {
-        console.error("Batch commit failed", err);
-      }
+      await batch.commit();
+      setImportProgress(Math.min(100, Math.round(((i + chunk.length) / fullValidData.length) * 100)));
     }
 
     setImportStep("success");
-    toast({ title: "Import Successful", description: `Created ${successCount} records. Skipped ${skipCount} duplicates.` });
-  };
-
-  const downloadErrorReport = () => {
-    if (validationErrors.length === 0) return;
-    const csv = Papa.unparse(validationErrors.map(e => ({ Row: e.row, Reason: e.message })));
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `import_errors_${targetCollection}_${new Date().toISOString()}.csv`;
-    link.click();
-  };
-
-  const resetImport = () => {
-    setImportFile(null);
-    setPreviewData([]);
-    setFullValidData([]);
-    setValidationErrors([]);
-    setImportStep("select");
-    setTargetCollection("");
+    toast({ title: "Import Successful", description: `Synchronized ${successCount} records.` });
   };
 
   return (
@@ -384,11 +340,11 @@ export default function SystemManagementPage() {
               <DatabaseZap className="h-5 w-5 text-accent" />
               <CardTitle>Data Portability</CardTitle>
             </div>
-            <CardDescription>Manage backups and bulk operations.</CardDescription>
+            <CardDescription>Manage backups and automation exports.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-3">
-              <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Global Operations</p>
+              <p className="text-xs font-bold uppercase text-muted-foreground tracking-widest">Connect Automation</p>
               <div className="grid grid-cols-2 gap-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -430,14 +386,14 @@ export default function SystemManagementPage() {
                   </DialogTrigger>
                   <DialogContent className="max-w-4xl">
                     <DialogHeader>
-                      <DialogTitle>Flexible Data Import</DialogTitle>
-                      <DialogDescription>Incomplete files are accepted. Missing columns will be set to null.</DialogDescription>
+                      <DialogTitle>Bulk Sync Tool</DialogTitle>
+                      <DialogDescription>Manually push data to Firestore collections from external files.</DialogDescription>
                     </DialogHeader>
 
                     {importStep === "select" && (
                       <div className="space-y-6 pt-4">
                         <div className="space-y-2">
-                          <label className="text-xs font-bold uppercase text-muted-foreground">1. Target Collection</label>
+                          <label className="text-xs font-bold uppercase text-muted-foreground">Target Collection</label>
                           <Select value={targetCollection} onValueChange={setTargetCollection}>
                             <SelectTrigger><SelectValue placeholder="Where to import..." /></SelectTrigger>
                             <SelectContent>
@@ -448,91 +404,57 @@ export default function SystemManagementPage() {
                           </Select>
                         </div>
 
-                        <div className="space-y-2">
-                          <label className="text-xs font-bold uppercase text-muted-foreground">2. Upload File</label>
-                          <div 
-                            className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-12 text-center hover:border-primary/50 transition-colors cursor-pointer bg-secondary/5"
-                            onClick={() => fileInputRef.current?.click()}
-                          >
-                            <Upload className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
-                            <p className="text-sm font-medium">Click or drag file</p>
-                            <p className="text-[10px] text-muted-foreground mt-1">Accepts CSV, Excel, JSON</p>
-                            <input 
-                              type="file" 
-                              ref={fileInputRef} 
-                              className="hidden" 
-                              accept=".csv,.xlsx,.json" 
-                              onChange={handleFileChange}
-                            />
-                          </div>
+                        <div className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-12 text-center hover:border-primary/50 transition-colors cursor-pointer bg-secondary/5"
+                             onClick={() => fileInputRef.current?.click()}>
+                          <Upload className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
+                          <p className="text-sm font-medium">Click or drag file to sync</p>
+                          <input type="file" ref={fileInputRef} className="hidden" accept=".csv,.xlsx,.json" onChange={handleFileChange} />
                         </div>
                       </div>
                     )}
 
                     {importStep === "preview" && (
                       <div className="space-y-6 pt-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-bold flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-primary" /> Smart Preview
-                          </h3>
-                          <Badge variant="outline">{importFile?.name}</Badge>
-                        </div>
-
-                        <div className="max-h-[400px] overflow-x-auto border rounded-lg">
-                          <Table className="min-w-max w-full">
-                            <TableHeader className="sticky top-0 bg-background z-10">
-                              <TableRow className="bg-muted/50">
+                        <div className="max-h-[400px] overflow-auto border rounded-lg">
+                          <Table>
+                            <TableHeader className="bg-muted">
+                              <TableRow>
                                 {previewData.length > 0 && Object.keys(previewData[0] || {}).map(k => (
-                                  <TableHead key={k} className="text-[10px] whitespace-nowrap px-3 h-10 font-bold uppercase tracking-wider">
-                                    {k}
-                                  </TableHead>
+                                  <TableHead key={k} className="text-[10px] uppercase">{k}</TableHead>
                                 ))}
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {previewData.map((row, i) => (
-                                <TableRow key={i} className="hover:bg-muted/20">
-                                  {Object.entries(row).map(([key, val]: [string, any], j) => (
-                                    <TableCell key={j} className="text-[11px] px-3 py-2 border-r last:border-r-0 max-w-[220px] truncate">
-                                      {val ? String(val) : <span className="text-muted-foreground/40 italic">null</span>}
-                                    </TableCell>
+                                <TableRow key={i}>
+                                  {Object.values(row).map((val: any, j) => (
+                                    <TableCell key={j} className="text-[11px] truncate max-w-[150px]">{String(val)}</TableCell>
                                   ))}
                                 </TableRow>
                               ))}
                             </TableBody>
                           </Table>
                         </div>
-
-                        <DialogFooter className="gap-2">
-                          <Button variant="ghost" onClick={resetImport}>Start Over</Button>
-                          <Button onClick={executeImport} className="bg-primary">
-                            Import {fullValidData.length} Records
-                          </Button>
+                        <DialogFooter>
+                          <Button variant="ghost" onClick={() => setImportStep("select")}>Back</Button>
+                          <Button onClick={executeImport}>Sync {fullValidData.length} Records</Button>
                         </DialogFooter>
                       </div>
                     )}
 
                     {importStep === "processing" && (
-                      <div className="py-12 flex flex-col items-center justify-center space-y-6">
+                      <div className="py-12 flex flex-col items-center gap-4">
                         <Loader2 className="h-12 w-12 text-primary animate-spin" />
-                        <div className="text-center space-y-2 w-full max-w-sm">
-                          <p className="font-bold">Updating Database...</p>
-                          <Progress value={importProgress} className="h-2" />
-                          <p className="text-xs text-muted-foreground">{importProgress}% Complete</p>
-                        </div>
+                        <Progress value={importProgress} className="w-full max-w-xs h-2" />
+                        <p className="text-sm">Synchronizing data...</p>
                       </div>
                     )}
 
                     {importStep === "success" && (
-                      <div className="py-8 text-center space-y-6">
-                        <div className="h-16 w-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto">
-                          <CheckCircle2 className="h-10 w-10 text-green-500" />
-                        </div>
-                        <div className="space-y-2">
-                          <h3 className="text-xl font-bold">Data Synchronized</h3>
-                          <p className="text-muted-foreground">Incomplete rows were accepted and missing columns were handled as null.</p>
-                        </div>
-                        <Button className="w-full max-w-sm" onClick={() => setIsImportModalOpen(false)}>Close Hub</Button>
+                      <div className="py-12 text-center space-y-4">
+                        <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
+                        <h3 className="text-xl font-bold">Cloud Sync Complete</h3>
+                        <Button onClick={() => setIsImportModalOpen(false)}>Return to Hub</Button>
                       </div>
                     )}
                   </DialogContent>
@@ -547,7 +469,7 @@ export default function SystemManagementPage() {
                 <Zap className="h-3 w-3 text-primary" /> Setup Instruction
               </h4>
               <p className="text-[10px] text-muted-foreground leading-relaxed">
-                If you encounter "Insufficient Permissions" errors, click the <strong>Activate Admin Status</strong> button above to grant your current anonymous session full write access.
+                Use the <strong>JSON Export</strong> to feed live data into n8n or Zapier. For real-time sync, use the <strong>Webhooks</strong> feature in the Automation page.
               </p>
             </div>
           </CardContent>
