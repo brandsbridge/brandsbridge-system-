@@ -1,13 +1,10 @@
-
 "use client";
 
-import React, { useMemo, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { 
   Users, 
   Factory, 
-  Clock, 
   UserPlus,
-  Share2,
   ArrowRight,
   ShieldCheck,
   Loader2,
@@ -22,8 +19,6 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  BarChart, 
-  Bar, 
   Cell,
   PieChart,
   Pie,
@@ -35,15 +30,10 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
-import { 
-  MOCK_SUPPLIERS, 
-  MOCK_CUSTOMERS, 
-  MOCK_UPLOAD_LOGS,
-  Employee
-} from "@/lib/mock-data";
+import { Employee } from "@/lib/mock-data";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection } from "firebase/firestore";
 
 const COLORS = ['#755EDE', '#5182E0', '#F59E0B', '#EF4444', '#10B981'];
@@ -54,17 +44,17 @@ export default function OverviewPage() {
   const db = useFirestore();
 
   // Memoize Firestore Collections to prevent infinite render loops
-  const suppliersCol = useMemo(() => collection(db, "suppliers"), [db]);
-  const customersCol = useMemo(() => collection(db, "customers"), [db]);
-  const uploadLogsCol = useMemo(() => collection(db, "uploadLogs"), [db]);
-  const leadsCol = useMemo(() => collection(db, "leads"), [db]);
-  const productsCol = useMemo(() => collection(db, "products"), [db]);
+  const suppliersCol = useMemoFirebase(() => collection(db, "suppliers"), [db]);
+  const customersCol = useMemoFirebase(() => collection(db, "customers"), [db]);
+  const uploadLogsCol = useMemoFirebase(() => collection(db, "uploadLogs"), [db]);
+  const leadsCol = useMemoFirebase(() => collection(db, "leads"), [db]);
+  const productsCol = useMemoFirebase(() => collection(db, "products"), [db]);
 
-  const { data: fbSuppliers = [], loading: loadingSuppliers } = useCollection(suppliersCol);
-  const { data: fbCustomers = [], loading: loadingCustomers } = useCollection(customersCol);
-  const { data: fbUploadLogs = [], loading: loadingLogs } = useCollection(uploadLogsCol);
-  const { data: fbLeads = [] } = useCollection(leadsCol);
-  const { data: fbProducts = [] } = useCollection(productsCol);
+  const { data: fbSuppliers = [], isLoading: loadingSuppliers } = useCollection(suppliersCol);
+  const { data: fbCustomers = [], isLoading: loadingCustomers } = useCollection(customersCol);
+  const { data: fbUploadLogs = [], isLoading: loadingLogs } = useCollection(uploadLogsCol);
+  const { data: fbLeads = [], isLoading: loadingLeads } = useCollection(leadsCol);
+  const { data: fbProducts = [], isLoading: loadingProducts } = useCollection(productsCol);
 
   useEffect(() => {
     const savedUser = localStorage.getItem("demoUser");
@@ -79,32 +69,22 @@ export default function OverviewPage() {
     }
   }, [router]);
 
-  const currentDept = currentUser?.department || 'all';
-
-  const suppliers = fbSuppliers.length > 0 ? fbSuppliers : MOCK_SUPPLIERS;
-  const customers = fbCustomers.length > 0 ? fbCustomers : MOCK_CUSTOMERS;
-
-  const sharedWithMe = useMemo(() => 
-    [...suppliers, ...customers].filter((e: any) => e.departments?.length > 1)
-  , [suppliers, customers]);
-
-  const deptComposition = useMemo(() => {
+  const deptComposition = React.useMemo(() => {
+    if (!fbCustomers) return [];
     const depts = ['chocolate', 'cosmetics', 'detergents'];
     return depts.map(d => ({
       name: d.charAt(0).toUpperCase() + d.slice(1),
-      value: customers.filter((c: any) => c.departments?.includes(d)).length
+      value: fbCustomers.filter((c: any) => c.departments?.includes(d)).length
     }));
-  }, [customers]);
+  }, [fbCustomers]);
 
   const kpis = [
-    { title: "Suppliers", value: suppliers.length, icon: Factory, color: "text-blue-500", loading: loadingSuppliers },
-    { title: "Customers", value: customers.length, icon: Users, color: "text-purple-500", loading: loadingCustomers },
-    { title: "Active Leads", value: fbLeads.length, icon: Target, color: "text-accent", loading: false },
-    { title: "Products", value: fbProducts.length, icon: TrendingUp, color: "text-orange-500", loading: false },
+    { title: "Suppliers", value: fbSuppliers?.length || 0, icon: Factory, color: "text-blue-500", loading: loadingSuppliers },
+    { title: "Customers", value: fbCustomers?.length || 0, icon: Users, color: "text-purple-500", loading: loadingCustomers },
+    { title: "Active Leads", value: fbLeads?.length || 0, icon: Target, color: "text-accent", loading: loadingLeads },
+    { title: "Products", value: fbProducts?.length || 0, icon: TrendingUp, color: "text-orange-500", loading: loadingProducts },
     { title: "System", value: "Healthy", icon: ShieldCheck, color: "text-green-500", loading: false },
   ];
-
-  const recentUploads = fbUploadLogs.length > 0 ? fbUploadLogs : MOCK_UPLOAD_LOGS;
 
   if (!currentUser || (currentUser.role === 'manager' && currentUser.department !== 'all')) return null;
 
@@ -163,7 +143,7 @@ export default function OverviewPage() {
               <div className="flex justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
-            ) : (
+            ) : fbUploadLogs && fbUploadLogs.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -174,7 +154,7 @@ export default function OverviewPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {recentUploads.slice(0, 6).map((log: any) => (
+                  {fbUploadLogs.slice(0, 6).map((log: any) => (
                     <TableRow key={log.id}>
                       <TableCell>
                          <Badge variant="secondary" className="capitalize text-[10px]">{log.department}</Badge>
@@ -191,6 +171,10 @@ export default function OverviewPage() {
                   ))}
                 </TableBody>
               </Table>
+            ) : (
+              <div className="py-12 text-center text-sm text-muted-foreground italic">
+                No recent activity logs found.
+              </div>
             )}
           </CardContent>
         </Card>

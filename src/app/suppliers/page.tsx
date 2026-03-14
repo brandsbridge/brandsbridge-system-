@@ -4,10 +4,10 @@ import React, { useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { 
   Plus, Search, Edit, Trash2, ExternalLink, Filter, 
-  Download, Printer, CheckCircle2, 
+  Download, CheckCircle2, 
   ShieldCheck, Info, Star, MoreVertical, Upload,
-  FileSpreadsheet, FileDown, Loader2, X, AlertTriangle,
-  Mail, FileX, FileText
+  FileSpreadsheet, Loader2, X, AlertTriangle,
+  Mail, FileX, FileText, FileDown
 } from "lucide-react";
 import { 
   Table, 
@@ -45,11 +45,10 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
 import { collection, doc, writeBatch } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
-import { MOCK_SUPPLIERS } from "@/lib/mock-data";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -96,15 +95,11 @@ export default function SuppliersPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const db = useFirestore();
-  const suppliersQuery = useMemo(() => collection(db, "suppliers"), [db]);
-  const { data: firestoreSuppliers = [], loading } = useCollection(suppliersQuery);
-
-  const suppliers = useMemo(() => {
-    if (firestoreSuppliers.length > 0) return firestoreSuppliers;
-    return MOCK_SUPPLIERS;
-  }, [firestoreSuppliers]);
+  const suppliersQuery = useMemoFirebase(() => collection(db, "suppliers"), [db]);
+  const { data: suppliers = [], isLoading: loading } = useCollection(suppliersQuery);
 
   const filteredSuppliers = useMemo(() => {
+    if (!suppliers) return [];
     return suppliers.filter(s => {
       const matchesSearch = (s.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
                            (s.contacts?.sales?.name || "").toLowerCase().includes(searchTerm.toLowerCase());
@@ -116,10 +111,10 @@ export default function SuppliersPage() {
     });
   }, [suppliers, searchTerm, countryFilter, tierFilter, statusFilter, natureFilter]);
 
-  const countries = Array.from(new Set(suppliers.map(s => s.country))).sort();
-  const natures = Array.from(new Set(suppliers.map(s => s.natureOfBusiness))).sort();
+  const countries = Array.from(new Set(suppliers?.map(s => s.country) || [])).sort();
+  const natures = Array.from(new Set(suppliers?.map(s => s.natureOfBusiness) || [])).sort();
   const tiers = ['Budget', 'Mid-Range', 'Premium', 'Luxury'];
-  const statuses = Array.from(new Set(suppliers.map(s => s.recordStatus))).sort();
+  const statuses = Array.from(new Set(suppliers?.map(s => s.recordStatus) || [])).sort();
 
   const handleExportCSV = () => {
     const csv = Papa.unparse(filteredSuppliers);
@@ -211,11 +206,7 @@ export default function SuppliersPage() {
     const errors: {row: number, message: string}[] = [];
     const validData = data.filter((row, idx) => {
       const companyName = row["Company Name"] || row["name"] || row["title"];
-      
-      // Skip example row if it exists in the data
       if (companyName === "Example Supplier Ltd") return false;
-
-      // Only Company Name is strictly required
       if (!companyName) {
         errors.push({ row: idx + 1, message: "Missing Company Name (Required)" });
         return false;
@@ -223,7 +214,6 @@ export default function SuppliersPage() {
       return true;
     });
 
-    // Reorder keys for professional preview
     const processedPreview = validData.slice(0, 15).map(row => {
       const reordered: any = {};
       PRIORITY_KEYS.forEach(k => {
@@ -261,12 +251,10 @@ export default function SuppliersPage() {
         const email = (row["Email"] || row["email"] || "").toString().toLowerCase().trim();
         const name = row["Company Name"] || row["name"] || row["title"];
         
-        // Flexible duplicate detection
-        const existingByEmail = email ? suppliers.find(s => (s.email || "").toLowerCase().trim() === email) : null;
-        const existingByName = name ? suppliers.find(s => (s.name || "").toLowerCase().trim() === name.toLowerCase().trim()) : null;
+        const existingByEmail = email ? suppliers?.find(s => (s.email || "").toLowerCase().trim() === email) : null;
+        const existingByName = name ? suppliers?.find(s => (s.name || "").toLowerCase().trim() === name.toLowerCase().trim()) : null;
         const existing = existingByEmail || existingByName;
         
-        // Map available fields, fill missing with null
         const supplierData = {
           name,
           email: email || null,
@@ -303,20 +291,16 @@ export default function SuppliersPage() {
           updatedAt: new Date().toISOString()
         };
 
-        try {
-          if (existing && existing.id) {
-            if (duplicateMode === "update") {
-              const docRef = doc(db, "suppliers", existing.id);
-              batch.update(docRef, supplierData);
-              updates++;
-            }
-          } else {
-            const newDocRef = doc(collection(db, "suppliers"));
-            batch.set(newDocRef, supplierData);
-            success++;
+        if (existing && existing.id) {
+          if (duplicateMode === "update") {
+            const docRef = doc(db, "suppliers", existing.id);
+            batch.update(docRef, supplierData);
+            updates++;
           }
-        } catch (e) {
-          failed++;
+        } else {
+          const newDocRef = doc(collection(db, "suppliers"));
+          batch.set(newDocRef, supplierData);
+          success++;
         }
       }
 

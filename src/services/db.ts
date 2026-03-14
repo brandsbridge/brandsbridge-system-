@@ -1,4 +1,3 @@
-
 'use client';
 
 import { 
@@ -16,16 +15,21 @@ import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/e
 
 /**
  * Standardized base for Firestore mutations with contextual error handling.
+ * All functions are non-blocking: they return immediately while the operation 
+ * proceeds in the background. Errors are emitted to the global listener.
  */
 export const dbService = {
   /**
    * Add a new document to a collection.
    */
-  async create(db: Firestore, colPath: string, data: any) {
+  create(db: Firestore, colPath: string, data: any) {
     const colRef = collection(db, colPath);
-    const docData = { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    const docData = { 
+      ...data, 
+      createdAt: serverTimestamp(), 
+      updatedAt: serverTimestamp() 
+    };
     
-    // Non-blocking mutation
     addDoc(colRef, docData).catch(async (error) => {
       const permissionError = new FirestorePermissionError({
         path: colPath,
@@ -39,9 +43,12 @@ export const dbService = {
   /**
    * Update an existing document.
    */
-  async update(db: Firestore, colPath: string, docId: string, data: any) {
+  update(db: Firestore, colPath: string, docId: string, data: any) {
     const docRef = doc(db, colPath, docId);
-    const updateData = { ...data, updatedAt: serverTimestamp() };
+    const updateData = { 
+      ...data, 
+      updatedAt: serverTimestamp() 
+    };
 
     updateDoc(docRef, updateData).catch(async (error) => {
       const permissionError = new FirestorePermissionError({
@@ -56,9 +63,12 @@ export const dbService = {
   /**
    * Set a document (create or replace).
    */
-  async set(db: Firestore, colPath: string, docId: string, data: any, merge = true) {
+  set(db: Firestore, colPath: string, docId: string, data: any, merge = true) {
     const docRef = doc(db, colPath, docId);
-    const docData = { ...data, updatedAt: serverTimestamp() };
+    const docData = { 
+      ...data, 
+      updatedAt: serverTimestamp() 
+    };
 
     setDoc(docRef, docData, { merge }).catch(async (error) => {
       const permissionError = new FirestorePermissionError({
@@ -73,7 +83,7 @@ export const dbService = {
   /**
    * Delete a document.
    */
-  async delete(db: Firestore, colPath: string, docId: string) {
+  delete(db: Firestore, colPath: string, docId: string) {
     const docRef = doc(db, colPath, docId);
 
     deleteDoc(docRef).catch(async (error) => {
