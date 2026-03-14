@@ -62,12 +62,18 @@ const StarRating = ({ rating }: { rating: number }) => (
 );
 
 const IMPORT_TEMPLATE_HEADERS = [
-  "Company Name", "Country", "Nature of Business", "Contact Person",
-  "Email", "Phone", "WhatsApp", "Website", "Specialized Products",
-  "Price Tier", "Payment Terms", "Lead Time", "Notes"
+  "Company Name", "Email", "Country", "Nature of Business", "Website", "Phone", 
+  "Specialized Products", "Price Tier", "Record Status", "Compliance", 
+  "Completeness", "Owner", "Department"
 ];
 
-const PRIORITY_KEYS = ["Company Name", "Email", "Country", "Nature of Business", "Contact Person"];
+const IMPORT_EXAMPLE_ROW = [
+  "Example Supplier Ltd", "sales@example.com", "UAE", "Manufacturer", 
+  "www.examplesupplier.com", "+971500000000", "Chocolate, Skincare products", "Premium", 
+  "Active - Verified", "Valid", "90", "Alex Johnson", "Chocolate"
+];
+
+const PRIORITY_KEYS = ["Company Name", "Email", "Country", "Nature of Business", "Record Status"];
 
 export default function SuppliersPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -128,8 +134,9 @@ export default function SuppliersPage() {
   };
 
   const downloadTemplate = (type: "csv" | "xlsx") => {
+    const data = [IMPORT_TEMPLATE_HEADERS, IMPORT_EXAMPLE_ROW];
     if (type === "csv") {
-      const csv = Papa.unparse([IMPORT_TEMPLATE_HEADERS]);
+      const csv = Papa.unparse(data);
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -139,11 +146,12 @@ export default function SuppliersPage() {
       link.click();
       document.body.removeChild(link);
     } else {
-      const worksheet = XLSX.utils.aoa_to_sheet([IMPORT_TEMPLATE_HEADERS]);
+      const worksheet = XLSX.utils.aoa_to_sheet(data);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Template");
       XLSX.writeFile(workbook, "supplier_import_template.xlsx");
     }
+    toast({ title: "Template Downloaded", description: "Use this file to structure your supplier data." });
   };
 
   const downloadErrorReport = () => {
@@ -204,6 +212,9 @@ export default function SuppliersPage() {
     const validData = data.filter((row, idx) => {
       const companyName = row["Company Name"] || row["name"] || row["title"];
       
+      // Skip example row if it exists in the data
+      if (companyName === "Example Supplier Ltd") return false;
+
       // Only Company Name is strictly required
       if (!companyName) {
         errors.push({ row: idx + 1, message: "Missing Company Name (Required)" });
@@ -260,7 +271,7 @@ export default function SuppliersPage() {
           country: row["Country"] || row["country"] || null,
           natureOfBusiness: row["Nature of Business"] || row["natureOfBusiness"] || "Manufacturing",
           website: row["Website"] || row["website"] || null,
-          departments: [currentDept],
+          departments: [row["Department"] || currentDept],
           specializedProducts: (row["Specialized Products"] || "").split(",").map((s: string) => s.trim()).filter(Boolean),
           pricing: {
             tier: row["Price Tier"] || "Mid-Range",
@@ -272,7 +283,7 @@ export default function SuppliersPage() {
           },
           contacts: {
             sales: { 
-              name: row["Contact Person"] || "Main Contact", 
+              name: row["Owner"] || "Main Contact", 
               email: email || null, 
               phone: row["Phone"] || null, 
               whatsapp: row["WhatsApp"] || null 
@@ -280,9 +291,9 @@ export default function SuppliersPage() {
             export: { name: null, email: null, phone: null, whatsapp: null },
             support: { phone: null, email: null, hours: "9-5", language: "English" }
           },
-          recordStatus: "Active - Verified",
+          recordStatus: row["Record Status"] || "Active - Verified",
           priorityLevel: "Medium",
-          dataCompleteness: 60,
+          dataCompleteness: parseInt(row["Completeness"]) || 60,
           internalRating: 3,
           lastUpdatedBy: manager.name,
           lastUpdatedDate: new Date().toISOString(),
@@ -349,34 +360,38 @@ export default function SuppliersPage() {
             </DialogTrigger>
             <DialogContent className="max-w-4xl">
               <DialogHeader>
-                <DialogTitle>Import Suppliers</DialogTitle>
-                <DialogDescription>Bulk upload supplier profiles. Missing columns will be automatically filled with null values.</DialogDescription>
+                <DialogTitle>Bulk Supplier Import</DialogTitle>
+                <DialogDescription>Synchronize your database with external spreadsheets. Missing optional columns will be handled automatically.</DialogDescription>
               </DialogHeader>
 
               {importStep === "upload" && (
                 <div className="space-y-6">
-                  <div className="flex justify-between items-center bg-secondary/20 p-4 rounded-lg border border-dashed border-primary/20">
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold">Step 1: Download Templates</p>
-                      <p className="text-xs text-muted-foreground">Headers for smooth import.</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => downloadTemplate("csv")}>
-                        <FileDown className="mr-2 h-3 w-3" /> CSV Template
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => downloadTemplate("xlsx")}>
-                        <FileSpreadsheet className="mr-2 h-3 w-3" /> Excel Template
-                      </Button>
+                  <div className="bg-secondary/20 p-6 rounded-xl border border-dashed border-primary/30 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold flex items-center gap-2">
+                          <FileDown className="h-4 w-4 text-primary" /> Download Import Templates
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-1">Required: <span className="text-primary font-bold">Company Name</span>. All other fields are optional.</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => downloadTemplate("csv")}>
+                          <FileText className="mr-2 h-3 w-3" /> CSV Template
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => downloadTemplate("xlsx")}>
+                          <FileSpreadsheet className="mr-2 h-3 w-3" /> Excel Template
+                        </Button>
+                      </div>
                     </div>
                   </div>
 
                   <div 
-                    className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-12 text-center hover:border-primary/50 transition-colors cursor-pointer"
+                    className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-16 text-center hover:border-primary/50 transition-colors cursor-pointer bg-secondary/5"
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Upload className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
-                    <p className="text-sm font-medium">Click or drag & drop to upload</p>
-                    <p className="text-xs text-muted-foreground mt-1">Supports .csv, .xlsx, and .json</p>
+                    <p className="text-base font-medium">Click or drag & drop to upload</p>
+                    <p className="text-xs text-muted-foreground mt-1">Accepts CSV, XLSX, and JSON formats</p>
                     <input 
                       type="file" 
                       ref={fileInputRef} 
@@ -442,7 +457,7 @@ export default function SuppliersPage() {
                           <p className="text-xs text-muted-foreground">Columns not present in file will be set to null.</p>
                         </div>
                       </div>
-                      <Badge className="bg-green-500">Ready</Badge>
+                      <Badge className="bg-green-500">Validated</Badge>
                     </div>
 
                     {validationErrors.length > 0 && (
