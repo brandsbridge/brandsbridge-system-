@@ -7,7 +7,7 @@ import {
   Download, Printer, CheckCircle2, 
   ShieldCheck, Info, Star, MoreVertical, Upload,
   FileSpreadsheet, FileDown, Loader2, X, AlertTriangle,
-  Mail, FileX
+  Mail, FileX, FileText
 } from "lucide-react";
 import { 
   Table, 
