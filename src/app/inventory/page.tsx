@@ -1,7 +1,8 @@
+
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Search, ArrowUpDown, Loader2, Package, Warehouse } from "lucide-react";
+import { Search, ArrowUpDown, Loader2, Package, Warehouse, Plus } from "lucide-react";
 import { 
   Table, 
   TableBody, 
@@ -16,17 +17,35 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MOCK_STOCKS, MOCK_PRODUCTS, MOCK_SUPPLIERS } from "@/lib/mock-data";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
+import { stockService } from "@/services/stock-service";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 
 export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const db = useFirestore();
+  const { user } = useUser();
 
-  // Memoize Firestore Collections to prevent infinite render loops
-  const productsCol = useMemo(() => collection(db, "products"), [db]);
-  const stocksCol = useMemo(() => collection(db, "stocks"), [db]);
-  const suppliersCol = useMemo(() => collection(db, "suppliers"), [db]);
+  // Memoize Firestore Collections
+  const productsCol = useMemoFirebase(() => user ? collection(db, "products") : null, [db, user]);
+  const stocksCol = useMemoFirebase(() => user ? collection(db, "stocks") : null, [db, user]);
+  const suppliersCol = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
 
   const { data: fbProducts = [], loading: loadingProducts } = useCollection(productsCol);
   const { data: fbStocks = [], loading: loadingStocks } = useCollection(stocksCol);
@@ -70,6 +89,21 @@ export default function InventoryPage() {
     return stocks.reduce((acc: number, s: any) => acc + (s.price * s.quantity), 0);
   }, [stocks]);
 
+  const handleAddStock = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const data = {
+      productId: formData.get('productId'),
+      supplierId: formData.get('supplierId'),
+      quantity: parseInt(formData.get('quantity') as string),
+      price: parseFloat(formData.get('price') as string),
+      leadTime: parseInt(formData.get('leadTime') as string),
+      department: products.find((p: any) => p.id === formData.get('productId'))?.department || 'other'
+    };
+    stockService.createStock(db, data);
+    setIsAddModalOpen(false);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -78,8 +112,58 @@ export default function InventoryPage() {
           <p className="text-muted-foreground">Live stock levels across all registered suppliers.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline"><Warehouse className="mr-2 h-4 w-4" /> Manage Warehouses</Button>
-          <Button><Package className="mr-2 h-4 w-4" /> Add Stock Entry</Button>
+          <Button variant="outline"><Warehouse className="mr-2 h-4 w-4" /> Warehouses</Button>
+          
+          <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-primary"><Plus className="mr-2 h-4 w-4" /> Add Stock Entry</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <form onSubmit={handleAddStock}>
+                <DialogHeader>
+                  <DialogTitle>New Stock Entry</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase">Product</label>
+                    <Select name="productId" required>
+                      <SelectTrigger><SelectValue placeholder="Select product" /></SelectTrigger>
+                      <SelectContent>
+                        {products.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase">Supplier</label>
+                    <Select name="supplierId" required>
+                      <SelectTrigger><SelectValue placeholder="Select supplier" /></SelectTrigger>
+                      <SelectContent>
+                        {suppliers.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase">Quantity</label>
+                      <Input name="quantity" type="number" required defaultValue="100" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase">Price (Unit)</label>
+                      <Input name="price" type="number" step="0.01" required defaultValue="10.00" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase">Lead Time (Days)</label>
+                    <Input name="leadTime" type="number" required defaultValue="7" />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
+                  <Button type="submit">Create Entry</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -121,7 +205,7 @@ export default function InventoryPage() {
           />
         </div>
         <Button variant="outline">
-          <ArrowUpDown className="mr-2 h-4 w-4" /> Sort by Price
+          <ArrowUpDown className="mr-2 h-4 w-4" /> Sort Price
         </Button>
       </div>
 
@@ -161,7 +245,7 @@ export default function InventoryPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-accent">${stock.price.toFixed(2)}</span>
+                        <span className="font-bold text-accent">${stock.price?.toFixed(2)}</span>
                         {isBestPrice && <Badge className="bg-green-500 text-[8px] h-4 px-1 uppercase">Best Price</Badge>}
                       </div>
                     </TableCell>

@@ -1,16 +1,9 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    /**
-     * CORE PHILOSOPHY:
-     * This ruleset implements a robust Role-Based Access Control (RBAC) model optimized for business management.
-     * Access to sensitive business data is governed by "Administrative Privileges," which are determined 
-     * by the existence of a user's UID in the `/app_roles_admin` collection. 
-     */
-
-    // --- GLOBAL HELPER FUNCTIONS ---
-
+    // --- HELPER FUNCTIONS ---
     function isSignedIn() {
       return request.auth != null;
     }
@@ -19,85 +12,39 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    /** 
-     * Checks if the current user has an entry in the admin roles collection.
-     */
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/app_roles_admin/$(request.auth.uid));
     }
 
-    function isExistingAdmin() {
-      return isAdmin() && resource != null;
-    }
-
     // --- COLLECTION RULES ---
 
+    // Admin Roles: Users can promote themselves during setup
+    match /app_roles_admin/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId);
+      allow update, delete: if isAdmin();
+    }
+
+    // User Profiles
     match /users/{userId} {
-      allow get, list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if false;
+      allow read, write: if isOwner(userId);
     }
 
-    /**
-     * Registry for administrative roles.
-     * MODIFICATION: Added 'allow create: if isOwner(adminId)' to allow self-promotion for prototype setup.
-     */
-    match /app_roles_admin/{adminId} {
-      allow get, list: if isAdmin();
-      allow create: if isOwner(adminId); 
-      allow update, delete: if isExistingAdmin();
-    }
+    // Business Data: Restrict to Admins
+    match /suppliers/{id} { allow read, write: if isAdmin(); }
+    match /customers/{id} { allow read, write: if isAdmin(); }
+    match /products/{id} { allow read, write: if isAdmin(); }
+    match /stocks/{id} { allow read, write: if isAdmin(); }
+    match /leads/{id} { allow read, write: if isAdmin(); }
+    match /tasks/{id} { allow read, write: if isAdmin(); }
+    match /campaigns/{id} { allow read, write: if isAdmin(); }
+    match /purchases/{id} { allow read, write: if isAdmin(); }
+    match /invoices/{id} { allow read, write: if isAdmin(); }
+    match /payments/{id} { allow read, write: if isAdmin(); }
+    match /uploadLogs/{id} { allow read, write: if isAdmin(); }
 
-    match /suppliers/{supplierId} {
-      allow get, list: if isAdmin();
-      allow create: if isAdmin();
-      allow update, delete: if isExistingAdmin();
-    }
-
-    match /customers/{customerId} {
-      allow get, list: if isAdmin();
-      allow create: if isAdmin();
-      allow update, delete: if isExistingAdmin();
-    }
-
-    match /products/{productId} {
-      allow get, list: if isAdmin();
-      allow create: if isAdmin();
-      allow update, delete: if isExistingAdmin();
-    }
-
-    match /stocks/{stockId} {
-      allow get, list: if isAdmin();
-      allow create: if isAdmin();
-      allow update, delete: if isExistingAdmin();
-    }
-
-    match /bestOffers/{bestOfferId} {
-      allow get, list: if isAdmin();
-      allow create: if isAdmin();
-      allow update, delete: if isExistingAdmin();
-    }
-
-    match /customerResponses/{customerResponseId} {
-      allow get, list: if isAdmin();
-      allow create: if isAdmin();
-      allow update, delete: if isExistingAdmin();
-    }
-
-    match /automationLogs/{automationLogId} {
-      allow get, list: if isAdmin();
-      allow create: if isAdmin();
-      allow update, delete: if false; 
-    }
-
-    match /offerRecalculationTriggers/{triggerId} {
-      allow create: if isAdmin();
-      allow get, list, update, delete: if false;
-    }
-
-    // Generic catch-all for other collections used in the UI (leads, uploads, tasks, etc)
-    match /{collectionName}/{docId} {
+    // Fallback
+    match /{document=**} {
       allow read, write: if isAdmin();
     }
   }

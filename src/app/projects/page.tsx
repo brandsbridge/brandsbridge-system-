@@ -1,13 +1,14 @@
+
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Kanban as KanbanIcon, Plus, MoreHorizontal, Clock, User, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MOCK_TASKS } from "@/lib/mock-data";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { taskService } from "@/services/task-service";
 
@@ -15,9 +16,10 @@ const COLUMNS = ["To Do", "In Progress", "Review", "Done"];
 
 export default function ProjectsPage() {
   const db = useFirestore();
+  const { user } = useUser();
   
-  // Memoize Firestore Collection to prevent infinite render loops
-  const tasksCol = useMemo(() => collection(db, "tasks"), [db]);
+  // Memoize Firestore Collection
+  const tasksCol = useMemoFirebase(() => user ? collection(db, "tasks") : null, [db, user]);
   const { data: fbTasks = [], loading } = useCollection(tasksCol);
 
   const tasks = useMemo(() => fbTasks.length > 0 ? fbTasks : MOCK_TASKS, [fbTasks]);
@@ -47,6 +49,17 @@ export default function ProjectsPage() {
     }
   };
 
+  const handleCreateTask = () => {
+    taskService.createTask(db, { 
+      title: 'New Workflow Task', 
+      status: 'To Do', 
+      priority: 'Medium', 
+      assignee: user?.displayName || 'Unassigned', 
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+      createdAt: new Date().toISOString()
+    });
+  };
+
   return (
     <div className="space-y-8 h-[calc(100vh-120px)] flex flex-col">
       <div className="flex items-center justify-between">
@@ -56,7 +69,7 @@ export default function ProjectsPage() {
         </div>
         <div className="flex gap-2">
           {loading && <Loader2 className="h-4 w-4 animate-spin mt-3" />}
-          <Button onClick={() => taskService.createTask(db, { title: 'New Task', status: 'To Do', priority: 'Medium', assignee: 'Unassigned', dueDate: 'TBD' })}>
+          <Button onClick={handleCreateTask}>
             <Plus className="mr-2 h-4 w-4" /> New Task
           </Button>
         </div>

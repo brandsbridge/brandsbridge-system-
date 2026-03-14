@@ -1,10 +1,19 @@
+
 "use client";
 
 import React, { useMemo } from "react";
 import { 
-  CreditCard, DollarSign, TrendingUp, ShoppingBag, 
-  ArrowUpRight, ArrowDownRight, Package, Truck, 
-  BarChart3, PieChart as PieIcon, Loader2
+  CreditCard, 
+  DollarSign, 
+  TrendingUp, 
+  ShoppingBag, 
+  ArrowUpRight, 
+  ArrowDownRight, 
+  Package, 
+  Truck, 
+  BarChart3, 
+  PieChart as PieIcon, 
+  Loader2 
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -19,19 +28,20 @@ import {
 import { MOCK_PURCHASES } from "@/lib/mock-data";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
 import { collection } from "firebase/firestore";
 
 const COLORS = ['#755EDE', '#5182E0', '#F59E0B'];
 
 export default function PurchasesPage() {
   const db = useFirestore();
+  const { user } = useUser();
   
-  // Memoize Firestore Collection to prevent infinite render loops
-  const purchasesCol = useMemo(() => collection(db, "purchases"), [db]);
+  // Memoize Firestore Collection
+  const purchasesCol = useMemoFirebase(() => user ? collection(db, "purchases") : null, [db, user]);
   const { data: fbPurchases = [], loading } = useCollection(purchasesCol);
 
-  const purchases = fbPurchases.length > 0 ? fbPurchases : MOCK_PURCHASES;
+  const purchases = useMemo(() => fbPurchases.length > 0 ? fbPurchases : MOCK_PURCHASES, [fbPurchases]);
 
   const totals = useMemo(() => {
     const revenue = purchases.reduce((acc: number, p: any) => acc + (p.totalRevenue || 0), 0);
@@ -71,7 +81,7 @@ export default function PurchasesPage() {
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Total Revenue</CardTitle>
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Total Revenue</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${totals.revenue.toLocaleString()}</div>
@@ -82,7 +92,7 @@ export default function PurchasesPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Net Profit</CardTitle>
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Net Profit</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-500">${totals.profit.toLocaleString()}</div>
@@ -91,7 +101,7 @@ export default function PurchasesPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Avg. Deal Size</CardTitle>
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Avg. Deal Size</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-accent">${totals.avgDeal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
@@ -100,11 +110,11 @@ export default function PurchasesPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Best Market</CardTitle>
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Market Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold capitalize">Chocolate</div>
-            <p className="text-[10px] text-muted-foreground mt-1">45% of total volume</p>
+            <div className="text-2xl font-bold capitalize">{departmentData[0]?.name || 'N/A'}</div>
+            <p className="text-[10px] text-muted-foreground mt-1">Leading segment</p>
           </CardContent>
         </Card>
       </div>
@@ -112,7 +122,7 @@ export default function PurchasesPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Financial Trend (Static Target)</CardTitle>
+            <CardTitle>Financial Trend</CardTitle>
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">

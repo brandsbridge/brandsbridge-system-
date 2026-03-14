@@ -1,476 +1,121 @@
+
 {
   "entities": {
     "Supplier": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Supplier",
       "type": "object",
-      "description": "Represents a business entity that provides products to the company.",
+      "description": "Represents a manufacturing or trading partner.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Supplier entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The full name of the supplier."
-        },
-        "email": {
-          "type": "string",
-          "description": "The contact email address for the supplier.",
-          "format": "email"
-        },
-        "phone": {
-          "type": "string",
-          "description": "The contact phone number for the supplier."
-        },
-        "country": {
-          "type": "string",
-          "description": "The country where the supplier is located."
-        },
-        "productsOffered": {
-          "type": "array",
-          "description": "A list of product categories or names that the supplier offers.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the supplier record was created.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "country": { "type": "string" },
+        "natureOfBusiness": { "type": "string" },
+        "recordStatus": { "type": "string" },
+        "dataCompleteness": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "name",
-        "email",
-        "phone",
-        "country",
-        "productsOffered",
-        "createdAt"
-      ]
+      "required": ["id", "name", "email", "createdAt"]
     },
     "Customer": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Customer",
       "type": "object",
-      "description": "Represents an individual or business that purchases products from the company.",
+      "description": "Represents a B2B buyer.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Customer entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The full name of the customer."
-        },
-        "email": {
-          "type": "string",
-          "description": "The contact email address for the customer.",
-          "format": "email"
-        },
-        "phone": {
-          "type": "string",
-          "description": "The contact phone number for the customer."
-        },
-        "interestedProducts": {
-          "type": "array",
-          "description": "A list of product categories or names the customer has expressed interest in.",
-          "items": {
-            "type": "string"
-          }
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the customer record was created.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "country": { "type": "string" },
+        "accountStatus": { "type": "string" },
+        "accountHealth": { "type": "string" },
+        "totalRevenue": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "name",
-        "email",
-        "phone",
-        "interestedProducts",
-        "createdAt"
-      ]
+      "required": ["id", "name", "createdAt"]
     },
     "Product": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Product",
       "type": "object",
-      "description": "Represents a distinct item or service that the company manages and sells.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Product entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The name of the product."
-        },
-        "sku": {
-          "type": "string",
-          "description": "The Stock Keeping Unit (SKU) for the product, a unique identifier for inventory management."
-        },
-        "category": {
-          "type": "string",
-          "description": "The category the product belongs to (e.g., 'Electronics', 'Apparel')."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the product record was created.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "department": { "type": "string" }
       },
-      "required": [
-        "id",
-        "name",
-        "sku",
-        "category",
-        "createdAt"
-      ]
+      "required": ["id", "name", "department"]
     },
     "Stock": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Stock",
       "type": "object",
-      "description": "Represents an entry of a product's stock, linked to a specific supplier.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Stock entity."
-        },
-        "productId": {
-          "type": "string",
-          "description": "Reference to the Product associated with this stock entry. (Relationship: Product 1:N Stock)"
-        },
-        "supplierId": {
-          "type": "string",
-          "description": "Reference to the Supplier providing this stock. (Relationship: Supplier 1:N Stock)"
-        },
-        "price": {
-          "type": "number",
-          "description": "The price of the product from this supplier."
-        },
-        "quantity": {
-          "type": "number",
-          "description": "The available quantity of the product from this supplier."
-        },
-        "leadTime": {
-          "type": "number",
-          "description": "The estimated lead time (in days) for receiving this stock from the supplier."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when this stock entry was created.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "price": { "type": "number" },
+        "quantity": { "type": "number" },
+        "leadTime": { "type": "number" }
       },
-      "required": [
-        "id",
-        "productId",
-        "supplierId",
-        "price",
-        "quantity",
-        "leadTime",
-        "createdAt"
-      ]
+      "required": ["id", "productId", "supplierId", "price", "quantity"]
     },
-    "BestOffer": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "BestOffer",
+    "Lead": {
+      "title": "Lead",
       "type": "object",
-      "description": "Represents the best available offer for a specific product, identified by price and lead time from a supplier.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the BestOffer entity."
-        },
-        "productId": {
-          "type": "string",
-          "description": "Reference to the Product for which this is the best offer. (Relationship: Product 1:N BestOffer)"
-        },
-        "bestPrice": {
-          "type": "number",
-          "description": "The lowest price found for the associated product."
-        },
-        "supplierId": {
-          "type": "string",
-          "description": "Reference to the Supplier offering the best price. (Relationship: Supplier 1:N BestOffer)"
-        },
-        "leadTime": {
-          "type": "number",
-          "description": "The lead time (in days) associated with this best offer from the specific supplier."
-        },
-        "calculatedAt": {
-          "type": "string",
-          "description": "Timestamp indicating when this best offer was last calculated or updated.",
-          "format": "date-time"
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "company": { "type": "string" },
+        "value": { "type": "number" },
+        "stage": { "type": "string" }
       },
-      "required": [
-        "id",
-        "productId",
-        "bestPrice",
-        "supplierId",
-        "leadTime",
-        "calculatedAt"
-      ]
+      "required": ["id", "name", "company", "stage"]
     },
-    "CustomerResponse": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "CustomerResponse",
+    "Task": {
+      "title": "Task",
       "type": "object",
-      "description": "Records a customer's response to an offer, indicating their interest or action.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the CustomerResponse entity."
-        },
-        "customerId": {
-          "type": "string",
-          "description": "Reference to the Customer who provided the response. (Relationship: Customer 1:N CustomerResponse)"
-        },
-        "bestOfferId": {
-          "type": "string",
-          "description": "Reference to the BestOffer to which the customer responded. (Relationship: BestOffer 1:N CustomerResponse)"
-        },
-        "responseType": {
-          "type": "string",
-          "description": "The type of response from the customer (e.g., 'order', 'quote', 'interest').",
-          "items": {
-            "type": "string"
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" },
+        "assignee": { "type": "string" },
+        "dueDate": { "type": "string" }
+      },
+      "required": ["id", "title", "status"]
+    },
+    "Campaign": {
+      "title": "Campaign",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string" },
+        "department": { "type": "string" },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "sent": { "type": "number" },
+            "replied": { "type": "number" },
+            "revenue": { "type": "number" }
           }
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp indicating when the customer's response was recorded.",
-          "format": "date-time"
         }
       },
-      "required": [
-        "id",
-        "customerId",
-        "bestOfferId",
-        "responseType",
-        "createdAt"
-      ]
-    },
-    "AutomationLog": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "AutomationLog",
-      "type": "object",
-      "description": "Logs events and status of automated business processes.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the AutomationLog entity."
-        },
-        "pipelineName": {
-          "type": "string",
-          "description": "The name of the automation pipeline that generated this log entry."
-        },
-        "event": {
-          "type": "string",
-          "description": "A brief description of the event that occurred in the automation."
-        },
-        "status": {
-          "type": "string",
-          "description": "The execution status of the automation event (e.g., 'success', 'failed', 'pending').",
-          "items": {
-            "type": "string"
-          }
-        },
-        "details": {
-          "type": "string",
-          "description": "Detailed information or error messages related to the automation event."
-        },
-        "timestamp": {
-          "type": "string",
-          "description": "Timestamp indicating when the automation event occurred.",
-          "format": "date-time"
-        }
-      },
-      "required": [
-        "id",
-        "pipelineName",
-        "event",
-        "status",
-        "details",
-        "timestamp"
-      ]
+      "required": ["id", "name", "status"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "anonymous"]
   },
   "firestore": {
     "structure": [
-      {
-        "path": "/users/{userId}",
-        "definition": {
-          "entityName": "User",
-          "schema": {
-            "$ref": "#/backend/entities/User"
-          },
-          "description": "Stores core user profile information. Documents are owned by the authenticated user (`userId` matches `request.auth.uid`). Not part of initial schema, inferred from DBAC and auth requirements.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique Firebase Authentication UID of the user."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/app_roles_admin/{adminId}",
-        "definition": {
-          "entityName": "AppRoleAdmin",
-          "schema": {
-            "$ref": "#/backend/entities/AppRoleAdmin"
-          },
-          "description": "A collection used for database-driven access control. The existence of a document at `/app_roles_admin/{userId}` grants the corresponding user administrative privileges across the application. Access is restricted to trusted processes or existing admins for management. Not part of initial schema, inferred from DBAC requirements.",
-          "params": [
-            {
-              "name": "adminId",
-              "description": "The unique Firebase Authentication UID of an administrator."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/suppliers/{supplierId}",
-        "definition": {
-          "entityName": "Supplier",
-          "schema": {
-            "$ref": "#/backend/entities/Supplier"
-          },
-          "description": "Stores details for business suppliers. Accessible by authorized application users (e.g., admins).",
-          "params": [
-            {
-              "name": "supplierId",
-              "description": "The unique identifier for a specific supplier."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/customers/{customerId}",
-        "definition": {
-          "entityName": "Customer",
-          "schema": {
-            "$ref": "#/backend/entities/Customer"
-          },
-          "description": "Stores information for business customers. Accessible by authorized application users (e.g., admins).",
-          "params": [
-            {
-              "name": "customerId",
-              "description": "The unique identifier for a specific customer."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/products/{productId}",
-        "definition": {
-          "entityName": "Product",
-          "schema": {
-            "$ref": "#/backend/entities/Product"
-          },
-          "description": "Stores details of products managed by the business. Accessible by authorized application users (e.g., admins).",
-          "params": [
-            {
-              "name": "productId",
-              "description": "The unique identifier for a specific product."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/stocks/{stockId}",
-        "definition": {
-          "entityName": "Stock",
-          "schema": {
-            "$ref": "#/backend/entities/Stock"
-          },
-          "description": "Manages inventory stock entries, linking products to specific suppliers. Accessible by authorized application users (e.g., admins).",
-          "params": [
-            {
-              "name": "stockId",
-              "description": "The unique identifier for a specific stock entry."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/bestOffers/{bestOfferId}",
-        "definition": {
-          "entityName": "BestOffer",
-          "schema": {
-            "$ref": "#/backend/entities/BestOffer"
-          },
-          "description": "Aggregates and stores the best available offer for a product from a supplier. Accessible by authorized application users (e.g., admins).",
-          "params": [
-            {
-              "name": "bestOfferId",
-              "description": "The unique identifier for a specific best offer."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/customerResponses/{customerResponseId}",
-        "definition": {
-          "entityName": "CustomerResponse",
-          "schema": {
-            "$ref": "#/backend/entities/CustomerResponse"
-          },
-          "description": "Records customer responses to offers. Accessible by authorized application users (e.g., admins).",
-          "params": [
-            {
-              "name": "customerResponseId",
-              "description": "The unique identifier for a specific customer response."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/automationLogs/{automationLogId}",
-        "definition": {
-          "entityName": "AutomationLog",
-          "schema": {
-            "$ref": "#/backend/entities/AutomationLog"
-          },
-          "description": "Logs events and status of automated business processes, primarily for monitoring and debugging by authorized users (e.g., admins).",
-          "params": [
-            {
-              "name": "automationLogId",
-              "description": "The unique identifier for a specific automation log entry."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/offerRecalculationTriggers/{triggerId}",
-        "definition": {
-          "entityName": "OfferRecalculationTrigger",
-          "schema": {
-            "$ref": "#/backend/entities/OfferRecalculationTrigger"
-          },
-          "description": "A collection whose documents are written by authorized dashboard users to signal external automation systems (e.g., n8n) to trigger best offer recalculations. Primarily write-only for users, read by backend systems. Not part of initial schema, inferred from application requirements.",
-          "params": [
-            {
-              "name": "triggerId",
-              "description": "The unique identifier for a specific offer recalculation trigger."
-            }
-          ]
-        }
-      }
-    ],
-    "reasoning": "The recommended Firestore data structure prioritizes security, scalability, and debuggability in line with the core design principles. The primary authorization model for this Business Management Dashboard is role-based, where access to all core business entities (Suppliers, Customers, Products, Stocks, BestOffers, CustomerResponses, AutomationLogs) is determined by the authenticated user's assigned role within the application.\n\n**Authorization Independence (CRITICAL):** Authorization independence is achieved by structuring collections such that access rules do not rely on `get()` operations to fetch data from parent documents or other collections to determine permissions. For all primary business entities (e.g., `/suppliers`, `/customers`), access is determined by checking the authenticated user's `uid` against a dedicated role collection, specifically `/app_roles_admin/{adminId}`. The mere existence of a document at this path for a given `userId` grants administrative privileges. This design completely eliminates hierarchical authorization dependencies for the main business data. References between entities (e.g., `productId` in `stocks`) are for data relationships and querying, not for real-time authorization checks in security rules, thus ensuring atomic operations and ease of debugging.\n\n**QAPs (Rules are not Filters):** This structure inherently supports Query-As-Permissions (QAPs) through **Structural Segregation** and **Role-Based Access Control**. Each collection (e0.g., `/products`, `/automationLogs`) is designed to house documents that share a homogeneous security posture. For instance, all documents in the `/suppliers` collection are considered 'managed by an authorized user'. Security rules will grant `list` and `read` access to these collections only if the `request.auth.uid` corresponds to an authorized role (e.g., a member of the `/app_roles_admin` collection). This means that any authorized user can retrieve *all* documents in a collection, eliminating the need for client-side filtering or complex server-side rule filtering, thus enabling efficient and secure `list` queries. The `offerRecalculationTriggers` collection is a specific example, designed for write-only access by authorized users to trigger backend processes, maintaining a clear security boundary for its purpose.\n\n**DBAC (No Custom Claims):** User roles are stored explicitly in the database within the `/app_roles_admin/{adminId}` collection, leveraging the 'existence over content' principle. This means `request.auth.uid` is the sole determinant from the authentication layer, with all role information residing in Firestore. User profiles themselves are stored under `/users/{userId}` to maintain a clean separation of concerns.\n\n**Consistency and Predictability:** Semantic naming conventions are used for all paths and wildcards (e.g., `{supplierId}`). Explicit references (like `productId`, `supplierId`, `customerId`) are included within documents where necessary for efficient data retrieval and display, without implying authorization dependencies. All timestamps are consistently named (e.g., `createdAt`, `timestamp`)."
+      { "path": "/suppliers/{id}", "definition": { "entityName": "Supplier", "description": "Global suppliers" } },
+      { "path": "/customers/{id}", "definition": { "entityName": "Customer", "description": "B2B Customers" } },
+      { "path": "/products/{id}", "definition": { "entityName": "Product", "description": "Managed products" } },
+      { "path": "/stocks/{id}", "definition": { "entityName": "Stock", "description": "Inventory levels" } },
+      { "path": "/leads/{id}", "definition": { "entityName": "Lead", "description": "CRM Leads" } },
+      { "path": "/tasks/{id}", "definition": { "entityName": "Task", "description": "Project tasks" } },
+      { "path": "/campaigns/{id}", "definition": { "entityName": "Campaign", "description": "Outreach campaigns" } },
+      { "path": "/app_roles_admin/{userId}", "definition": { "entityName": "AdminRole", "description": "Access control" } }
+    ]
   }
 }

@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { 
   Users, 
   Factory, 
@@ -14,9 +15,6 @@ import {
   AlertCircle
 } from "lucide-react";
 import { 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
   Cell,
@@ -44,7 +42,7 @@ export default function OverviewPage() {
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
   const db = useFirestore();
 
-  // Memoize Firestore Collections - Only fetch if user is present to prevent permission errors
+  // Memoize Firestore Collections - Derived from live data
   const suppliersCol = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
   const customersCol = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
   const uploadLogsCol = useMemoFirebase(() => user ? collection(db, "uploadLogs") : null, [db, user]);
@@ -70,13 +68,13 @@ export default function OverviewPage() {
     }
   }, [router]);
 
-  const deptComposition = React.useMemo(() => {
+  const deptComposition = useMemo(() => {
     if (!fbCustomers) return [];
     const depts = ['chocolate', 'cosmetics', 'detergents'];
     return depts.map(d => ({
       name: d.charAt(0).toUpperCase() + d.slice(1),
       value: fbCustomers.filter((c: any) => c.departments?.includes(d)).length
-    }));
+    })).filter(d => d.value > 0);
   }, [fbCustomers]);
 
   const kpis = [
@@ -187,23 +185,27 @@ export default function OverviewPage() {
           </CardHeader>
           <CardContent className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={deptComposition}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {deptComposition.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend verticalAlign="bottom" />
-              </PieChart>
+              {deptComposition.length > 0 ? (
+                <PieChart>
+                  <Pie
+                    data={deptComposition}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {deptComposition.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend verticalAlign="bottom" />
+                </PieChart>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No distribution data</div>
+              )}
             </ResponsiveContainer>
           </CardContent>
         </Card>
