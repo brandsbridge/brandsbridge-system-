@@ -17,12 +17,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { MOCK_CAMPAIGNS } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
 
 export default function CampaignsPage() {
   const db = useFirestore();
-  const campaignsCol = useMemo(() => collection(db, "campaigns"), [db]);
+  const { user } = useUser();
+  const campaignsCol = useMemoFirebase(() => user ? collection(db, "campaigns") : null, [db, user]);
   const { data: fbCampaigns = [], loading } = useCollection(campaignsCol);
 
   const campaigns = fbCampaigns.length > 0 ? fbCampaigns : MOCK_CAMPAIGNS;
@@ -57,7 +58,7 @@ export default function CampaignsPage() {
             <Send className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">{stats.total}</div>}
+            {loading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <div className="text-2xl font-bold">{stats.total}</div>}
             <p className="text-[10px] text-muted-foreground mt-1">Live from Firestore</p>
           </CardContent>
         </Card>

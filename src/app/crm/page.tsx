@@ -15,7 +15,7 @@ import {
   Cell
 } from "recharts";
 import { MOCK_LEADS } from "@/lib/mock-data";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
 
 const STAGES = ["Lead", "Contacted", "Negotiating", "Closed Won", "Closed Lost"];
@@ -23,7 +23,8 @@ const COLORS = ['#94A3B8', '#6366F1', '#F59E0B', '#10B981', '#EF4444'];
 
 export default function CRMPage() {
   const db = useFirestore();
-  const leadsCol = useMemo(() => collection(db, "leads"), [db]);
+  const { user } = useUser();
+  const leadsCol = useMemoFirebase(() => user ? collection(db, "leads") : null, [db, user]);
   const { data: fbLeads = [], loading } = useCollection(leadsCol);
 
   const leads = fbLeads.length > 0 ? fbLeads : MOCK_LEADS;
@@ -51,7 +52,7 @@ export default function CRMPage() {
             <TrendingUp className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            {loading ? <Loader2 className="h-6 w-6 animate-spin" /> : <div className="text-2xl font-bold">${leads.reduce((sum: number, l: any) => sum + (l.value || 0), 0).toLocaleString()}</div>}
+            {loading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <div className="text-2xl font-bold">${leads.reduce((sum: number, l: any) => sum + (l.value || 0), 0).toLocaleString()}</div>}
           </CardContent>
         </Card>
         <Card>

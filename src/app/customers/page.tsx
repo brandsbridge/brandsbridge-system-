@@ -37,7 +37,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection, writeBatch, doc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
@@ -87,7 +87,8 @@ export default function CustomersPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const db = useFirestore();
-  const customersQuery = useMemo(() => collection(db, "customers"), [db]);
+  const { user } = useUser();
+  const customersQuery = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
   const { data: firestoreCustomers = [], loading } = useCollection(customersQuery);
 
   const customers = useMemo(() => {
