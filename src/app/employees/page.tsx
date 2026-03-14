@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { MOCK_EMPLOYEES } from "@/lib/mock-data";
-import { useCollection, useFirestore } from "@/firebase";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
 import { userService } from "@/services/user-service";
 
@@ -47,12 +47,19 @@ const COLORS = ['#755EDE', '#5182E0', '#F59E0B', '#EF4444', '#10B981'];
 
 export default function EmployeesPage() {
   const db = useFirestore();
-  const employeesCol = useMemo(() => collection(db, "employees"), [db]);
-  const { data: fbEmployees = [], loading } = useCollection(employeesCol);
+  const { user } = useUser();
+  
+  // Properly memoize collection reference for Firestore hooks
+  const employeesCol = useMemoFirebase(() => {
+    if (!user) return null;
+    return collection(db, "employees");
+  }, [db, user]);
+
+  const { data: fbEmployees, isLoading: loading } = useCollection(employeesCol);
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  const employees = fbEmployees.length > 0 ? fbEmployees : MOCK_EMPLOYEES;
+  const employees = (fbEmployees && fbEmployees.length > 0) ? fbEmployees : MOCK_EMPLOYEES;
   const departments = Array.from(new Set(employees.map((e: any) => e.department)));
   
   const deptData = useMemo(() => {
