@@ -36,13 +36,13 @@ service cloud.firestore {
     match /products/{id} { allow read, write: if isAdmin(); }
     match /stocks/{id} { allow read, write: if isAdmin(); }
     match /leads/{id} { allow read, write: if isAdmin(); }
-    allow read, write: if isAdmin();
     match /tasks/{id} { allow read, write: if isAdmin(); }
     match /campaigns/{id} { allow read, write: if isAdmin(); }
     match /purchases/{id} { allow read, write: if isAdmin(); }
     match /invoices/{id} { allow read, write: if isAdmin(); }
     match /payments/{id} { allow read, write: if isAdmin(); }
     match /purchase_orders/{id} { allow read, write: if isAdmin(); }
+    match /journals/{id} { allow read, write: if isAdmin(); }
     match /uploadLogs/{id} { allow read, write: if isAdmin(); }
 
     // Fallback

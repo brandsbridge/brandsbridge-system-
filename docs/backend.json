@@ -77,6 +77,30 @@
         "date": { "type": "string" }
       },
       "required": ["number", "supplierName", "total", "status", "department"]
+    },
+    "JournalEntry": {
+      "title": "Journal Entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "reference": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string" },
+        "department": { "type": "string" },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "accountCode": { "type": "string" },
+              "accountName": { "type": "string" },
+              "debit": { "type": "number" },
+              "credit": { "type": "number" }
+            }
+          }
+        }
+      }
     }
   },
   "auth": {
@@ -89,6 +113,7 @@
       { "path": "/invoices/{id}", "definition": { "entityName": "Invoice", "description": "Sales invoices" } },
       { "path": "/payments/{id}", "definition": { "entityName": "Payment", "description": "Financial settlements" } },
       { "path": "/purchase_orders/{id}", "definition": { "entityName": "PurchaseOrder", "description": "Procurement orders" } },
+      { "path": "/journals/{id}", "definition": { "entityName": "JournalEntry", "description": "General journal entries" } },
       { "path": "/app_roles_admin/{userId}", "definition": { "entityName": "AdminRole", "description": "Access control" } }
     ]
   }
