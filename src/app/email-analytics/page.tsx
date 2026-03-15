@@ -19,6 +19,8 @@ import {
 import { MOCK_EMAILS } from "@/lib/mock-data";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
+import Papa from "papaparse";
+import { toast } from "@/hooks/use-toast";
 
 export default function EmailAnalyticsPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -33,12 +35,51 @@ export default function EmailAnalyticsPage() {
     return { total, replied, pending, avgResponse };
   }, []);
 
-  const filteredEmails = MOCK_EMAILS.filter(e => {
-    const matchesSearch = e.sentTo.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         e.subject.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || e.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredEmails = useMemo(() => {
+    return MOCK_EMAILS.filter(e => {
+      const matchesSearch = e.sentTo.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           e.subject.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || e.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [searchTerm, statusFilter]);
+
+  const handleExportCSV = () => {
+    if (filteredEmails.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "No Data",
+        description: "There are no records to export with the current filters."
+      });
+      return;
+    }
+
+    const dataToExport = filteredEmails.map(email => ({
+      Date: new Date(email.date).toLocaleString(),
+      "Sent By": email.sentBy,
+      Department: email.dept,
+      Recipient: email.sentTo,
+      Subject: email.subject,
+      Status: email.status,
+      "Response Time (Hours)": email.responseTimeHours || "N/A",
+      "Action Taken": email.actionTaken || "N/A"
+    }));
+
+    const csv = Papa.unparse(dataToExport);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `email-intelligence-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Export Successful",
+      description: `Exported ${filteredEmails.length} email records to CSV.`
+    });
+  };
 
   return (
     <div className="space-y-8">
@@ -101,9 +142,9 @@ export default function EmailAnalyticsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input 
+          <input 
             placeholder="Search by company or subject..." 
-            className="pl-9"
+            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 pl-9"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
@@ -119,7 +160,7 @@ export default function EmailAnalyticsPage() {
             <SelectItem value="replied">Replied</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline">
+        <Button variant="outline" onClick={handleExportCSV}>
           <Download className="mr-2 h-4 w-4" /> Export CSV
         </Button>
       </div>
@@ -186,6 +227,13 @@ export default function EmailAnalyticsPage() {
                 </TableCell>
               </TableRow>
             ))}
+            {filteredEmails.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground italic">
+                  No matching communication records found.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </Card>
