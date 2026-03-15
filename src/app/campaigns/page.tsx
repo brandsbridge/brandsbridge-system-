@@ -3,7 +3,7 @@
 
 import React, { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, Send, TrendingUp, Mail, MousePointer2, ExternalLink, Loader2 } from "lucide-react";
+import { Plus, Send, TrendingUp, Mail, MousePointer2, ExternalLink, Loader2, ShieldAlert } from "lucide-react";
 import { 
   Table, 
   TableBody, 
@@ -42,7 +42,7 @@ import { toast } from "@/hooks/use-toast";
 
 export default function CampaignsPage() {
   const db = useFirestore();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -75,6 +75,11 @@ export default function CampaignsPage() {
 
   const handleCreateCampaign = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!user) {
+      toast({ variant: "destructive", title: "Action Denied", description: "Firebase session is not active. Please refresh." });
+      return;
+    }
+
     const formData = new FormData(e.target as HTMLFormElement);
     const data = {
       name: formData.get('name'),
@@ -107,65 +112,75 @@ export default function CampaignsPage() {
         
         <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90">
-              <Plus className="mr-2 h-4 w-4" /> Create Campaign
+            <Button className="bg-primary hover:bg-primary/90" disabled={isUserLoading}>
+              {isUserLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+              Create Campaign
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">
-            <form onSubmit={handleCreateCampaign}>
-              <DialogHeader>
-                <DialogTitle>Launch New Campaign</DialogTitle>
-                <DialogDescription>Define your outreach strategy and target segment.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase">Campaign Name</label>
-                  <Input name="name" required placeholder="e.g. Q3 Seasonal Offer" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase">Type</label>
-                    <Select name="type" defaultValue="email">
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="email">Email Outreach</SelectItem>
-                        <SelectItem value="newsletter">Monthly Newsletter</SelectItem>
-                        <SelectItem value="promotion">Flash Promotion</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase">Department</label>
-                    <Select name="department" defaultValue="chocolate">
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="chocolate">Chocolate</SelectItem>
-                        <SelectItem value="cosmetics">Cosmetics</SelectItem>
-                        <SelectItem value="detergents">Detergents</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase">Start Date</label>
-                    <Input name="startDate" type="date" required />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase">End Date</label>
-                    <Input name="endDate" type="date" required />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase">Response Goal (Count)</label>
-                  <Input name="goal" type="number" required placeholder="50" />
-                </div>
+            {!user ? (
+              <div className="py-12 text-center space-y-4">
+                <ShieldAlert className="h-12 w-12 text-destructive mx-auto" />
+                <h3 className="text-lg font-bold">Authentication Required</h3>
+                <p className="text-sm text-muted-foreground">Please wait for the Firebase session to initialize or visit the <strong>System Hub</strong> to activate Admin status.</p>
+                <Button variant="outline" onClick={() => window.location.reload()}>Reload Session</Button>
               </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
-                <Button type="submit">Initialize Campaign</Button>
-              </DialogFooter>
-            </form>
+            ) : (
+              <form onSubmit={handleCreateCampaign}>
+                <DialogHeader>
+                  <DialogTitle>Launch New Campaign</DialogTitle>
+                  <DialogDescription>Define your outreach strategy and target segment.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase">Campaign Name</label>
+                    <Input name="name" required placeholder="e.g. Q3 Seasonal Offer" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase">Type</label>
+                      <Select name="type" defaultValue="email">
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="email">Email Outreach</SelectItem>
+                          <SelectItem value="newsletter">Monthly Newsletter</SelectItem>
+                          <SelectItem value="promotion">Flash Promotion</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase">Department</label>
+                      <Select name="department" defaultValue="chocolate">
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="chocolate">Chocolate</SelectItem>
+                          <SelectItem value="cosmetics">Cosmetics</SelectItem>
+                          <SelectItem value="detergents">Detergents</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase">Start Date</label>
+                      <Input name="startDate" type="date" required />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase">End Date</label>
+                      <Input name="endDate" type="date" required />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase">Response Goal (Count)</label>
+                    <Input name="goal" type="number" required placeholder="50" />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
+                  <Button type="submit">Initialize Campaign</Button>
+                </DialogFooter>
+              </form>
+            )}
           </DialogContent>
         </Dialog>
       </div>

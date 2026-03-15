@@ -34,7 +34,8 @@ import {
   FileBarChart,
   Search,
   Terminal,
-  Settings
+  Settings,
+  Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -50,13 +51,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DEMO_USERS, Employee } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
+import { auth } from "@/lib/firebase";
+import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { useUser } from "@/firebase";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { user, isUserLoading } = useUser();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
 
+  // Sync UI User with LocalStorage
   useEffect(() => {
     const savedUser = localStorage.getItem("demoUser");
     if (savedUser) {
@@ -66,19 +72,36 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
   }, [pathname, router]);
 
+  // Ensure Firebase Auth session is active if UI thinks we are logged in
+  useEffect(() => {
+    const savedUser = localStorage.getItem("demoUser");
+    if (savedUser && !user && !isUserLoading) {
+      signInAnonymously(auth).catch(err => console.error("Auto-auth failed:", err));
+    }
+  }, [user, isUserLoading]);
+
   const handleLogout = () => {
     localStorage.removeItem("demoUser");
     setCurrentUser(null);
+    auth.signOut();
     router.push("/login");
   };
 
-  const switchUser = (user: Employee) => {
-    localStorage.setItem("demoUser", JSON.stringify(user));
-    setCurrentUser(user);
-    if (user.department !== 'all') {
-      router.push(`/department/${user.department}`);
-    } else {
-      router.push("/");
+  const switchUser = async (user: Employee) => {
+    try {
+      // Establish Firebase session first
+      await signInAnonymously(auth);
+      
+      localStorage.setItem("demoUser", JSON.stringify(user));
+      setCurrentUser(user);
+      
+      if (user.department !== 'all') {
+        router.push(`/department/${user.department}`);
+      } else {
+        router.push("/");
+      }
+    } catch (err) {
+      console.error("Switcher auth failed:", err);
     }
   };
 
@@ -86,13 +109,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     if (!currentUser) return false;
     if (currentUser.role === 'admin') return true;
     
-    // Department check
     if (path.startsWith("/department/")) {
       const dept = path.split("/")[2];
       return currentUser.department === dept;
     }
     
-    // Role checks for admin/finance pages
     if ((path.startsWith("/admin") || path.startsWith("/accounting")) && currentUser.role !== 'admin') return false;
     
     return true;
@@ -188,6 +209,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-4">
             {currentUser && (
               <div className="flex items-center gap-4">
+                {isUserLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                 <div className="hidden lg:flex flex-col items-end">
                   <span className="text-sm font-bold">{currentUser.name}</span>
                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{currentUser.role} • {currentUser.department}</span>
