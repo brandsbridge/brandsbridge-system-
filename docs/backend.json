@@ -101,6 +101,30 @@
           }
         }
       }
+    },
+    "Campaign": {
+      "title": "Campaign",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "active", "completed"] },
+        "department": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "goal": { "type": "number" },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "sent": { "type": "number" },
+            "replied": { "type": "number" },
+            "revenue": { "type": "number" }
+          }
+        },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["name", "type", "status", "department"]
     }
   },
   "auth": {
@@ -114,6 +138,7 @@
       { "path": "/payments/{id}", "definition": { "entityName": "Payment", "description": "Financial settlements" } },
       { "path": "/purchase_orders/{id}", "definition": { "entityName": "PurchaseOrder", "description": "Procurement orders" } },
       { "path": "/journals/{id}", "definition": { "entityName": "JournalEntry", "description": "General journal entries" } },
+      { "path": "/campaigns/{id}", "definition": { "entityName": "Campaign", "description": "Marketing outreach" } },
       { "path": "/app_roles_admin/{userId}", "definition": { "entityName": "AdminRole", "description": "Access control" } }
     ]
   }
