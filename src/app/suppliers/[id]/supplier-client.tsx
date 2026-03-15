@@ -60,11 +60,10 @@ export default function SupplierClient({ id }: SupplierClientProps) {
   };
 
   const handleContactSupplier = () => {
-    // Check root email or nested sales contact email
     const email = supplier?.email || supplier?.contacts?.sales?.email;
     
     if (email) {
-      window.location.href = `mailto:${email}?subject=Inquiry from BizFlow Management System`;
+      window.location.href = `mailto:${email}?subject=Inquiry from BizFlow Management System&body=Hello ${supplier.name},`;
     } else {
       toast({
         variant: "destructive",
@@ -105,7 +104,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
     <div className="space-y-8 max-w-7xl mx-auto">
       <style jsx global>{`
         @media print {
-          aside, header, .print-hidden, button, [role="tablist"] {
+          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn {
             display: none !important;
           }
           main {

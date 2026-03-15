@@ -55,11 +55,10 @@ export default function CustomerClient({ id }: { id: string }) {
   };
 
   const handleComposeEmail = () => {
-    // Check root email or primary contact designation email
     const email = customer?.email || customer?.contacts?.primary?.email;
     
     if (email) {
-      window.location.href = `mailto:${email}?subject=Follow-up from BizFlow Account Management`;
+      window.location.href = `mailto:${email}?subject=Follow-up from BizFlow Account Management&body=Dear ${customer.name},`;
     } else {
       toast({
         variant: "destructive",
@@ -102,7 +101,7 @@ export default function CustomerClient({ id }: { id: string }) {
     <div className="space-y-8 max-w-7xl mx-auto pb-20">
       <style jsx global>{`
         @media print {
-          aside, header, .print-hidden, button, [role="tablist"] {
+          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn {
             display: none !important;
           }
           main {
