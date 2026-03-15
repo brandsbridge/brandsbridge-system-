@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { 
   Plus, 
   Search, 
@@ -9,7 +10,9 @@ import {
   CheckCircle2, 
   Package, 
   Truck, 
-  AlertTriangle 
+  AlertTriangle,
+  Loader2,
+  Calendar
 } from "lucide-react";
 import { 
   Table, 
@@ -29,11 +32,82 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { MOCK_PURCHASE_ORDERS } from "@/lib/mock-data";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
+import { collection, query, where } from "firebase/firestore";
+import { purchaseOrderService } from "@/services/purchase-order-service";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
 
 export default function PurchaseOrdersPage() {
+  const db = useFirestore();
+  const { user } = useUser();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("demoUser");
+    if (saved) setCurrentUser(JSON.parse(saved));
+  }, []);
+
+  const poQuery = useMemoFirebase(() => {
+    if (!user || !currentUser) return null;
+    const colRef = collection(db, "purchase_orders");
+    return currentUser.department === 'all' 
+      ? colRef 
+      : query(colRef, where("department", "==", currentUser.department));
+  }, [db, user, currentUser]);
+
+  const { data: purchaseOrders, isLoading } = useCollection(poQuery);
+
+  const filteredPOs = useMemo(() => {
+    const safePOs = purchaseOrders || [];
+    return safePOs.filter(po => {
+      const matchesSearch = (po.supplierName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           (po.number || '').toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesSearch;
+    });
+  }, [purchaseOrders, searchTerm]);
+
+  const stats = useMemo(() => {
+    const safePOs = purchaseOrders || [];
+    const receivedValue = safePOs.filter(po => po.status === 'Fully Received').reduce((acc, po) => acc + (po.total || 0), 0);
+    const inTransitCount = safePOs.filter(po => po.status === 'Confirmed').length;
+    return {
+      active: safePOs.length,
+      inTransit: inTransitCount,
+      received: receivedValue
+    };
+  }, [purchaseOrders]);
+
+  const handleCreatePO = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const data = {
+      number: `PO-${Date.now().toString().slice(-6)}`,
+      supplierName: formData.get('supplierName'),
+      total: parseFloat(formData.get('total') as string),
+      status: 'Confirmed',
+      date: new Date().toISOString(),
+      department: currentUser?.department === 'all' ? formData.get('department') : currentUser?.department,
+      createdAt: new Date().toISOString()
+    };
+
+    purchaseOrderService.createPO(db, data);
+    setIsAddModalOpen(false);
+    toast({ title: "Purchase Order Created", description: `Record ${data.number} sent to supplier.` });
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Closed': return <Badge className="bg-secondary text-secondary-foreground">Closed</Badge>;
@@ -46,12 +120,50 @@ export default function PurchaseOrdersPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-headline">Purchase Orders</h1>
           <p className="text-muted-foreground">Supply chain procurement and stock acquisition tracking.</p>
         </div>
-        <Button className="bg-primary"><Plus className="mr-2 h-4 w-4" /> Create PO</Button>
+        <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-primary"><Plus className="mr-2 h-4 w-4" /> Create PO</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <form onSubmit={handleCreatePO}>
+              <DialogHeader>
+                <DialogTitle>Issue New Purchase Order</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase">Supplier Name</label>
+                  <Input name="supplierName" required placeholder="e.g. Istanbul Industrial Group" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase">Total Estimated Value ($)</label>
+                  <Input name="total" type="number" step="0.01" required placeholder="0.00" />
+                </div>
+                {currentUser?.department === 'all' && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase">Market Segment</label>
+                    <Select name="department" defaultValue="chocolate">
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="chocolate">Chocolate</SelectItem>
+                        <SelectItem value="cosmetics">Cosmetics</SelectItem>
+                        <SelectItem value="detergents">Detergents</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
+                <Button type="submit">Submit PO</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -61,7 +173,7 @@ export default function PurchaseOrdersPage() {
               <Package className="h-4 w-4 text-primary" />
               <span className="text-xs font-bold uppercase text-muted-foreground">Active POs</span>
             </div>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">{stats.active}</div>
           </CardContent>
         </Card>
         <Card>
@@ -70,7 +182,7 @@ export default function PurchaseOrdersPage() {
               <Truck className="h-4 w-4 text-orange-500" />
               <span className="text-xs font-bold uppercase text-muted-foreground">In Transit</span>
             </div>
-            <div className="text-2xl font-bold">5</div>
+            <div className="text-2xl font-bold">{stats.inTransit}</div>
           </CardContent>
         </Card>
         <Card>
@@ -79,7 +191,7 @@ export default function PurchaseOrdersPage() {
               <AlertTriangle className="h-4 w-4 text-destructive" />
               <span className="text-xs font-bold uppercase text-muted-foreground">Discrepancies</span>
             </div>
-            <div className="text-2xl font-bold">2</div>
+            <div className="text-2xl font-bold">0</div>
           </CardContent>
         </Card>
         <Card>
@@ -88,7 +200,7 @@ export default function PurchaseOrdersPage() {
               <CheckCircle2 className="h-4 w-4 text-green-500" />
               <span className="text-xs font-bold uppercase text-muted-foreground">Received (MTD)</span>
             </div>
-            <div className="text-2xl font-bold">$42,500</div>
+            <div className="text-2xl font-bold">${stats.received.toLocaleString()}</div>
           </CardContent>
         </Card>
       </div>
@@ -97,48 +209,62 @@ export default function PurchaseOrdersPage() {
         <CardHeader className="p-4">
           <div className="relative w-full md:w-96">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search PO number or supplier..." className="pl-9" />
+            <Input 
+              placeholder="Search PO number or supplier..." 
+              className="pl-9" 
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
           </div>
         </CardHeader>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>PO #</TableHead>
-              <TableHead>Supplier</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Dept</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Total Value</TableHead>
-              <TableHead className="text-right">Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {MOCK_PURCHASE_ORDERS.map(po => (
-              <TableRow key={po.id}>
-                <TableCell className="font-mono text-xs font-bold">{po.number}</TableCell>
-                <TableCell className="font-medium">{po.supplierName}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(po.date)}</TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="capitalize text-[10px]">{po.department}</Badge>
-                </TableCell>
-                <TableCell>{getStatusBadge(po.status)}</TableCell>
-                <TableCell className="text-right font-bold">${po.total.toLocaleString()}</TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem><FileText className="mr-2 h-4 w-4" /> View PO</DropdownMenuItem>
-                      <DropdownMenuItem><Package className="mr-2 h-4 w-4" /> Record Receipt</DropdownMenuItem>
-                      <DropdownMenuItem className="text-blue-500">Convert to Invoice</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+        {isLoading ? (
+          <div className="py-20 flex justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>PO #</TableHead>
+                <TableHead>Supplier</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Dept</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Total Value</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filteredPOs.map(po => (
+                <TableRow key={po.id}>
+                  <TableCell className="font-mono text-xs font-bold">{po.number}</TableCell>
+                  <TableCell className="font-medium">{po.supplierName}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(po.date)}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="capitalize text-[10px]">{po.department}</Badge>
+                  </TableCell>
+                  <TableCell>{getStatusBadge(po.status)}</TableCell>
+                  <TableCell className="text-right font-bold text-accent">${(po.total || 0).toLocaleString()}</TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem><FileText className="mr-2 h-4 w-4" /> View PO</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => purchaseOrderService.updatePO(db, po.id, { status: 'Fully Received' })}><Package className="mr-2 h-4 w-4" /> Record Receipt</DropdownMenuItem>
+                        <DropdownMenuItem className="text-blue-500">Convert to Invoice</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredPOs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground italic">No purchase orders found.</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </Card>
     </div>
   );

@@ -63,6 +63,20 @@
         "date": { "type": "string" }
       },
       "required": ["partyName", "amount", "type", "department"]
+    },
+    "PurchaseOrder": {
+      "title": "Purchase Order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "number": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "total": { "type": "number" },
+        "status": { "type": "string" },
+        "department": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["number", "supplierName", "total", "status", "department"]
     }
   },
   "auth": {
@@ -74,6 +88,7 @@
       { "path": "/customers/{id}", "definition": { "entityName": "Customer", "description": "B2B Customers" } },
       { "path": "/invoices/{id}", "definition": { "entityName": "Invoice", "description": "Sales invoices" } },
       { "path": "/payments/{id}", "definition": { "entityName": "Payment", "description": "Financial settlements" } },
+      { "path": "/purchase_orders/{id}", "definition": { "entityName": "PurchaseOrder", "description": "Procurement orders" } },
       { "path": "/app_roles_admin/{userId}", "definition": { "entityName": "AdminRole", "description": "Access control" } }
     ]
   }
