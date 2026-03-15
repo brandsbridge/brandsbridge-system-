@@ -41,8 +41,8 @@ export default function CustomerClient({ id }: { id: string }) {
     if (typeof window !== "undefined") {
       navigator.clipboard.writeText(window.location.href);
       toast({
-        title: "Profile Shared",
-        description: "Customer profile link has been copied to your clipboard.",
+        title: "Link Copied",
+        description: "The customer profile URL has been saved to your clipboard.",
       });
     }
   };
@@ -54,17 +54,17 @@ export default function CustomerClient({ id }: { id: string }) {
   };
 
   const handleComposeEmail = () => {
-    const email = customer?.email || customer?.contacts?.primary?.email;
+    const email = customer?.email || customer?.contacts?.primary?.email || customer?.contacts?.finance?.email;
     
     if (email) {
-      const subject = encodeURIComponent(`BizFlow Account Follow-up: ${customer?.name || "Client Update"}`);
-      const body = encodeURIComponent(`Dear ${customer?.name || "Client"},\n\nI am writing to follow up on...`);
-      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+      const subject = `Corporate Account Update: ${customer?.name || "Client Notification"}`;
+      const body = `Dear ${customer?.name || "Team"},\n\nI am reaching out from our Management Team to discuss your current account status and opportunities...`;
+      window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     } else {
       toast({
         variant: "destructive",
-        title: "Communication Error",
-        description: "This customer does not have a registered email address in their profile.",
+        title: "Action Restricted",
+        description: "This customer profile is missing a registered contact email.",
       });
     }
   };
@@ -73,7 +73,7 @@ export default function CustomerClient({ id }: { id: string }) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Loading profile from Firestore...</p>
+        <p className="text-sm text-muted-foreground">Pulling profile from secure storage...</p>
       </div>
     );
   }
@@ -81,9 +81,9 @@ export default function CustomerClient({ id }: { id: string }) {
   if (!customer) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-        <h2 className="text-2xl font-bold">Customer Not Found</h2>
-        <p className="text-muted-foreground">The requested customer record does not exist in the database.</p>
-        <Button onClick={() => router.back()}>Go Back</Button>
+        <h2 className="text-2xl font-bold">Client Record Not Found</h2>
+        <p className="text-muted-foreground">The requested customer ID does not match any records in your department.</p>
+        <Button onClick={() => router.back()}>Back to Ledger</Button>
       </div>
     );
   }
@@ -127,12 +127,12 @@ export default function CustomerClient({ id }: { id: string }) {
               <span className="text-2xl">{customer.flag || '🏢'}</span>
               <h1 className="text-3xl font-bold tracking-tight">{customer.name}</h1>
               <Badge variant="outline" className={cn("capitalize", getHealthColor(customer.accountHealth))}>
-                {customer.accountHealth || 'Status Unknown'}
+                {customer.accountHealth || 'Healthy'}
               </Badge>
               <Badge variant="secondary" className="capitalize">{customer.accountStatus || 'Prospect'}</Badge>
             </div>
             <p className="text-muted-foreground flex items-center gap-2 text-sm">
-              <MapPin className="h-3 w-3" /> {customer.city || 'Unknown City'}, {customer.country || 'Unknown Country'} • {customer.companyType || 'Corporate'} • Est. {customer.yearEstablished || 'N/A'}
+              <MapPin className="h-3 w-3" /> {customer.city || 'Global'}, {customer.country || 'Territory'} • {customer.companyType || 'Corporate'} • Est. {customer.yearEstablished || 'N/A'}
             </p>
           </div>
         </div>
@@ -170,7 +170,7 @@ export default function CustomerClient({ id }: { id: string }) {
               </div>
 
               <div className="space-y-3">
-                <h4 className="text-[10px] font-bold uppercase text-muted-foreground">Managed By</h4>
+                <h4 className="text-[10px] font-bold uppercase text-muted-foreground">Account Owner</h4>
                 <div className="flex items-center gap-2">
                   <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
                     {(customer.assignedManager || 'S').split(' ').map((n: string) => n[0]).join('')}
@@ -185,13 +185,13 @@ export default function CustomerClient({ id }: { id: string }) {
               <Separator className="print-hidden" />
 
               <div className="space-y-4 print-hidden">
-                <h4 className="text-[10px] font-bold uppercase text-muted-foreground">Social Links</h4>
+                <h4 className="text-[10px] font-bold uppercase text-muted-foreground">Connectivity</h4>
                 <div className="grid grid-cols-2 gap-2">
                   <Button variant="outline" size="sm" className="h-8 text-[10px]" asChild disabled={!customer.socialLinks?.linkedin}>
-                    <a href={customer.socialLinks?.linkedin ? `https://${customer.socialLinks.linkedin}` : '#'} target="_blank"><Briefcase className="mr-1 h-3 w-3" /> LinkedIn</a>
+                    <a href={customer.socialLinks?.linkedin ? `https://${customer.socialLinks.linkedin}` : '#'} target="_blank" rel="noopener noreferrer"><Briefcase className="mr-1 h-3 w-3" /> LinkedIn</a>
                   </Button>
                   <Button variant="outline" size="sm" className="h-8 text-[10px]" asChild disabled={!customer.socialLinks?.whatsapp}>
-                    <a href={customer.socialLinks?.whatsapp ? `https://wa.me/${customer.socialLinks.whatsapp}` : '#'} target="_blank"><MessageSquare className="mr-1 h-3 w-3" /> WhatsApp</a>
+                    <a href={customer.socialLinks?.whatsapp ? `https://wa.me/${customer.socialLinks.whatsapp}` : '#'} target="_blank" rel="noopener noreferrer"><MessageSquare className="mr-1 h-3 w-3" /> WhatsApp</a>
                   </Button>
                 </div>
               </div>
@@ -201,7 +201,7 @@ export default function CustomerClient({ id }: { id: string }) {
           <Card className="bg-secondary/30">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-xs uppercase flex items-center gap-2">
-                <Clock className="h-3 w-3" /> Last Activity
+                <Clock className="h-3 w-3" /> Latest Activity
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-0 space-y-3 text-[10px]">
@@ -210,11 +210,11 @@ export default function CustomerClient({ id }: { id: string }) {
                 <span className="font-bold">{customer.lastContactDate ? new Date(customer.lastContactDate).toLocaleDateString() : 'Never'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Last Purchase:</span>
+                <span className="text-muted-foreground">Last Order:</span>
                 <span className="font-bold">{customer.lastPurchaseDate ? new Date(customer.lastPurchaseDate).toLocaleDateString() : 'No History'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Yearly Rev:</span>
+                <span className="text-muted-foreground">LTV Revenue:</span>
                 <span className="font-bold text-primary">${(customer.totalRevenue || 0).toLocaleString()}</span>
               </div>
             </CardContent>
@@ -234,12 +234,12 @@ export default function CustomerClient({ id }: { id: string }) {
 
             <TabsContent value="overview" className="space-y-6 pt-4">
               <Card>
-                <CardHeader><CardTitle className="text-sm">Company Profile</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm">Client Executive Summary</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
-                  <p className="text-xs text-muted-foreground leading-relaxed">{customer.overview || 'No overview provided.'}</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{customer.overview || 'No executive overview available for this corporate account.'}</p>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-[8px] uppercase font-bold text-muted-foreground">Target Markets</p>
+                      <p className="text-[8px] uppercase font-bold text-muted-foreground">Market Interests</p>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {Array.isArray(customer.targetMarkets) && customer.targetMarkets.length > 0 ? (
                           customer.targetMarkets.map((m: string) => <Badge key={m} variant="secondary" className="text-[8px]">{m}</Badge>)
@@ -249,7 +249,7 @@ export default function CustomerClient({ id }: { id: string }) {
                       </div>
                     </div>
                     <div>
-                      <p className="text-[8px] uppercase font-bold text-muted-foreground">Key Advantages</p>
+                      <p className="text-[8px] uppercase font-bold text-muted-foreground">Strategic Advantages</p>
                       <p className="text-[10px] mt-1">{Array.isArray(customer.competitiveAdvantages) ? customer.competitiveAdvantages.join(", ") : 'N/A'}</p>
                     </div>
                   </div>
@@ -257,7 +257,7 @@ export default function CustomerClient({ id }: { id: string }) {
               </Card>
 
               <Card>
-                <CardHeader><CardTitle className="text-sm">Primary Contact (Decision Maker)</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm">Primary Decision Maker</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   {customer.contacts?.primary ? (
                     <>
@@ -273,11 +273,11 @@ export default function CustomerClient({ id }: { id: string }) {
                       <div className="space-y-1 text-xs mt-2">
                         <div className="flex items-center gap-2"><Mail className="h-3 w-3" /> {customer.contacts.primary.email}</div>
                         <div className="flex items-center gap-2"><Phone className="h-3 w-3" /> {customer.contacts.primary.phone}</div>
-                        <div className="flex items-center gap-2"><Clock className="h-3 w-3" /> Preferred: {customer.contacts.primary.preferredTime || 'Anytime'}</div>
+                        <div className="flex items-center gap-2"><Clock className="h-3 w-3" /> Preferred Reach Time: {customer.contacts.primary.preferredTime || 'Anytime'}</div>
                       </div>
                     </>
                   ) : (
-                    <p className="text-xs text-muted-foreground italic">No primary contact recorded.</p>
+                    <p className="text-xs text-muted-foreground italic">Primary contact record pending update.</p>
                   )}
                 </CardContent>
               </Card>

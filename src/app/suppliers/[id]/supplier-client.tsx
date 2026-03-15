@@ -47,8 +47,8 @@ export default function SupplierClient({ id }: SupplierClientProps) {
     if (typeof window !== "undefined") {
       navigator.clipboard.writeText(window.location.href);
       toast({
-        title: "Link Copied",
-        description: "Supplier profile link copied to clipboard.",
+        title: "Profile Link Copied",
+        description: "The unique URL for this supplier has been copied to your clipboard.",
       });
     }
   };
@@ -60,17 +60,20 @@ export default function SupplierClient({ id }: SupplierClientProps) {
   };
 
   const handleContactSupplier = () => {
-    const email = supplier?.email || supplier?.contacts?.sales?.email || supplier?.contacts?.export?.email;
+    const email = supplier?.email || 
+                  supplier?.contacts?.sales?.email || 
+                  supplier?.contacts?.export?.email ||
+                  supplier?.contacts?.support?.email;
     
     if (email) {
-      const subject = encodeURIComponent(`Business Inquiry: ${supplier?.name || "Partner Inquiry"}`);
-      const body = encodeURIComponent(`Dear ${supplier?.name || "Team"},\n\nWe are reaching out to discuss...`);
-      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
+      const subject = `Business Inquiry: ${supplier?.name || "Partner Inquiry"}`;
+      const body = `Dear ${supplier?.name || "Team"},\n\nWe are reaching out from the Procurement Department regarding...`;
+      window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     } else {
       toast({
         variant: "destructive",
-        title: "Contact Failed",
-        description: "No email address found for this supplier. Please update their profile details.",
+        title: "Communication Error",
+        description: "This supplier profile does not contain a registered email address.",
       });
     }
   };
@@ -79,7 +82,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Loading supplier record...</p>
+        <p className="text-sm text-muted-foreground">Synchronizing supplier record...</p>
       </div>
     );
   }
@@ -88,8 +91,8 @@ export default function SupplierClient({ id }: SupplierClientProps) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
         <h2 className="text-2xl font-bold">Supplier Not Found</h2>
-        <p className="text-muted-foreground">The requested supplier ID does not exist in the database.</p>
-        <Button onClick={() => router.back()}>Go Back</Button>
+        <p className="text-muted-foreground">The requested record could not be retrieved from Firestore.</p>
+        <Button onClick={() => router.back()}>Return to Directory</Button>
       </div>
     );
   }
@@ -163,7 +166,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                 </div>
                 <div>
                   <StarRating rating={supplier.internalRating || 0} />
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground mt-1">Internal Rating</p>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground mt-1">Internal Quality Rating</p>
                 </div>
               </div>
 
@@ -171,7 +174,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Data Completeness</span>
+                  <span className="text-muted-foreground">Profile Completeness</span>
                   <span className={cn("font-bold", (supplier.dataCompleteness || 0) > 80 ? "text-green-500" : (supplier.dataCompleteness || 0) > 50 ? "text-yellow-500" : "text-destructive")}>
                     {supplier.dataCompleteness || 0}%
                   </span>
@@ -180,7 +183,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
               </div>
 
               <div className="space-y-3">
-                <h4 className="text-[10px] font-bold uppercase text-muted-foreground">Priority Level</h4>
+                <h4 className="text-[10px] font-bold uppercase text-muted-foreground">Strategic Priority</h4>
                 <Badge variant="outline" className={cn(
                   "w-full justify-center py-1",
                   supplier.priorityLevel === 'High' && "border-destructive text-destructive bg-destructive/5",
@@ -193,13 +196,13 @@ export default function SupplierClient({ id }: SupplierClientProps) {
               <Separator className="print-hidden" />
 
               <div className="space-y-4 print-hidden">
-                <h4 className="text-[10px] font-bold uppercase text-muted-foreground">Digital Presence</h4>
+                <h4 className="text-[10px] font-bold uppercase text-muted-foreground">Online Presence</h4>
                 <div className="grid grid-cols-2 gap-2">
                   <Button variant="outline" size="sm" className="h-8 text-[10px]" asChild disabled={!supplier.website}>
-                    <a href={supplier.website || '#'} target="_blank"><ExternalLink className="mr-1 h-3 w-3" /> Website</a>
+                    <a href={supplier.website || '#'} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-1 h-3 w-3" /> Website</a>
                   </Button>
                   <Button variant="outline" size="sm" className="h-8 text-[10px]" asChild disabled={!supplier.socialLinks?.linkedin}>
-                    <a href={supplier.socialLinks?.linkedin ? `https://${supplier.socialLinks.linkedin}` : '#'} target="_blank"><Linkedin className="mr-1 h-3 w-3" /> LinkedIn</a>
+                    <a href={supplier.socialLinks?.linkedin ? `https://${supplier.socialLinks.linkedin}` : '#'} target="_blank" rel="noopener noreferrer"><Linkedin className="mr-1 h-3 w-3" /> LinkedIn</a>
                   </Button>
                 </div>
               </div>
@@ -209,21 +212,21 @@ export default function SupplierClient({ id }: SupplierClientProps) {
           <Card className="bg-secondary/30">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-xs uppercase flex items-center gap-2">
-                <Clock className="h-3 w-3" /> Record Trail
+                <Clock className="h-3 w-3" /> Audit Trail
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 pt-0 space-y-3 text-[10px]">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Verified By:</span>
-                <span className="font-bold">{supplier.verifiedBy || 'Pending'}</span>
+                <span className="text-muted-foreground">Authored By:</span>
+                <span className="font-bold">{supplier.verifiedBy || 'System Admin'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Last Updated:</span>
+                <span className="text-muted-foreground">Last Modified:</span>
                 <span className="font-bold">{supplier.lastUpdatedBy || 'System'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Date:</span>
-                <span className="font-bold">{supplier.lastUpdatedDate ? new Date(supplier.lastUpdatedDate).toLocaleDateString() : 'N/A'}</span>
+                <span className="text-muted-foreground">Sync Date:</span>
+                <span className="font-bold">{supplier.lastUpdatedDate ? new Date(supplier.lastUpdatedDate).toLocaleDateString() : 'Real-time'}</span>
               </div>
             </CardContent>
           </Card>
@@ -242,7 +245,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
             <TabsContent value="overview" className="space-y-6 pt-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Company Profile</CardTitle>
+                  <CardTitle className="text-lg">Enterprise Profile</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="prose prose-sm dark:prose-invert max-w-none">
@@ -255,15 +258,15 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                       <p className="text-sm font-medium">{supplier.yearEstablished || 'N/A'}</p>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-[10px] uppercase font-bold text-muted-foreground">Employees</p>
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground">Workforce</p>
                       <p className="text-sm font-medium">{supplier.employeeCount || 'N/A'}</p>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-[10px] uppercase font-bold text-muted-foreground">Export Vol.</p>
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground">Annual Export</p>
                       <p className="text-sm font-medium">{supplier.annualExportVolume || 'N/A'}</p>
                     </div>
                     <div className="space-y-1">
-                      <p className="text-[10px] uppercase font-bold text-muted-foreground">Nature</p>
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground">Entity Type</p>
                       <p className="text-sm font-medium">{supplier.natureOfBusiness || 'Corporate'}</p>
                     </div>
                   </div>
@@ -287,13 +290,13 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <div className="flex items-center gap-2">
                     <Lock className="h-4 w-4 text-primary" />
-                    <CardTitle className="text-primary text-sm font-bold uppercase tracking-wider">Strategic Notes (Confidential)</CardTitle>
+                    <CardTitle className="text-primary text-sm font-bold uppercase tracking-wider">Strategic Intelligence (Confidential)</CardTitle>
                   </div>
-                  <Badge className="bg-primary text-[8px]">INTERNAL USE ONLY</Badge>
+                  <Badge className="bg-primary text-[8px]">INTERNAL LEDGER</Badge>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm italic text-foreground/80 leading-relaxed">
-                    "{supplier.strategicNotes || 'No internal strategic notes recorded.'}"
+                    "{supplier.strategicNotes || 'No internal strategic notes recorded for this partner.'}"
                   </p>
                 </CardContent>
               </Card>
@@ -303,7 +306,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
               <div className="grid md:grid-cols-2 gap-6">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-sm">Specialization Tags</CardTitle>
+                    <CardTitle className="text-sm">Production Focus</CardTitle>
                   </CardHeader>
                   <CardContent className="flex flex-wrap gap-2">
                     {Array.isArray(supplier.specializedProducts) && supplier.specializedProducts.length > 0 ? (
@@ -317,7 +320,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                 </Card>
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-sm">Main Categories</CardTitle>
+                    <CardTitle className="text-sm">Department Alignment</CardTitle>
                   </CardHeader>
                   <CardContent className="flex gap-4">
                     {['Chocolate', 'Cosmetics', 'Detergents'].map(cat => (
@@ -335,15 +338,15 @@ export default function SupplierClient({ id }: SupplierClientProps) {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Top 5 Best-Selling Products</CardTitle>
+                  <CardTitle>Catalog Staples</CardTitle>
                 </CardHeader>
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">#</TableHead>
-                      <TableHead>Product Name</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Avg. Price Range</TableHead>
+                      <TableHead>Product Specification</TableHead>
+                      <TableHead>Unit Type</TableHead>
+                      <TableHead>Market Price Guide</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -358,7 +361,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground italic text-xs">No specific product data recorded.</TableCell>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground italic text-xs">No product catalog entries synchronized.</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -371,7 +374,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <Factory className="h-4 w-4 text-primary" /> Sales Manager
+                      <Factory className="h-4 w-4 text-primary" /> Key Account Manager
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -379,20 +382,20 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                       <>
                         <p className="text-sm font-bold">{supplier.contacts.sales.name || 'N/A'}</p>
                         <div className="space-y-1 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-2"><Mail className="h-3 w-3" /> {supplier.contacts.sales.email || 'No email'}</div>
-                          <div className="flex items-center gap-2"><Phone className="h-3 w-3" /> {supplier.contacts.sales.phone || 'No phone'}</div>
-                          <div className="flex items-center gap-2"><MessageSquare className="h-3 w-3" /> {supplier.contacts.sales.whatsapp || 'No WhatsApp'}</div>
+                          <div className="flex items-center gap-2"><Mail className="h-3 w-3" /> {supplier.contacts.sales.email || 'No email registered'}</div>
+                          <div className="flex items-center gap-2"><Phone className="h-3 w-3" /> {supplier.contacts.sales.phone || 'No phone registered'}</div>
+                          <div className="flex items-center gap-2"><MessageSquare className="h-3 w-3" /> WhatsApp Connectivity Ready</div>
                         </div>
                       </>
                     ) : (
-                      <p className="text-xs text-muted-foreground italic">No contact details available.</p>
+                      <p className="text-xs text-muted-foreground italic">Primary contact details not finalized.</p>
                     )}
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <Globe className="h-4 w-4 text-accent" /> Export Manager
+                      <Globe className="h-4 w-4 text-accent" /> Logistics & Export
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -400,12 +403,12 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                       <>
                         <p className="text-sm font-bold">{supplier.contacts.export.name || 'N/A'}</p>
                         <div className="space-y-1 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-2"><Mail className="h-3 w-3" /> {supplier.contacts.export.email || 'No email'}</div>
-                          <div className="flex items-center gap-2"><Phone className="h-3 w-3" /> {supplier.contacts.export.phone || 'No phone'}</div>
+                          <div className="flex items-center gap-2"><Mail className="h-3 w-3" /> {supplier.contacts.export.email || 'No email registered'}</div>
+                          <div className="flex items-center gap-2"><Phone className="h-3 w-3" /> {supplier.contacts.export.phone || 'No phone registered'}</div>
                         </div>
                       </>
                     ) : (
-                      <p className="text-xs text-muted-foreground italic">No export contact recorded.</p>
+                      <p className="text-xs text-muted-foreground italic">Export department contact not recorded.</p>
                     )}
                   </CardContent>
                 </Card>
@@ -415,7 +418,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
             <TabsContent value="commercial" className="space-y-6 pt-4">
               <div className="grid md:grid-cols-3 gap-4">
                 <Card className="text-center p-4">
-                  <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Price Tier</div>
+                  <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Pricing Strategy</div>
                   <Badge className={cn(
                     "w-fit mx-auto px-4 py-1",
                     supplier.pricing?.tier === 'Luxury' && "bg-purple-500",
@@ -423,42 +426,42 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                     supplier.pricing?.tier === 'Mid-Range' && "bg-green-500",
                     supplier.pricing?.tier === 'Budget' && "bg-secondary text-foreground"
                   )}>
-                    {supplier.pricing?.tier || 'N/A'}
+                    {supplier.pricing?.tier || 'Standard'}
                   </Badge>
                 </Card>
                 <Card className="text-center p-4">
-                  <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Min. Order (MOQ)</div>
-                  <p className="text-sm font-bold">{supplier.pricing?.moq || 'N/A'}</p>
+                  <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Minimum Order (MOQ)</div>
+                  <p className="text-sm font-bold">{supplier.pricing?.moq || 'Variable'}</p>
                 </Card>
                 <Card className="text-center p-4">
-                  <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Min. Value (MOV)</div>
+                  <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Entry Value (MOV)</div>
                   <p className="text-sm font-bold">${(supplier.pricing?.mov || 0).toLocaleString()}</p>
                 </Card>
               </div>
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Trading Terms</CardTitle>
+                  <CardTitle>Trade & Settlement Terms</CardTitle>
                 </CardHeader>
                 <CardContent className="grid md:grid-cols-2 gap-8">
                   <div className="space-y-4">
                     <div>
-                      <h4 className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Payment Terms</h4>
+                      <h4 className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Settlement Logic</h4>
                       <div className="flex flex-wrap gap-2">
                         {Array.isArray(supplier.pricing?.paymentTerms) && supplier.pricing.paymentTerms.length > 0 ? (
                           supplier.pricing.paymentTerms.map((t: string) => <Badge key={t} variant="outline">{t}</Badge>)
                         ) : (
-                          <span className="text-xs text-muted-foreground italic">No terms listed</span>
+                          <span className="text-xs text-muted-foreground italic">Standard terms apply</span>
                         )}
                       </div>
                     </div>
                     <div>
-                      <h4 className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Incoterms</h4>
+                      <h4 className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Standard Incoterms</h4>
                       <div className="flex flex-wrap gap-2">
                         {Array.isArray(supplier.pricing?.incoterms) && supplier.pricing.incoterms.length > 0 ? (
                           supplier.pricing.incoterms.map((t: string) => <Badge key={t} variant="secondary" className="text-[10px]">{t}</Badge>)
                         ) : (
-                          <span className="text-xs text-muted-foreground italic">None specified</span>
+                          <span className="text-xs text-muted-foreground italic">Ex-Works by default</span>
                         )}
                       </div>
                     </div>
@@ -470,13 +473,13 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                         <p className="text-sm font-bold">{supplier.pricing?.currency || 'USD'}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Lead Time</p>
-                        <p className="text-sm font-bold">{supplier.pricing?.leadTime || '?' } Days</p>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground">Est. Lead Time</p>
+                        <p className="text-sm font-bold">{supplier.pricing?.leadTime || '7-14' } Days</p>
                       </div>
                     </div>
                     <div>
-                      <h4 className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Sample Policy</h4>
-                      <p className="text-sm">{supplier.pricing?.samplePolicy || 'Not specified'}</p>
+                      <h4 className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Sample Agreement</h4>
+                      <p className="text-sm">{supplier.pricing?.samplePolicy || 'Request individually'}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -488,7 +491,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                 {[
                   { id: 'halal', label: 'Halal', icon: ShieldCheck, data: supplier.certifications?.halal },
                   { id: 'organic', label: 'Organic', icon: ShieldCheck, data: supplier.certifications?.organic },
-                  { id: 'iso', label: 'ISO', icon: ShieldCheck, data: supplier.certifications?.iso },
+                  { id: 'iso', label: 'ISO Standard', icon: ShieldCheck, data: supplier.certifications?.iso },
                   { id: 'fda', label: 'FDA Approved', icon: ShieldCheck, data: supplier.certifications?.fda }
                 ].map((cert) => (
                   <Card key={cert.id} className={cn(
@@ -500,7 +503,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                         <cert.icon className={cn("h-5 w-5", cert.data?.has ? "text-green-500" : "text-muted-foreground")} />
                       </div>
                       <Badge variant={cert.data?.has ? 'default' : 'secondary'} className={cn(cert.data?.has && "bg-green-500")}>
-                        {cert.data?.has ? 'Valid' : 'None'}
+                        {cert.data?.has ? 'Verified' : 'Pending'}
                       </Badge>
                     </div>
                     <div className="space-y-1">
@@ -509,7 +512,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                         <div className="flex items-center gap-1 mt-2">
                           <Calendar className={cn("h-3 w-3", isExpiringSoon(cert.data.expiry) ? "text-destructive" : "text-muted-foreground")} />
                           <span className={cn("text-[10px]", isExpiringSoon(cert.data.expiry) ? "text-destructive font-bold" : "text-muted-foreground")}>
-                            Exp: {new Date(cert.data.expiry).toLocaleDateString()}
+                            Expires: {new Date(cert.data.expiry).toLocaleDateString()}
                           </span>
                         </div>
                       )}
