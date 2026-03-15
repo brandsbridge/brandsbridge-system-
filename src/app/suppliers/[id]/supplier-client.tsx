@@ -22,6 +22,7 @@ import { MOCK_SUPPLIERS, Supplier } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { useFirestore, useDoc } from "@/firebase";
 import { doc } from "firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
 
 interface SupplierClientProps {
   id: string;
@@ -38,11 +39,40 @@ const StarRating = ({ rating }: { rating: number }) => (
 export default function SupplierClient({ id }: SupplierClientProps) {
   const router = useRouter();
   const db = useFirestore();
+  const { toast } = useToast();
 
   // Fetch live supplier data from Firestore
   const supplierRef = useMemo(() => doc(db, "suppliers", id), [db, id]);
   const { data: supplier, loading } = useDoc(supplierRef);
   
+  const handleShare = () => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(window.location.href);
+      toast({
+        title: "Link Copied",
+        description: "Supplier profile link copied to clipboard.",
+      });
+    }
+  };
+
+  const handleExportPDF = () => {
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  };
+
+  const handleContactSupplier = () => {
+    if (supplier?.email) {
+      window.location.href = `mailto:${supplier.email}?subject=Inquiry from BizFlow System`;
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Contact Failed",
+        description: "No email address found for this supplier.",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -72,9 +102,28 @@ export default function SupplierClient({ id }: SupplierClientProps) {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
+      <style jsx global>{`
+        @media print {
+          aside, header, .print-hidden, button, [role="tablist"] {
+            display: none !important;
+          }
+          main {
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          .md\:pl-64 {
+            padding-left: 0 !important;
+          }
+          .card {
+            border: none !important;
+            box-shadow: none !important;
+          }
+        }
+      `}</style>
+
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="print-hidden">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -97,10 +146,10 @@ export default function SupplierClient({ id }: SupplierClientProps) {
             </p>
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button variant="outline"><Share2 className="h-4 w-4 mr-2" /> Share</Button>
-          <Button variant="outline"><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
-          <Button className="bg-primary"><Mail className="h-4 w-4 mr-2" /> Contact Supplier</Button>
+        <div className="flex gap-2 flex-wrap print-hidden">
+          <Button variant="outline" onClick={handleShare}><Share2 className="h-4 w-4 mr-2" /> Share</Button>
+          <Button variant="outline" onClick={handleExportPDF}><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
+          <Button className="bg-primary" onClick={handleContactSupplier}><Mail className="h-4 w-4 mr-2" /> Contact Supplier</Button>
         </div>
       </div>
 
@@ -142,9 +191,9 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                 </Badge>
               </div>
 
-              <Separator />
+              <Separator className="print-hidden" />
 
-              <div className="space-y-4">
+              <div className="space-y-4 print-hidden">
                 <h4 className="text-[10px] font-bold uppercase text-muted-foreground">Digital Presence</h4>
                 <div className="grid grid-cols-2 gap-2">
                   <Button variant="outline" size="sm" className="h-8 text-[10px]" asChild disabled={!supplier.website}>
@@ -184,7 +233,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
         {/* Main Content Areas */}
         <div className="lg:col-span-3 space-y-6">
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-5 h-12">
+            <TabsList className="grid w-full grid-cols-5 h-12 print-hidden">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="products">Products</TabsTrigger>
               <TabsTrigger value="contacts">Contacts</TabsTrigger>
