@@ -39,10 +39,11 @@ export default function CustomerClient({ id }: { id: string }) {
 
   const handleShare = () => {
     if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(window.location.href);
-      toast({
-        title: "Link Copied",
-        description: "The customer profile URL has been saved to your clipboard.",
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        toast({
+          title: "Link Copied",
+          description: "The customer profile URL has been saved to your clipboard.",
+        });
       });
     }
   };
@@ -59,9 +60,13 @@ export default function CustomerClient({ id }: { id: string }) {
                   customer?.contacts?.finance?.email;
     
     if (email) {
-      const subject = `Corporate Account Update: ${customer?.name || "Client Notification"}`;
-      const body = `Dear ${customer?.name || "Team"},\n\nI am reaching out from our Management Team to discuss your current account status and opportunities...`;
-      window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const subject = encodeURIComponent(`Corporate Account Update: ${customer?.name || "Client Notification"}`);
+      const body = encodeURIComponent(`Dear ${customer?.name || "Team"},\n\nI am reaching out regarding your account status and upcoming opportunities...`);
+      const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
+      
+      const link = document.createElement('a');
+      link.href = mailtoUrl;
+      link.click();
     } else {
       toast({
         variant: "destructive",
@@ -104,7 +109,7 @@ export default function CustomerClient({ id }: { id: string }) {
     <div className="space-y-8 max-w-7xl mx-auto pb-20">
       <style jsx global>{`
         @media print {
-          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn, .fixed, .dropdown-menu {
+          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn, .fixed, .dropdown-menu, .role-switcher {
             display: none !important;
           }
           main, .md\:pl-64 {

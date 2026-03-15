@@ -45,10 +45,11 @@ export default function SupplierClient({ id }: SupplierClientProps) {
   
   const handleShare = () => {
     if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(window.location.href);
-      toast({
-        title: "Profile Link Copied",
-        description: "The unique URL for this supplier has been copied to your clipboard.",
+      navigator.clipboard.writeText(window.location.href).then(() => {
+        toast({
+          title: "Profile Link Copied",
+          description: "The unique URL for this supplier has been copied to your clipboard.",
+        });
       });
     }
   };
@@ -65,9 +66,14 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                   supplier?.contacts?.export?.email;
     
     if (email) {
-      const subject = `Business Inquiry: ${supplier?.name || "Partner Inquiry"}`;
-      const body = `Dear ${supplier?.name || "Team"},\n\nWe are reaching out from the Procurement Department regarding...`;
-      window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const subject = encodeURIComponent(`Business Inquiry: ${supplier?.name || "Partner Inquiry"}`);
+      const body = encodeURIComponent(`Dear ${supplier?.name || "Team"},\n\nWe are reaching out from the Procurement Department regarding your current catalog and availability...`);
+      const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
+      
+      // Use hidden anchor for more reliable mailto triggering
+      const link = document.createElement('a');
+      link.href = mailtoUrl;
+      link.click();
     } else {
       toast({
         variant: "destructive",
@@ -108,7 +114,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
     <div className="space-y-8 max-w-7xl mx-auto pb-10">
       <style jsx global>{`
         @media print {
-          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn, .fixed, .dropdown-menu {
+          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn, .fixed, .dropdown-menu, .role-switcher {
             display: none !important;
           }
           main, .md\:pl-64 {
