@@ -1,41 +1,25 @@
+
 "use client";
 
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  ArrowLeft, Mail, Globe, Calendar, Clock, 
-  TrendingUp, Target, Download, Share2, 
-  BarChart3, MapPin, CheckCircle2, 
-  MessageSquare, FileText, ShoppingCart, 
-  CreditCard, PieChart as PieIcon, Phone,
-  Users as UsersIcon, ShieldCheck, Lock,
-  Plus, Send, History, Briefcase, 
-  AlertCircle, ChevronRight, Filter,
-  Paperclip, Star, MoreVertical, Search,
-  Upload, Loader2
+  ArrowLeft, Mail, MapPin, 
+  Share2, Download, Send, 
+  MessageSquare, Clock, Phone,
+  Briefcase, Star, Loader2
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend
-} from "recharts";
-import { MOCK_CUSTOMERS, MOCK_EMAILS, MOCK_OFFERS_TRACKING, MOCK_PURCHASES, MOCK_INVOICES, MOCK_PAYMENTS } from "@/lib/mock-data";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useFirestore, useDoc } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
-
-const COLORS = ['#755EDE', '#5182E0', '#F59E0B', '#EF4444', '#10B981'];
 
 const StarRating = ({ rating }: { rating: number }) => (
   <div className="flex gap-0.5">
@@ -51,16 +35,8 @@ export default function CustomerClient({ id }: { id: string }) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
   
-  // Fetch live customer data from Firestore
   const customerRef = useMemo(() => doc(db, "customers", id), [db, id]);
   const { data: customer, loading } = useDoc(customerRef);
-
-  // Filter related data (Note: These remain mock until their respective collections are populated)
-  const emails = useMemo(() => MOCK_EMAILS.filter(e => e.custId === id), [id]);
-  const offers = useMemo(() => MOCK_OFFERS_TRACKING.filter(o => o.sentTo === customer?.name), [customer]);
-  const purchases = useMemo(() => MOCK_PURCHASES.filter(p => p.buyerName === customer?.name), [customer]);
-  const invoices = useMemo(() => MOCK_INVOICES.filter(i => i.customerName === customer?.name), [customer]);
-  const payments = useMemo(() => MOCK_PAYMENTS.filter(p => p.partyName === customer?.name), [customer]);
 
   const handleShare = () => {
     if (typeof window !== "undefined") {
@@ -72,20 +48,23 @@ export default function CustomerClient({ id }: { id: string }) {
     }
   };
 
-  const handleExportAudit = () => {
+  const handleExportPDF = () => {
     if (typeof window !== "undefined") {
       window.print();
     }
   };
 
   const handleComposeEmail = () => {
-    if (customer?.email) {
-      window.location.href = `mailto:${customer.email}?subject=Follow-up from BizFlow Account Management`;
+    // Check root email or primary contact designation email
+    const email = customer?.email || customer?.contacts?.primary?.email;
+    
+    if (email) {
+      window.location.href = `mailto:${email}?subject=Follow-up from BizFlow Account Management`;
     } else {
       toast({
         variant: "destructive",
         title: "Communication Error",
-        description: "This customer does not have a registered email address.",
+        description: "This customer does not have a registered email address in their profile.",
       });
     }
   };
@@ -108,28 +87,6 @@ export default function CustomerClient({ id }: { id: string }) {
       </div>
     );
   }
-
-  const revenueData = [
-    { month: 'Jan', revenue: 4500 },
-    { month: 'Feb', revenue: 5200 },
-    { month: 'Mar', revenue: 4800 },
-    { month: 'Apr', revenue: 6100 },
-    { month: 'May', revenue: 5900 },
-    { month: 'Jun', revenue: 7200 },
-  ];
-
-  const productSplit = [
-    { name: 'Chocolate', value: 60 },
-    { name: 'Cosmetics', value: 30 },
-    { name: 'Detergents', value: 10 },
-  ];
-
-  const stats = {
-    revenue: customer.totalRevenue || 0,
-    orders: purchases.length,
-    replyRate: 85,
-    avgResponse: 4.2
-  };
 
   const getHealthColor = (health: string) => {
     switch (health?.toLowerCase()) {
@@ -158,7 +115,6 @@ export default function CustomerClient({ id }: { id: string }) {
         }
       `}</style>
 
-      {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="print-hidden">
@@ -180,13 +136,12 @@ export default function CustomerClient({ id }: { id: string }) {
         </div>
         <div className="flex gap-2 flex-wrap print-hidden">
           <Button variant="outline" onClick={handleShare}><Share2 className="h-4 w-4 mr-2" /> Share</Button>
-          <Button variant="outline" onClick={handleExportAudit}><Download className="h-4 w-4 mr-2" /> Export Audit</Button>
+          <Button variant="outline" onClick={handleExportPDF}><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
           <Button className="bg-primary" onClick={handleComposeEmail}><Send className="h-4 w-4 mr-2" /> Compose Email</Button>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
-        {/* Left Sidebar Info */}
         <div className="lg:col-span-1 space-y-6">
           <Card>
             <CardContent className="pt-6 space-y-6">
@@ -264,7 +219,6 @@ export default function CustomerClient({ id }: { id: string }) {
           </Card>
         </div>
 
-        {/* Main Tabs */}
         <div className="lg:col-span-3 space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-6 h-12 print-hidden">
@@ -325,48 +279,6 @@ export default function CustomerClient({ id }: { id: string }) {
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
-
-            {/* Other content remains live and functional as per existing structure */}
-            <TabsContent value="emails" className="space-y-6 pt-4">
-              <div className="flex items-center justify-between print-hidden">
-                <div className="relative w-full max-w-sm">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Search emails..." className="pl-9 h-9" />
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm">Templates</Button>
-                  <Button size="sm" onClick={handleComposeEmail}><Plus className="mr-2 h-4 w-4" /> New Email</Button>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                {emails.length > 0 ? (
-                  emails.slice(0, 5).map((email, idx) => (
-                    <Card key={email.id} className="overflow-hidden">
-                      <div className={cn("p-4 flex gap-4", idx % 2 === 0 ? "bg-card" : "bg-muted/30")}>
-                        <div className="flex-1 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Badge variant={email.sentBy === "Alex Johnson" ? "default" : "outline"} className="text-[8px]">
-                                {email.sentBy === "Alex Johnson" ? "SENT" : "RECEIVED"}
-                              </Badge>
-                              <span className="text-xs font-bold">{email.subject}</span>
-                            </div>
-                            <span className="text-[10px] text-muted-foreground">{formatFirebaseTimestamp(email.date)}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground line-clamp-2">{email.body}</p>
-                        </div>
-                      </div>
-                    </Card>
-                  ))
-                ) : (
-                  <div className="py-12 text-center border border-dashed rounded-xl">
-                    <Mail className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">No communication history found.</p>
-                  </div>
-                )}
-              </div>
             </TabsContent>
           </Tabs>
         </div>

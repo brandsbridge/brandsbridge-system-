@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo } from "react";
@@ -7,18 +8,16 @@ import {
   TrendingUp, AlertTriangle, ShieldCheck, 
   Download, Share2, MessageSquare, 
   Star, MapPin, DollarSign, ExternalLink,
-  Linkedin, Instagram, Facebook, MessageCircle,
-  Building2, Users as UsersIcon, Factory,
-  ShieldAlert, Lock, CheckCircle2, Info, Loader2
+  Linkedin, Factory,
+  Lock, Loader2
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MOCK_SUPPLIERS, Supplier } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { useFirestore, useDoc } from "@/firebase";
 import { doc } from "firebase/firestore";
@@ -41,7 +40,6 @@ export default function SupplierClient({ id }: SupplierClientProps) {
   const db = useFirestore();
   const { toast } = useToast();
 
-  // Fetch live supplier data from Firestore
   const supplierRef = useMemo(() => doc(db, "suppliers", id), [db, id]);
   const { data: supplier, loading } = useDoc(supplierRef);
   
@@ -62,13 +60,16 @@ export default function SupplierClient({ id }: SupplierClientProps) {
   };
 
   const handleContactSupplier = () => {
-    if (supplier?.email) {
-      window.location.href = `mailto:${supplier.email}?subject=Inquiry from BizFlow System`;
+    // Check root email or nested sales contact email
+    const email = supplier?.email || supplier?.contacts?.sales?.email;
+    
+    if (email) {
+      window.location.href = `mailto:${email}?subject=Inquiry from BizFlow Management System`;
     } else {
       toast({
         variant: "destructive",
         title: "Contact Failed",
-        description: "No email address found for this supplier.",
+        description: "No email address found for this supplier. Please update their profile details.",
       });
     }
   };
@@ -154,7 +155,6 @@ export default function SupplierClient({ id }: SupplierClientProps) {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
-        {/* Left Column: Core Info & Status */}
         <div className="lg:col-span-1 space-y-6">
           <Card>
             <CardContent className="pt-6 space-y-6">
@@ -230,7 +230,6 @@ export default function SupplierClient({ id }: SupplierClientProps) {
           </Card>
         </div>
 
-        {/* Main Content Areas */}
         <div className="lg:col-span-3 space-y-6">
           <Tabs defaultValue="overview" className="w-full">
             <TabsList className="grid w-full grid-cols-5 h-12 print-hidden">
@@ -285,7 +284,6 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                 </CardContent>
               </Card>
 
-              {/* Strategic Notes - Confidential */}
               <Card className="border-primary/30 bg-primary/5">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <div className="flex items-center gap-2">
@@ -374,7 +372,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
-                      <UsersIcon className="h-4 w-4 text-primary" /> Sales Manager
+                      <Factory className="h-4 w-4 text-primary" /> Sales Manager
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -384,7 +382,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                         <div className="space-y-1 text-xs text-muted-foreground">
                           <div className="flex items-center gap-2"><Mail className="h-3 w-3" /> {supplier.contacts.sales.email || 'No email'}</div>
                           <div className="flex items-center gap-2"><Phone className="h-3 w-3" /> {supplier.contacts.sales.phone || 'No phone'}</div>
-                          <div className="flex items-center gap-2"><MessageCircle className="h-3 w-3" /> {supplier.contacts.sales.whatsapp || 'No WhatsApp'}</div>
+                          <div className="flex items-center gap-2"><MessageSquare className="h-3 w-3" /> {supplier.contacts.sales.whatsapp || 'No WhatsApp'}</div>
                         </div>
                       </>
                     ) : (
@@ -489,8 +487,8 @@ export default function SupplierClient({ id }: SupplierClientProps) {
             <TabsContent value="compliance" className="space-y-6 pt-4">
               <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { id: 'halal', label: 'Halal', icon: CheckCircle2, data: supplier.certifications?.halal },
-                  { id: 'organic', label: 'Organic', icon: CheckCircle2, data: supplier.certifications?.organic },
+                  { id: 'halal', label: 'Halal', icon: ShieldCheck, data: supplier.certifications?.halal },
+                  { id: 'organic', label: 'Organic', icon: ShieldCheck, data: supplier.certifications?.organic },
                   { id: 'iso', label: 'ISO', icon: ShieldCheck, data: supplier.certifications?.iso },
                   { id: 'fda', label: 'FDA Approved', icon: ShieldCheck, data: supplier.certifications?.fda }
                 ].map((cert) => (
