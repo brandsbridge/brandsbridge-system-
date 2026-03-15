@@ -54,7 +54,9 @@ export default function CustomerClient({ id }: { id: string }) {
   };
 
   const handleComposeEmail = () => {
-    const email = customer?.email || customer?.contacts?.primary?.email || customer?.contacts?.finance?.email;
+    const email = customer?.email || 
+                  customer?.contacts?.primary?.email || 
+                  customer?.contacts?.finance?.email;
     
     if (email) {
       const subject = `Corporate Account Update: ${customer?.name || "Client Notification"}`;
@@ -102,7 +104,7 @@ export default function CustomerClient({ id }: { id: string }) {
     <div className="space-y-8 max-w-7xl mx-auto pb-20">
       <style jsx global>{`
         @media print {
-          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn, .fixed {
+          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn, .fixed, .dropdown-menu {
             display: none !important;
           }
           main, .md\:pl-64 {
@@ -113,6 +115,10 @@ export default function CustomerClient({ id }: { id: string }) {
           .card {
             border: 1px solid #e2e8f0 !important;
             box-shadow: none !important;
+          }
+          body {
+            background: white !important;
+            color: black !important;
           }
         }
       `}</style>

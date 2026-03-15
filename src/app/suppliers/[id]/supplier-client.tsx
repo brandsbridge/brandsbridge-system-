@@ -62,8 +62,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
   const handleContactSupplier = () => {
     const email = supplier?.email || 
                   supplier?.contacts?.sales?.email || 
-                  supplier?.contacts?.export?.email ||
-                  supplier?.contacts?.support?.email;
+                  supplier?.contacts?.export?.email;
     
     if (email) {
       const subject = `Business Inquiry: ${supplier?.name || "Partner Inquiry"}`;
@@ -109,17 +108,21 @@ export default function SupplierClient({ id }: SupplierClientProps) {
     <div className="space-y-8 max-w-7xl mx-auto pb-10">
       <style jsx global>{`
         @media print {
-          aside, header, .print-hidden, button, [role="tablist"], .fixed {
+          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn, .fixed, .dropdown-menu {
             display: none !important;
           }
           main, .md\:pl-64 {
             padding: 0 !important;
             margin: 0 !important;
-            margin-left: 0 !important;
+            padding-left: 0 !important;
           }
           .card {
             border: 1px solid #e2e8f0 !important;
             box-shadow: none !important;
+          }
+          body {
+            background: white !important;
+            color: black !important;
           }
         }
       `}</style>
