@@ -73,21 +73,23 @@ export default function InvoicesPage() {
       : query(colRef, where("department", "==", currentUser.department));
   }, [db, user, currentUser]);
 
-  const { data: invoices = [], isLoading } = useCollection(invoicesQuery);
+  const { data: invoices, isLoading } = useCollection(invoicesQuery);
 
   const filteredInvoices = useMemo(() => {
-    return invoices.filter(inv => {
-      const matchesSearch = inv.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                           inv.number?.toLowerCase().includes(searchTerm.toLowerCase());
+    const safeInvoices = invoices || [];
+    return safeInvoices.filter(inv => {
+      const matchesSearch = (inv.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           (inv.number || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [invoices, searchTerm, statusFilter]);
 
   const stats = useMemo(() => {
-    const total = invoices.reduce((acc, i) => acc + (i.total || 0), 0);
-    const paid = invoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + (i.total || 0), 0);
-    const pending = invoices.filter(i => ['pending', 'overdue'].includes(i.status)).reduce((acc, i) => acc + (i.total || 0), 0);
+    const safeInvoices = invoices || [];
+    const total = safeInvoices.reduce((acc, i) => acc + (i.total || 0), 0);
+    const paid = safeInvoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + (i.total || 0), 0);
+    const pending = safeInvoices.filter(i => ['pending', 'overdue'].includes(i.status)).reduce((acc, i) => acc + (i.total || 0), 0);
     return { total, paid, pending };
   }, [invoices]);
 

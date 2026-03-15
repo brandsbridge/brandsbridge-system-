@@ -61,11 +61,12 @@ export default function PaymentsPage() {
       : query(colRef, where("department", "==", currentUser.department));
   }, [db, user, currentUser]);
 
-  const { data: payments = [], isLoading } = useCollection(paymentsQuery);
+  const { data: payments, isLoading } = useCollection(paymentsQuery);
 
   const stats = useMemo(() => {
-    const received = payments.filter(p => p.type === 'received').reduce((acc, p) => acc + (p.amount || 0), 0);
-    const made = payments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.amount || 0), 0);
+    const safePayments = payments || [];
+    const received = safePayments.filter(p => p.type === 'received').reduce((acc, p) => acc + (p.amount || 0), 0);
+    const made = safePayments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.amount || 0), 0);
     return { received, made, net: received - made };
   }, [payments]);
 
@@ -218,7 +219,7 @@ export default function PaymentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {payments.map(pay => (
+              {(payments || []).map(pay => (
                 <TableRow key={pay.id}>
                   <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(pay.date)}</TableCell>
                   <TableCell className="font-medium">
@@ -241,7 +242,7 @@ export default function PaymentsPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {payments.length === 0 && (
+              {(!payments || payments.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-12 text-muted-foreground italic">No payment records found.</TableCell>
                 </TableRow>

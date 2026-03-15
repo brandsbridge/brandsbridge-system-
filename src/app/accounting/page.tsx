@@ -56,16 +56,19 @@ export default function AccountingDashboard() {
       : query(colRef, where("department", "==", currentUser.department));
   }, [db, user, currentUser]);
 
-  const { data: invoices = [], isLoading: loadingInvoices } = useCollection(invoicesQuery);
-  const { data: payments = [], isLoading: loadingPayments } = useCollection(paymentsQuery);
+  const { data: invoices, isLoading: loadingInvoices } = useCollection(invoicesQuery);
+  const { data: payments, isLoading: loadingPayments } = useCollection(paymentsQuery);
 
   const stats = useMemo(() => {
-    const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + (i.total || 0), 0);
-    const outstandingAR = invoices.filter(i => i.status === 'pending' || i.status === 'overdue').reduce((acc, i) => acc + (i.total || 0), 0);
-    const overdueAR = invoices.filter(i => i.status === 'overdue').reduce((acc, i) => acc + (i.total || 0), 0);
+    const safeInvoices = invoices || [];
+    const safePayments = payments || [];
+
+    const totalRevenue = safeInvoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + (i.total || 0), 0);
+    const outstandingAR = safeInvoices.filter(i => i.status === 'pending' || i.status === 'overdue').reduce((acc, i) => acc + (i.total || 0), 0);
+    const overdueAR = safeInvoices.filter(i => i.status === 'overdue').reduce((acc, i) => acc + (i.total || 0), 0);
     
-    const cashIn = payments.filter(p => p.type === 'received').reduce((acc, p) => acc + (p.amount || 0), 0);
-    const cashOut = payments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.amount || 0), 0);
+    const cashIn = safePayments.filter(p => p.type === 'received').reduce((acc, p) => acc + (p.amount || 0), 0);
+    const cashOut = safePayments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.amount || 0), 0);
     
     const profit = totalRevenue - cashOut;
     const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
@@ -77,7 +80,7 @@ export default function AccountingDashboard() {
       margin,
       receivables: outstandingAR,
       cash: cashIn - cashOut,
-      overdueCount: invoices.filter(i => i.status === 'overdue').length,
+      overdueCount: safeInvoices.filter(i => i.status === 'overdue').length,
       overdueValue: overdueAR
     };
   }, [invoices, payments]);
@@ -207,7 +210,7 @@ export default function AccountingDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {payments.slice(0, 5).map(pay => (
+              {(payments || []).slice(0, 5).map(pay => (
                 <div key={pay.id} className="flex items-center justify-between p-3 rounded-lg border bg-secondary/20">
                   <div className="flex items-center gap-3">
                     <div className={cn(
@@ -229,7 +232,7 @@ export default function AccountingDashboard() {
                   </div>
                 </div>
               ))}
-              {payments.length === 0 && <div className="text-center py-8 text-muted-foreground italic text-sm">No recent transactions.</div>}
+              {(!payments || payments.length === 0) && <div className="text-center py-8 text-muted-foreground italic text-sm">No recent transactions.</div>}
             </div>
           </CardContent>
         </Card>
