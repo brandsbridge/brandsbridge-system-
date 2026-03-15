@@ -34,73 +34,35 @@
       },
       "required": ["id", "name", "createdAt"]
     },
-    "Product": {
-      "title": "Product",
+    "Invoice": {
+      "title": "Invoice",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "name": { "type": "string" },
-        "category": { "type": "string" },
-        "department": { "type": "string" }
-      },
-      "required": ["id", "name", "department"]
-    },
-    "Stock": {
-      "title": "Stock",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "productId": { "type": "string" },
-        "supplierId": { "type": "string" },
-        "price": { "type": "number" },
-        "quantity": { "type": "number" },
-        "leadTime": { "type": "number" }
-      },
-      "required": ["id", "productId", "supplierId", "price", "quantity"]
-    },
-    "Lead": {
-      "title": "Lead",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "company": { "type": "string" },
-        "value": { "type": "number" },
-        "stage": { "type": "string" }
-      },
-      "required": ["id", "name", "company", "stage"]
-    },
-    "Task": {
-      "title": "Task",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "title": { "type": "string" },
-        "status": { "type": "string" },
-        "priority": { "type": "string" },
-        "assignee": { "type": "string" },
-        "dueDate": { "type": "string" }
-      },
-      "required": ["id", "title", "status"]
-    },
-    "Campaign": {
-      "title": "Campaign",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "status": { "type": "string" },
+        "number": { "type": "string" },
+        "customerName": { "type": "string" },
+        "total": { "type": "number" },
+        "status": { "type": "string", "enum": ["paid", "pending", "overdue"] },
+        "dueDate": { "type": "string" },
         "department": { "type": "string" },
-        "stats": {
-          "type": "object",
-          "properties": {
-            "sent": { "type": "number" },
-            "replied": { "type": "number" },
-            "revenue": { "type": "number" }
-          }
-        }
+        "createdBy": { "type": "string" }
       },
-      "required": ["id", "name", "status"]
+      "required": ["number", "customerName", "total", "status", "department"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "partyName": { "type": "string" },
+        "amount": { "type": "number" },
+        "type": { "type": "string", "enum": ["received", "made"] },
+        "method": { "type": "string" },
+        "reference": { "type": "string" },
+        "department": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["partyName", "amount", "type", "department"]
     }
   },
   "auth": {
@@ -110,11 +72,8 @@
     "structure": [
       { "path": "/suppliers/{id}", "definition": { "entityName": "Supplier", "description": "Global suppliers" } },
       { "path": "/customers/{id}", "definition": { "entityName": "Customer", "description": "B2B Customers" } },
-      { "path": "/products/{id}", "definition": { "entityName": "Product", "description": "Managed products" } },
-      { "path": "/stocks/{id}", "definition": { "entityName": "Stock", "description": "Inventory levels" } },
-      { "path": "/leads/{id}", "definition": { "entityName": "Lead", "description": "CRM Leads" } },
-      { "path": "/tasks/{id}", "definition": { "entityName": "Task", "description": "Project tasks" } },
-      { "path": "/campaigns/{id}", "definition": { "entityName": "Campaign", "description": "Outreach campaigns" } },
+      { "path": "/invoices/{id}", "definition": { "entityName": "Invoice", "description": "Sales invoices" } },
+      { "path": "/payments/{id}", "definition": { "entityName": "Payment", "description": "Financial settlements" } },
       { "path": "/app_roles_admin/{userId}", "definition": { "entityName": "AdminRole", "description": "Access control" } }
     ]
   }

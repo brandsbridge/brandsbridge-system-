@@ -1,17 +1,18 @@
+
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { 
   DollarSign, 
   TrendingUp, 
-  TrendingDown, 
   Wallet, 
   ArrowUpRight, 
   ArrowDownRight, 
   Receipt,
   Plus,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,28 +21,66 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, LineChart, Line, Legend
 } from "recharts";
-import { MOCK_INVOICES, MOCK_PAYMENTS, MOCK_EXPENSES } from "@/lib/mock-data";
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
+import { collection, query, where } from "firebase/firestore";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 const COLORS = ['#755EDE', '#5182E0', '#F59E0B', '#EF4444'];
 
 export default function AccountingDashboard() {
-  const stats = useMemo(() => {
-    const revThisMonth = MOCK_INVOICES.filter(i => i.status === 'paid').reduce((acc, i) => acc + i.total, 0) / 10; // Scaling for demo
-    const expThisMonth = MOCK_EXPENSES.reduce((acc, e) => acc + e.amount, 0);
-    const receivables = MOCK_INVOICES.filter(i => ['pending', 'overdue'].includes(i.status)).reduce((acc, i) => acc + i.total, 0);
-    const overdueCount = MOCK_INVOICES.filter(i => i.status === 'overdue').length;
-    
-    return {
-      revenue: revThisMonth,
-      expenses: expThisMonth,
-      profit: revThisMonth - expThisMonth,
-      receivables,
-      cash: 125000, // Fixed starting position
-      overdueCount
-    };
+  const db = useFirestore();
+  const { user } = useUser();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("demoUser");
+    if (saved) setCurrentUser(JSON.parse(saved));
   }, []);
+
+  // Memoize Collections with Department Isolation
+  const invoicesQuery = useMemoFirebase(() => {
+    if (!user || !currentUser) return null;
+    const colRef = collection(db, "invoices");
+    return currentUser.department === 'all' 
+      ? colRef 
+      : query(colRef, where("department", "==", currentUser.department));
+  }, [db, user, currentUser]);
+
+  const paymentsQuery = useMemoFirebase(() => {
+    if (!user || !currentUser) return null;
+    const colRef = collection(db, "payments");
+    return currentUser.department === 'all' 
+      ? colRef 
+      : query(colRef, where("department", "==", currentUser.department));
+  }, [db, user, currentUser]);
+
+  const { data: invoices = [], isLoading: loadingInvoices } = useCollection(invoicesQuery);
+  const { data: payments = [], isLoading: loadingPayments } = useCollection(paymentsQuery);
+
+  const stats = useMemo(() => {
+    const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + (i.total || 0), 0);
+    const outstandingAR = invoices.filter(i => i.status === 'pending' || i.status === 'overdue').reduce((acc, i) => acc + (i.total || 0), 0);
+    const overdueAR = invoices.filter(i => i.status === 'overdue').reduce((acc, i) => acc + (i.total || 0), 0);
+    
+    const cashIn = payments.filter(p => p.type === 'received').reduce((acc, p) => acc + (p.amount || 0), 0);
+    const cashOut = payments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.amount || 0), 0);
+    
+    const profit = totalRevenue - cashOut;
+    const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+
+    return {
+      revenue: totalRevenue,
+      expenses: cashOut,
+      profit,
+      margin,
+      receivables: outstandingAR,
+      cash: cashIn - cashOut,
+      overdueCount: invoices.filter(i => i.status === 'overdue').length,
+      overdueValue: overdueAR
+    };
+  }, [invoices, payments]);
 
   const chartData = [
     { month: 'Jan', revenue: 45000, expenses: 32000 },
@@ -49,14 +88,16 @@ export default function AccountingDashboard() {
     { month: 'Mar', revenue: 48000, expenses: 31000 },
     { month: 'Apr', revenue: 61000, expenses: 42000 },
     { month: 'May', revenue: 59000, expenses: 38000 },
-    { month: 'Jun', revenue: 72000, expenses: 45000 },
+    { month: 'Jun', revenue: stats.revenue || 0, expenses: stats.expenses || 0 },
   ];
 
-  const deptData = [
-    { name: 'Chocolate', value: 45 },
-    { name: 'Cosmetics', value: 30 },
-    { name: 'Detergents', value: 25 },
-  ];
+  if (loadingInvoices || loadingPayments) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -66,8 +107,12 @@ export default function AccountingDashboard() {
           <p className="text-muted-foreground">General ledger overview and real-time cash flow monitoring.</p>
         </div>
         <div className="flex gap-2">
-          <Button className="bg-primary"><Plus className="mr-2 h-4 w-4" /> Create Invoice</Button>
-          <Button variant="outline"><Receipt className="mr-2 h-4 w-4" /> Record Payment</Button>
+          <Link href="/accounting/invoices">
+            <Button className="bg-primary"><Plus className="mr-2 h-4 w-4" /> Create Invoice</Button>
+          </Link>
+          <Link href="/accounting/payments">
+            <Button variant="outline"><Receipt className="mr-2 h-4 w-4" /> Record Payment</Button>
+          </Link>
         </div>
       </div>
 
@@ -80,18 +125,18 @@ export default function AccountingDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">${stats.revenue.toLocaleString()}</div>
             <p className="text-[10px] text-green-500 flex items-center gap-1 mt-1">
-              <ArrowUpRight className="h-3 w-3" /> +12.5% vs last month
+              <ArrowUpRight className="h-3 w-3" /> Real-time Firestore sync
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Net Profit (MTD)</CardTitle>
+            <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
             <DollarSign className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${stats.profit.toLocaleString()}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Margin: 22.4%</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Margin: {stats.margin.toFixed(1)}%</p>
           </CardContent>
         </Card>
         <Card>
@@ -101,7 +146,7 @@ export default function AccountingDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${stats.cash.toLocaleString()}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Across 3 bank accounts</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Net Cash Impact active</p>
           </CardContent>
         </Card>
         <Card className="bg-destructive/5 border-destructive/20">
@@ -110,7 +155,7 @@ export default function AccountingDashboard() {
             <AlertCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">${stats.receivables.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-destructive">${stats.overdueValue.toLocaleString()}</div>
             <p className="text-[10px] text-destructive/70 mt-1">{stats.overdueCount} Invoices past due</p>
           </CardContent>
         </Card>
@@ -156,30 +201,13 @@ export default function AccountingDashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <CardTitle>Dept. Revenue Split</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[250px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={deptData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                  {deptData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                </Pie>
-                <Tooltip />
-                <Legend verticalAlign="bottom" />
-              </PieChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-3">
           <CardHeader>
             <CardTitle>Recent Transactions</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {MOCK_PAYMENTS.slice(0, 5).map(pay => (
+              {payments.slice(0, 5).map(pay => (
                 <div key={pay.id} className="flex items-center justify-between p-3 rounded-lg border bg-secondary/20">
                   <div className="flex items-center gap-3">
                     <div className={cn(
@@ -201,6 +229,7 @@ export default function AccountingDashboard() {
                   </div>
                 </div>
               ))}
+              {payments.length === 0 && <div className="text-center py-8 text-muted-foreground italic text-sm">No recent transactions.</div>}
             </div>
           </CardContent>
         </Card>
