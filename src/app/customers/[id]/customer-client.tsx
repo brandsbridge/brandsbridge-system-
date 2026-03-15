@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
 import { useFirestore, useDoc } from "@/firebase";
 import { doc } from "firebase/firestore";
@@ -58,7 +57,9 @@ export default function CustomerClient({ id }: { id: string }) {
     const email = customer?.email || customer?.contacts?.primary?.email;
     
     if (email) {
-      window.location.href = `mailto:${email}?subject=Follow-up from BizFlow Account Management&body=Dear ${customer.name},`;
+      const subject = encodeURIComponent(`BizFlow Account Follow-up: ${customer?.name || "Client Update"}`);
+      const body = encodeURIComponent(`Dear ${customer?.name || "Client"},\n\nI am writing to follow up on...`);
+      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
     } else {
       toast({
         variant: "destructive",
@@ -101,15 +102,17 @@ export default function CustomerClient({ id }: { id: string }) {
     <div className="space-y-8 max-w-7xl mx-auto pb-20">
       <style jsx global>{`
         @media print {
-          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn {
+          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn, .fixed {
             display: none !important;
           }
-          main {
+          main, .md\:pl-64 {
             padding: 0 !important;
             margin: 0 !important;
-          }
-          .md\:pl-64 {
             padding-left: 0 !important;
+          }
+          .card {
+            border: 1px solid #e2e8f0 !important;
+            box-shadow: none !important;
           }
         }
       `}</style>
@@ -136,7 +139,7 @@ export default function CustomerClient({ id }: { id: string }) {
         <div className="flex gap-2 flex-wrap print-hidden">
           <Button variant="outline" onClick={handleShare}><Share2 className="h-4 w-4 mr-2" /> Share</Button>
           <Button variant="outline" onClick={handleExportPDF}><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
-          <Button className="bg-primary" onClick={handleComposeEmail}><Send className="h-4 w-4 mr-2" /> Compose Email</Button>
+          <Button className="bg-primary shadow-lg shadow-primary/20" onClick={handleComposeEmail}><Send className="h-4 w-4 mr-2" /> Compose Email</Button>
         </div>
       </div>
 

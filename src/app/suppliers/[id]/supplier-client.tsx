@@ -60,10 +60,12 @@ export default function SupplierClient({ id }: SupplierClientProps) {
   };
 
   const handleContactSupplier = () => {
-    const email = supplier?.email || supplier?.contacts?.sales?.email;
+    const email = supplier?.email || supplier?.contacts?.sales?.email || supplier?.contacts?.export?.email;
     
     if (email) {
-      window.location.href = `mailto:${email}?subject=Inquiry from BizFlow Management System&body=Hello ${supplier.name},`;
+      const subject = encodeURIComponent(`Business Inquiry: ${supplier?.name || "Partner Inquiry"}`);
+      const body = encodeURIComponent(`Dear ${supplier?.name || "Team"},\n\nWe are reaching out to discuss...`);
+      window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
     } else {
       toast({
         variant: "destructive",
@@ -101,21 +103,19 @@ export default function SupplierClient({ id }: SupplierClientProps) {
   };
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-8 max-w-7xl mx-auto pb-10">
       <style jsx global>{`
         @media print {
-          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn {
+          aside, header, .print-hidden, button, [role="tablist"], .fixed {
             display: none !important;
           }
-          main {
+          main, .md\:pl-64 {
             padding: 0 !important;
             margin: 0 !important;
-          }
-          .md\:pl-64 {
-            padding-left: 0 !important;
+            margin-left: 0 !important;
           }
           .card {
-            border: none !important;
+            border: 1px solid #e2e8f0 !important;
             box-shadow: none !important;
           }
         }
@@ -149,7 +149,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
         <div className="flex gap-2 flex-wrap print-hidden">
           <Button variant="outline" onClick={handleShare}><Share2 className="h-4 w-4 mr-2" /> Share</Button>
           <Button variant="outline" onClick={handleExportPDF}><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
-          <Button className="bg-primary" onClick={handleContactSupplier}><Mail className="h-4 w-4 mr-2" /> Contact Supplier</Button>
+          <Button className="bg-primary shadow-lg shadow-primary/20" onClick={handleContactSupplier}><Mail className="h-4 w-4 mr-2" /> Contact Supplier</Button>
         </div>
       </div>
 
