@@ -44,8 +44,28 @@ import {
   TooltipProvider, 
   TooltipTrigger 
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { MOCK_SUPPLIERS, MOCK_CUSTOMERS, MOCK_PRODUCTS, MOCK_STOCKS } from "@/lib/mock-data";
+import { useFirestore } from "@/firebase";
+import { supplierService } from "@/services/supplier-service";
+import { customerService } from "@/services/customer-service";
+import { toast } from "@/hooks/use-toast";
 
 interface Props {
   departmentId: string;
@@ -56,13 +76,15 @@ interface Props {
 const StarRating = ({ rating }: { rating: number }) => (
   <div className="flex gap-0.5">
     {[1, 2, 3, 4, 5].map(i => (
-      <Star key={i} className={cn("h-3 w-3", i <= Math.round(rating) ? "fill-yellow-500 text-yellow-500" : "text-muted-foreground")} />
+      <Star key={i} className={cn("h-3 w-3", i <= Math.round(rating || 0) ? "fill-yellow-500 text-yellow-500" : "text-muted-foreground")} />
     ))}
   </div>
 );
 
 export function DepartmentPage({ departmentId, name, manager }: Props) {
   const [activeTab, setActiveTab] = useState("suppliers");
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const db = useFirestore();
 
   const suppliers = useMemo(() => MOCK_SUPPLIERS.filter(s => s.departments.includes(departmentId)), [departmentId]);
   const buyers = useMemo(() => MOCK_CUSTOMERS.filter(c => c.departments.includes(departmentId)), [departmentId]);
@@ -106,6 +128,46 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
     };
   }, [suppliers, buyers, priceIntellData]);
 
+  const handleQuickAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const type = formData.get('type') as 'supplier' | 'buyer';
+    
+    const baseData = {
+      name: formData.get('companyName'),
+      email: formData.get('email'),
+      country: formData.get('country'),
+      departments: [departmentId],
+      createdAt: new Date().toISOString()
+    };
+
+    if (type === 'supplier') {
+      supplierService.createSupplier(db, {
+        ...baseData,
+        natureOfBusiness: 'Manufacturer',
+        recordStatus: 'Active - Verified',
+        dataCompleteness: 40,
+        priorityLevel: 'Medium',
+        internalRating: 3
+      });
+    } else {
+      customerService.createCustomer(db, {
+        ...baseData,
+        accountStatus: 'prospect',
+        accountHealth: 'healthy',
+        dataCompleteness: 40,
+        assignedManager: manager,
+        internalRating: 3
+      });
+    }
+
+    setIsQuickAddOpen(false);
+    toast({ 
+      title: "Entity Registered", 
+      description: `New ${type} successfully added to the ${name} database.` 
+    });
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -117,7 +179,50 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
           <Link href="/uploads">
             <Button variant="outline"><Upload className="mr-2 h-4 w-4" /> Bulk Upload</Button>
           </Link>
-          <Button className="bg-primary"><Plus className="mr-2 h-4 w-4" /> Quick Add</Button>
+          
+          <Dialog open={isQuickAddOpen} onOpenChange={setIsQuickAddOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-primary"><Plus className="mr-2 h-4 w-4" /> Quick Add</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <form onSubmit={handleQuickAdd}>
+                <DialogHeader>
+                  <DialogTitle>Quick Register Entity</DialogTitle>
+                  <DialogDescription>Add a new partner or client to this market segment instantly.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase">Entity Type</label>
+                    <Select name="type" defaultValue="buyer">
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="buyer">Corporate Buyer (Customer)</SelectItem>
+                        <SelectItem value="supplier">Manufacturing Partner (Supplier)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase">Company Name</label>
+                    <Input name="companyName" required placeholder="e.g. Global Trade LLC" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase">Primary Email</label>
+                      <Input name="email" type="email" required placeholder="contact@company.com" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase">Base Country</label>
+                      <Input name="country" required placeholder="e.g. Turkey" />
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsQuickAddOpen(false)}>Cancel</Button>
+                  <Button type="submit">Complete Registration</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -202,7 +307,7 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
                       <div className="flex items-center gap-2">
                         <Link href={`/suppliers/${s.id}`} className="font-medium hover:text-primary flex items-center gap-1 group">
                           {s.name}
-                          <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <ExternalLink className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
                         </Link>
                         {s.departments.length > 1 && (
                           <TooltipProvider>
@@ -258,7 +363,7 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
                       <div className="flex items-center gap-2">
                         <Link href={`/customers/${b.id}`} className="font-medium hover:text-primary flex items-center gap-1 group">
                           {b.name}
-                          <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <ExternalLink className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
                         </Link>
                         {b.departments.length > 1 && (
                           <Badge variant="outline" className="text-[8px] flex items-center gap-1 border-accent text-accent">
