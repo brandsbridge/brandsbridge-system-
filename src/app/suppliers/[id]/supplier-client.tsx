@@ -1,7 +1,6 @@
-
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, Mail, Phone, Globe, Calendar, Clock, 
@@ -9,7 +8,7 @@ import {
   Download, Share2, MessageSquare, 
   Star, MapPin, DollarSign, ExternalLink,
   Linkedin, Factory,
-  Lock, Loader2
+  Lock, Loader2, Send
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,10 +17,21 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogDescription
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import { useFirestore, useDoc, useMemoFirebase, useUser } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { emailService } from "@/services/email-service";
 
 interface SupplierClientProps {
   id: string;
@@ -38,7 +48,13 @@ const StarRating = ({ rating }: { rating: number }) => (
 export default function SupplierClient({ id }: SupplierClientProps) {
   const router = useRouter();
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
+
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [isSending, setIsSending] = useState(false);
 
   const supplierRef = useMemoFirebase(() => doc(db, "suppliers", id), [db, id]);
   const { data: supplier, isLoading: loading } = useDoc(supplierRef);
@@ -57,9 +73,6 @@ export default function SupplierClient({ id }: SupplierClientProps) {
   const handleExportPDF = async () => {
     if (!supplier) return;
     
-    const element = document.getElementById("supplier-profile-container");
-    if (!element) return;
-
     toast({
       title: "Generating PDF",
       description: "Preparing your professional supplier report...",
@@ -67,7 +80,10 @@ export default function SupplierClient({ id }: SupplierClientProps) {
 
     try {
       const html2pdf = (await import("html2pdf.js")).default;
+      const element = document.getElementById("supplier-profile-container");
       
+      if (!element) return;
+
       const opt = {
         margin: [10, 10],
         filename: `${supplier.name.toLowerCase().replace(/\s+/g, '-')}-profile.pdf`,
@@ -81,19 +97,13 @@ export default function SupplierClient({ id }: SupplierClientProps) {
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
+      // Create a clone to manipulate for PDF generation
       const clone = element.cloneNode(true) as HTMLElement;
       clone.style.backgroundColor = "white";
       clone.style.color = "black";
       
       const toHide = clone.querySelectorAll('.print-hidden, button, [role="tablist"], .dropdown-menu');
       toHide.forEach(el => (el as HTMLElement).style.display = 'none');
-
-      const cards = clone.querySelectorAll('.card, div[class*="border"]');
-      cards.forEach(card => {
-        (card as HTMLElement).style.borderColor = "#e2e8f0";
-        (card as HTMLElement).style.boxShadow = "none";
-        (card as HTMLElement).style.backgroundColor = "#ffffff";
-      });
 
       html2pdf().set(opt).from(clone).save();
       
@@ -111,30 +121,55 @@ export default function SupplierClient({ id }: SupplierClientProps) {
     }
   };
 
-  const handleContactSupplier = () => {
-    // Check multiple potential email fields for data robustness
-    const email = supplier?.email || 
-                  supplier?.contacts?.sales?.email || 
-                  supplier?.contacts?.export?.email ||
-                  supplier?.contacts?.primary?.email;
+  const handleOpenContactDialog = () => {
+    const email = supplier?.email || supplier?.contacts?.sales?.email || supplier?.contacts?.primary?.email;
     
-    if (email) {
-      const subject = encodeURIComponent(`Business Inquiry: ${supplier?.name || "Partner Inquiry"}`);
-      const body = encodeURIComponent(`Dear ${supplier?.name || "Team"},\n\nWe are reaching out from the Procurement Department regarding your current catalog and availability...`);
-      const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
-      
-      // Use a temporary anchor to reliably trigger the default mail app
-      const link = document.createElement('a');
-      link.href = mailtoUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
+    if (!email) {
       toast({
         variant: "destructive",
-        title: "Communication Error",
-        description: "This supplier profile does not contain a registered email address.",
+        title: "Action Restricted",
+        description: "This supplier profile is missing a registered contact email.",
       });
+      return;
+    }
+
+    setEmailSubject(`Business Inquiry: ${supplier?.name || "Partner Inquiry"}`);
+    setEmailBody(`Dear ${supplier?.name || "Team"},\n\nWe are reaching out from the Procurement Department regarding your current catalog and availability...`);
+    setIsEmailDialogOpen(true);
+  };
+
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !supplier) return;
+
+    setIsSending(true);
+    const targetEmail = supplier.email || supplier.contacts?.sales?.email || supplier.contacts?.primary?.email;
+
+    try {
+      emailService.sendInternalEmail(db, {
+        to: targetEmail,
+        toName: supplier.name,
+        subject: emailSubject,
+        body: emailBody,
+        senderName: user.displayName || "Manager",
+        senderId: user.uid,
+        entityId: id,
+        entityType: 'supplier'
+      });
+
+      toast({
+        title: "Message Dispatched",
+        description: `Your inquiry has been sent to ${supplier.name} and logged in the system.`,
+      });
+      setIsEmailDialogOpen(false);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Transmission Error",
+        description: "The system was unable to dispatch the message. Please try again.",
+      });
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -195,7 +230,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
         <div className="flex gap-2 flex-wrap print-hidden">
           <Button variant="outline" onClick={handleShare}><Share2 className="h-4 w-4 mr-2" /> Share</Button>
           <Button variant="outline" onClick={handleExportPDF}><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
-          <Button className="bg-primary shadow-lg shadow-primary/20" onClick={handleContactSupplier}><Mail className="h-4 w-4 mr-2" /> Contact Supplier</Button>
+          <Button className="bg-primary shadow-lg shadow-primary/20" onClick={handleOpenContactDialog}><Mail className="h-4 w-4 mr-2" /> Contact Supplier</Button>
         </div>
       </div>
 
@@ -567,6 +602,53 @@ export default function SupplierClient({ id }: SupplierClientProps) {
           </Tabs>
         </div>
       </div>
+
+      <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <form onSubmit={handleSendEmail}>
+            <DialogHeader>
+              <DialogTitle>Compose Message</DialogTitle>
+              <DialogDescription>
+                Send an official business inquiry to {supplier.name}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Recipient</label>
+                <Input value={supplier.email || supplier.contacts?.sales?.email || supplier.contacts?.primary?.email} disabled className="bg-muted/50" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Subject</label>
+                <Input 
+                  value={emailSubject} 
+                  onChange={(e) => setEmailSubject(e.target.value)} 
+                  required 
+                  placeholder="Inquiry regarding..."
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Message Body</label>
+                <Textarea 
+                  value={emailBody} 
+                  onChange={(e) => setEmailBody(e.target.value)} 
+                  required 
+                  className="min-h-[200px]"
+                  placeholder="Type your message here..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEmailDialogOpen(false)} disabled={isSending}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSending}>
+                {isSending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                Send Message
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

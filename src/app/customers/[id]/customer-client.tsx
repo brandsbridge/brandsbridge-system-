@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -15,10 +14,21 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogDescription
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
+import { useFirestore, useDoc, useMemoFirebase, useUser } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
+import { emailService } from "@/services/email-service";
 
 const StarRating = ({ rating }: { rating: number }) => (
   <div className="flex gap-0.5">
@@ -31,8 +41,14 @@ const StarRating = ({ rating }: { rating: number }) => (
 export default function CustomerClient({ id }: { id: string }) {
   const router = useRouter();
   const db = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
+
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [isSending, setIsSending] = useState(false);
   
   const customerRef = useMemoFirebase(() => doc(db, "customers", id), [db, id]);
   const { data: customer, isLoading: loading } = useDoc(customerRef);
@@ -51,9 +67,6 @@ export default function CustomerClient({ id }: { id: string }) {
   const handleExportPDF = async () => {
     if (!customer) return;
     
-    const element = document.getElementById("customer-profile-container");
-    if (!element) return;
-
     toast({
       title: "Generating PDF",
       description: "Preparing your professional customer report...",
@@ -61,7 +74,10 @@ export default function CustomerClient({ id }: { id: string }) {
 
     try {
       const html2pdf = (await import("html2pdf.js")).default;
+      const element = document.getElementById("customer-profile-container");
       
+      if (!element) return;
+
       const opt = {
         margin: [10, 10],
         filename: `${customer.name.toLowerCase().replace(/\s+/g, '-')}-profile.pdf`,
@@ -82,13 +98,6 @@ export default function CustomerClient({ id }: { id: string }) {
       const toHide = clone.querySelectorAll('.print-hidden, button, [role="tablist"], .dropdown-menu');
       toHide.forEach(el => (el as HTMLElement).style.display = 'none');
 
-      const cards = clone.querySelectorAll('.card, div[class*="border"]');
-      cards.forEach(card => {
-        (card as HTMLElement).style.borderColor = "#e2e8f0";
-        (card as HTMLElement).style.boxShadow = "none";
-        (card as HTMLElement).style.backgroundColor = "#ffffff";
-      });
-
       html2pdf().set(opt).from(clone).save();
       
       toast({
@@ -105,29 +114,55 @@ export default function CustomerClient({ id }: { id: string }) {
     }
   };
 
-  const handleComposeEmail = () => {
-    // Resolve email address across multiple data structures
-    const email = customer?.email || 
-                  customer?.contacts?.primary?.email || 
-                  customer?.contacts?.finance?.email;
+  const handleOpenContactDialog = () => {
+    const email = customer?.email || customer?.contacts?.primary?.email || customer?.contacts?.finance?.email;
     
-    if (email) {
-      const subject = encodeURIComponent(`Corporate Account Update: ${customer?.name || "Client Notification"}`);
-      const body = encodeURIComponent(`Dear ${customer?.name || "Team"},\n\nI am reaching out regarding your account status and upcoming opportunities...`);
-      const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
-      
-      // Temporary link strategy for cross-browser stability
-      const link = document.createElement('a');
-      link.href = mailtoUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } else {
+    if (!email) {
       toast({
         variant: "destructive",
         title: "Action Restricted",
         description: "This customer profile is missing a registered contact email.",
       });
+      return;
+    }
+
+    setEmailSubject(`Corporate Account Update: ${customer?.name || "Client Notification"}`);
+    setEmailBody(`Dear ${customer?.name || "Team"},\n\nI am reaching out regarding your account status and upcoming opportunities...`);
+    setIsEmailDialogOpen(true);
+  };
+
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !customer) return;
+
+    setIsSending(true);
+    const targetEmail = customer.email || customer.contacts?.primary?.email || customer.contacts?.finance?.email;
+
+    try {
+      emailService.sendInternalEmail(db, {
+        to: targetEmail,
+        toName: customer.name,
+        subject: emailSubject,
+        body: emailBody,
+        senderName: user.displayName || "Manager",
+        senderId: user.uid,
+        entityId: id,
+        entityType: 'customer'
+      });
+
+      toast({
+        title: "Message Dispatched",
+        description: `Your update has been sent to ${customer.name} and logged in the CRM.`,
+      });
+      setIsEmailDialogOpen(false);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Transmission Error",
+        description: "The system was unable to dispatch the message. Please try again.",
+      });
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -184,7 +219,7 @@ export default function CustomerClient({ id }: { id: string }) {
         <div className="flex gap-2 flex-wrap print-hidden">
           <Button variant="outline" onClick={handleShare}><Share2 className="h-4 w-4 mr-2" /> Share</Button>
           <Button variant="outline" onClick={handleExportPDF}><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
-          <Button className="bg-primary shadow-lg shadow-primary/20" onClick={handleComposeEmail}><Send className="h-4 w-4 mr-2" /> Compose Email</Button>
+          <Button className="bg-primary shadow-lg shadow-primary/20" onClick={handleOpenContactDialog}><Send className="h-4 w-4 mr-2" /> Compose Email</Button>
         </div>
       </div>
 
@@ -330,6 +365,53 @@ export default function CustomerClient({ id }: { id: string }) {
           </Tabs>
         </div>
       </div>
+
+      <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <form onSubmit={handleSendEmail}>
+            <DialogHeader>
+              <DialogTitle>Compose Update</DialogTitle>
+              <DialogDescription>
+                Send a formal account communication to {customer.name}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Recipient</label>
+                <Input value={customer.email || customer.contacts?.primary?.email} disabled className="bg-muted/50" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Subject</label>
+                <Input 
+                  value={emailSubject} 
+                  onChange={(e) => setEmailSubject(e.target.value)} 
+                  required 
+                  placeholder="Account Status Update..."
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground">Message Body</label>
+                <Textarea 
+                  value={emailBody} 
+                  onChange={(e) => setEmailBody(e.target.value)} 
+                  required 
+                  className="min-h-[200px]"
+                  placeholder="Type your message here..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEmailDialogOpen(false)} disabled={isSending}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSending}>
+                {isSending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                Send Update
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
