@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
@@ -14,7 +13,11 @@ import {
   Plus,
   Loader2,
   FileText,
-  CreditCard
+  CreditCard,
+  ArrowRightLeft,
+  AlertCircle,
+  TrendingUp,
+  TrendingDown
 } from "lucide-react";
 import { 
   Table, 
@@ -41,8 +44,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where } from "firebase/firestore";
+import { collection, query, where, doc, getDoc } from "firebase/firestore";
 import { paymentService } from "@/services/payment-service";
+import { currencyService, SUPPORTED_CURRENCIES, type CurrencyCode, type ExchangeRates } from "@/services/currency-service";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { CHART_OF_ACCOUNTS } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
@@ -53,11 +57,15 @@ export default function PaymentsPage() {
   const { user } = useUser();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
+  const [paymentCurrency, setPaymentCurrency] = useState<CurrencyCode>('USD');
+  const [paymentAmount, setPaymentAmount] = useState<string>('0');
 
   useEffect(() => {
     const saved = localStorage.getItem("demoUser");
     if (saved) setCurrentUser(JSON.parse(saved));
-  }, []);
+    currencyService.fetchLatestRates(db).then(setExchangeRates);
+  }, [db]);
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!user || !currentUser) return null;
@@ -71,43 +79,50 @@ export default function PaymentsPage() {
 
   const stats = useMemo(() => {
     const safePayments = payments || [];
-    const received = safePayments.filter(p => p.type === 'received').reduce((acc, p) => acc + (p.amount || 0), 0);
-    const made = safePayments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.amount || 0), 0);
+    const received = safePayments.filter(p => p.type === 'received').reduce((acc, p) => acc + (p.totalUSD || p.amount || 0), 0);
+    const made = safePayments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.totalUSD || p.amount || 0), 0);
     return { received, made, net: received - made };
   }, [payments]);
 
   const handleRecordPayment = (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
+    const amount = parseFloat(paymentAmount) || 0;
+    const rate = exchangeRates?.rates[paymentCurrency] || 1;
+    
     const data = {
       partyName: formData.get('partyName'),
-      amount: parseFloat(formData.get('amount') as string),
+      amount: amount,
+      currency: paymentCurrency,
+      exchangeRateAtPayment: rate,
+      totalUSD: amount / rate,
       type: formData.get('type'),
       method: formData.get('method'),
       paidThrough: formData.get('paidThrough'),
       reference: formData.get('reference') || `REF-${Date.now().toString().slice(-4)}`,
       notes: formData.get('notes'),
       department: currentUser?.department || 'all',
-      date: new Date().toISOString(),
-      createdAt: new Date().toISOString()
+      date: new Date().toISOString()
     };
 
     paymentService.createPayment(db, data);
     setIsAddModalOpen(false);
-    toast({ title: "Payment Recorded", description: `Financial settlement saved to ledger.` });
+    toast({ title: "Payment Recorded", description: `Financial settlement of ${paymentCurrency} ${amount} saved.` });
   };
 
-  const bankAccounts = CHART_OF_ACCOUNTS.filter(a => a.name.includes('Bank') || a.name.includes('Cash'));
+  const usdPreview = useMemo(() => {
+    if (!exchangeRates) return 0;
+    return parseFloat(paymentAmount) / (exchangeRates.rates[paymentCurrency] || 1);
+  }, [paymentAmount, paymentCurrency, exchangeRates]);
 
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-headline">Payments Ledger</h1>
-          <p className="text-muted-foreground">Historical record of all bank transfers and cash settlements.</p>
+          <p className="text-muted-foreground">Historical record of all multi-currency bank transfers.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline"><Download className="mr-2 h-4 w-4" /> Export CSV</Button>
           <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
             <DialogTrigger asChild>
               <Button className="bg-primary"><Plus className="mr-2 h-4 w-4" /> Record Payment</Button>
@@ -131,8 +146,32 @@ export default function PaymentsPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase">Amount ($)</Label>
-                      <Input name="amount" type="number" step="0.01" required placeholder="0.00" />
+                      <Label className="text-xs font-bold uppercase">Currency</Label>
+                      <Select value={paymentCurrency} onValueChange={(v: any) => setPaymentCurrency(v)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {SUPPORTED_CURRENCIES.map(code => <SelectItem key={code} value={code}>{code}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase">Amount ({paymentCurrency})</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        required 
+                        value={paymentAmount}
+                        onChange={(e) => setPaymentAmount(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase text-muted-foreground">USD Equivalent</Label>
+                      <div className="h-10 px-3 py-2 bg-muted/50 rounded-md border flex items-center text-sm font-bold text-muted-foreground">
+                        ≈ USD {usdPreview.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
                     </div>
                   </div>
 
@@ -154,26 +193,9 @@ export default function PaymentsPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase">Paid Through Account</Label>
-                      <Select name="paidThrough" defaultValue="1000">
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {bankAccounts.map(acc => (
-                            <SelectItem key={acc.code} value={acc.code}>{acc.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Label className="text-xs font-bold uppercase">Reference #</Label>
+                      <Input name="reference" placeholder="e.g. Bank Ref" />
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">Reference #</Label>
-                    <Input name="reference" placeholder="e.g. TXN-9942 or Bank Ref" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase">Notes</Label>
-                    <Textarea name="notes" placeholder="Internal settlement details..." />
                   </div>
                 </div>
                 <DialogFooter>
@@ -189,7 +211,7 @@ export default function PaymentsPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="bg-green-500/5 border-green-500/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-green-500">Total Received</CardTitle>
+            <CardTitle className="text-xs font-bold uppercase text-green-500">Total Received (USD)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-500">${stats.received.toLocaleString()}</div>
@@ -197,7 +219,7 @@ export default function PaymentsPage() {
         </Card>
         <Card className="bg-red-500/5 border-red-500/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-red-500">Total Paid</CardTitle>
+            <CardTitle className="text-xs font-bold uppercase text-red-500">Total Paid (USD)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-500">${stats.made.toLocaleString()}</div>
@@ -205,7 +227,7 @@ export default function PaymentsPage() {
         </Card>
         <Card className="bg-primary/5 border-primary/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-primary">Net Cash Impact</CardTitle>
+            <CardTitle className="text-xs font-bold uppercase text-primary">Net USD Impact</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-primary">${stats.net.toLocaleString()}</div>
@@ -214,13 +236,6 @@ export default function PaymentsPage() {
       </div>
 
       <Card>
-        <CardHeader className="p-4 flex flex-row items-center justify-between">
-          <div className="relative w-full md:w-96">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search by name or reference..." className="pl-9" />
-          </div>
-          <Badge variant="outline" className="text-primary border-primary">LIVE LEDGER</Badge>
-        </CardHeader>
         {isLoading ? (
           <div className="py-20 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
         ) : (
@@ -229,41 +244,30 @@ export default function PaymentsPage() {
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Party Name</TableHead>
-                <TableHead>Reference</TableHead>
-                <TableHead>Method</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Original Currency</TableHead>
+                <TableHead className="text-right">USD Equivalent</TableHead>
+                <TableHead className="text-right">Type</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {(payments || []).map(pay => (
                 <TableRow key={pay.id}>
                   <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(pay.date)}</TableCell>
-                  <TableCell className="font-medium">
-                    {pay.partyName}
-                    <div className="text-[8px] uppercase text-muted-foreground">{pay.department} Market</div>
-                  </TableCell>
-                  <TableCell className="font-mono text-[10px]">{pay.reference}</TableCell>
+                  <TableCell className="font-medium">{pay.partyName}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="text-[10px] capitalize">{pay.method}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    {pay.type === 'received' ? (
-                      <Badge className="bg-green-500/10 text-green-500 border-green-500/20 text-[10px]">Inward</Badge>
-                    ) : (
-                      <Badge className="bg-red-500/10 text-red-500 border-red-500/20 text-[10px]">Outward</Badge>
-                    )}
+                    <div className="font-bold text-xs">{pay.currency || 'USD'} {pay.amount?.toLocaleString()}</div>
+                    <div className="text-[8px] text-muted-foreground">Rate: {pay.exchangeRateAtPayment?.toFixed(4) || '1.0000'}</div>
                   </TableCell>
                   <TableCell className={cn("text-right font-bold", pay.type === 'received' ? "text-green-500" : "text-red-500")}>
-                    {pay.type === 'received' ? '+' : '-'}${pay.amount.toLocaleString()}
+                    {pay.type === 'received' ? '+' : '-'}${ (pay.totalUSD || pay.amount || 0).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Badge className={pay.type === 'received' ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-red-500/10 text-red-500 border-red-500/20"}>
+                      {pay.type === 'received' ? 'Inward' : 'Outward'}
+                    </Badge>
                   </TableCell>
                 </TableRow>
               ))}
-              {(!payments || payments.length === 0) && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground italic">No payment records found.</TableCell>
-                </TableRow>
-              )}
             </TableBody>
           </Table>
         )}

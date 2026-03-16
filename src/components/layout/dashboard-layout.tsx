@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect } from "react";
@@ -39,7 +38,8 @@ import {
   FileMinus,
   Banknote,
   Loader2,
-  CreditCard as CreditCardIcon
+  CreditCard as CreditCardIcon,
+  Globe
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -128,6 +128,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { name: "Purchase History", href: "/purchases", icon: CreditCard },
     { name: "Bulk Uploads", href: "/uploads", icon: Upload },
     { type: 'separator', label: 'Admin' },
+    { name: "Currency Control", href: "/admin/system/currency", icon: Globe },
     { name: "Shared Clients", href: "/admin/shared-clients", icon: ShieldCheck },
     { name: "Permissions", href: "/admin/permissions", icon: ShieldAlert },
     { name: "Employees", href: "/employees", icon: Briefcase },

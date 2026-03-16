@@ -1,13 +1,10 @@
-
 "use client";
 
 import React, { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  ArrowLeft, Download, Printer, CheckCircle2, Clock, XCircle,
-  Building, Loader2, Trash2, Languages, Info, Mail, Send,
-  FileSearch, Eye, ShieldCheck, Truck, MapPin, BadgeDollarSign,
-  Package, Scale, Boxes, History
+  ArrowLeft, Download, Printer, CheckCircle2, Building, Loader2,
+  Languages, ArrowRightLeft, FileText, BadgeDollarSign
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,22 +20,15 @@ import {
 } from "@/components/ui/table";
 import { useDoc, useFirestore, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
-import { invoiceService } from "@/services/invoice-service";
+import { currencyService } from "@/services/currency-service";
 import { toast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 
-// Helper to chunk items for pagination
 const chunkItems = (items: any[], size: number) => {
   const chunks = [];
   for (let i = 0; i < items.length; i += size) {
     chunks.push(items.slice(i, i + size));
   }
   return chunks;
-};
-
-// Helper to convert number to words (Simplified for demo)
-const amountToWords = (num: number) => {
-  return "FORTY FIVE THOUSAND SIX HUNDRED SEVENTY DOLLARS AND FIFTY CENTS ONLY";
 };
 
 export default function InvoiceClient({ id }: { id: string }) {
@@ -74,15 +64,15 @@ export default function InvoiceClient({ id }: { id: string }) {
 
   const lineChunks = chunkItems(invoice.lineItems || [], 17);
   const totalPages = lineChunks.length;
+  const currency = invoice.currency || 'USD';
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-20">
-      {/* Top Controls */}
       <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft className="h-4 w-4" /></Button>
           <div>
-            <h1 className="text-2xl font-bold">{invoice.type} Invoice</h1>
+            <h1 className="text-2xl font-bold">Invoice Details</h1>
             <p className="text-muted-foreground text-xs">{invoice.number}</p>
           </div>
         </div>
@@ -92,175 +82,109 @@ export default function InvoiceClient({ id }: { id: string }) {
         </div>
       </div>
 
-      {/* Invoice Document Container */}
-      <div id="invoice-container" className="bg-white text-black p-0 shadow-2xl space-y-0">
+      <div id="invoice-container" className="bg-white text-black p-0 shadow-2xl space-y-0 border border-gray-200">
         {lineChunks.map((chunk, pageIdx) => (
-          <div key={pageIdx} className="page-break-after-always min-h-[297mm] w-[210mm] mx-auto p-10 flex flex-col relative border-b last:border-b-0">
+          <div key={pageIdx} className="page-break-after-always min-h-[297mm] w-[210mm] mx-auto p-10 flex flex-col relative">
             {/* Header */}
-            <div className="flex justify-between items-start mb-8">
+            <div className="flex justify-between items-start mb-12">
               <div className="space-y-4">
-                <div className="h-16 w-48 bg-primary/10 rounded flex items-center justify-center border-2 border-dashed border-primary/20">
-                  <span className="text-primary font-black text-xl tracking-tighter italic">BRANDS BRIDGE</span>
+                <div className="h-12 w-48 bg-black flex items-center justify-center rounded">
+                  <span className="text-white font-black text-lg italic">BIZFLOW GLOBAL</span>
                 </div>
-                <div className="text-[10px] leading-tight text-gray-600 font-medium">
-                  <p className="font-bold text-black uppercase">Brands Bridge General Trading LLC</p>
+                <div className="text-[10px] leading-tight text-gray-600 font-medium uppercase">
+                  <p className="font-black text-black">Brands Bridge General Trading LLC</p>
                   <p>Al Garhoud, Dubai, UAE</p>
                   <p>VAT ID: 100223344550003</p>
-                  <p>BDO: 992881772</p>
                 </div>
               </div>
               <div className="text-right">
-                <h2 className="text-3xl font-black text-gray-200 tracking-tighter uppercase mb-2">Export Invoice</h2>
+                <h2 className="text-2xl font-black tracking-tight uppercase mb-2">Sales Invoice</h2>
                 <div className="space-y-1 text-[10px] font-bold">
-                  <p>Number: <span className="font-mono text-primary">{invoice.number}</span></p>
-                  <p>Date of Issue: {invoice.dateIssue}</p>
-                  <p>Date of Sale: {invoice.dateSale || invoice.dateIssue}</p>
+                  <p>Number: <span className="text-primary">{invoice.number}</span></p>
+                  <p>Date: {invoice.dateIssue}</p>
                   <p className="text-gray-400 mt-2">Page {pageIdx + 1} of {totalPages}</p>
                 </div>
               </div>
             </div>
 
-            {/* Entity Blocks */}
-            <div className="grid grid-cols-2 gap-8 mb-8">
-              <div className="p-4 bg-gray-50 border rounded-sm space-y-2">
-                <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 border-b pb-1 mb-2">Buyer / Consignee</h3>
+            <div className="grid grid-cols-2 gap-8 mb-12">
+              <div className="p-4 bg-gray-50 border rounded space-y-2">
+                <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 border-b pb-1 mb-2">Buyer / Client</h3>
                 <div className="text-xs font-bold leading-relaxed">
                   <p className="text-sm font-black">{invoice.customerName}</p>
-                  <p className="font-normal text-gray-600">Main Distribution Hub, Sector 12</p>
                   <p className="font-normal text-gray-600">{invoice.destinationCountry}</p>
-                  <p className="mt-2">VAT ID: 992881772</p>
                 </div>
               </div>
-              <div className="p-4 bg-gray-50 border rounded-sm space-y-2">
-                <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 border-b pb-1 mb-2">Recipient</h3>
-                <div className="text-xs font-bold leading-relaxed">
-                  <p className="text-sm font-black">{invoice.recipientName || invoice.customerName}</p>
-                  <p className="font-normal text-gray-600">Global Logistics Center</p>
-                  <p className="font-normal text-gray-600">{invoice.destinationCountry}</p>
-                  <p className="mt-2">VAT ID: 992881772</p>
+              <div className="p-4 bg-gray-50 border rounded space-y-2">
+                <h3 className="text-[9px] font-black uppercase tracking-widest text-gray-400 border-b pb-1 mb-2">Currency Reference</h3>
+                <div className="text-xs font-bold space-y-1">
+                  <p>Transaction Currency: <span className="font-black text-primary">{currency}</span></p>
+                  {currency !== 'USD' && (
+                    <p className="text-[9px] text-gray-500 font-medium italic">
+                      Exchange Rate: 1 USD = {(invoice.exchangeRate || 1).toFixed(4)} {currency}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Logistics Info */}
-            <div className="grid grid-cols-4 gap-4 p-4 border mb-8 rounded-sm bg-primary/[0.02]">
-              <div className="space-y-1">
-                <p className="text-[8px] font-black text-gray-400 uppercase">Delivery Terms</p>
-                <p className="text-xs font-bold">{invoice.deliveryTerms || 'CIF'}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[8px] font-black text-gray-400 uppercase">Shipment Date</p>
-                <p className="text-xs font-bold">{invoice.shippingInfo?.shipmentDate || 'Pending'}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[8px] font-black text-gray-400 uppercase">Destination</p>
-                <p className="text-xs font-bold">{invoice.destinationCountry}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[8px] font-black text-gray-400 uppercase">Container #</p>
-                <p className="text-xs font-bold font-mono">{invoice.shippingInfo?.containerNumber || 'N/A'}</p>
-              </div>
-            </div>
-
-            {/* Items Table */}
             <div className="flex-grow">
-              <Table className="border-collapse">
-                <TableHeader>
-                  <TableRow className="bg-gray-100 border-y-2 border-black">
+              <Table>
+                <TableHeader className="bg-gray-100">
+                  <TableRow className="border-y-2 border-black">
                     <TableHead className="h-8 text-[9px] font-black text-black px-2 uppercase">No.</TableHead>
-                    <TableHead className="h-8 text-[9px] font-black text-black px-2 uppercase">GTIN / Barcode</TableHead>
                     <TableHead className="h-8 text-[9px] font-black text-black px-2 uppercase">Description</TableHead>
-                    <TableHead className="h-8 text-[9px] font-black text-black px-2 uppercase text-right">CS</TableHead>
-                    <TableHead className="h-8 text-[9px] font-black text-black px-2 uppercase text-right">PCS</TableHead>
-                    <TableHead className="h-8 text-[9px] font-black text-black px-2 uppercase text-right">Price</TableHead>
-                    <TableHead className="h-8 text-[9px] font-black text-black px-2 uppercase text-right">Total USD</TableHead>
+                    <TableHead className="h-8 text-[9px] font-black text-black px-2 uppercase text-right">Qty</TableHead>
+                    <TableHead className="h-8 text-[9px] font-black text-black px-2 uppercase text-right">Price ({currency})</TableHead>
+                    <TableHead className="h-8 text-[9px] font-black text-black px-2 uppercase text-right">Total ({currency})</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {chunk.map((item: any, i: number) => (
-                    <TableRow key={i} className="border-b border-gray-200 hover:bg-transparent">
-                      <TableCell className="py-2 px-2 text-[10px] font-medium">{(pageIdx * 17) + i + 1}</TableCell>
-                      <TableCell className="py-2 px-2 text-[9px] font-mono">{item.gtin}</TableCell>
-                      <TableCell className="py-2 px-2 text-[10px] font-black leading-tight max-w-[200px]">{item.description}</TableCell>
-                      <TableCell className="py-2 px-2 text-[10px] font-bold text-right">{item.quantityCs}</TableCell>
-                      <TableCell className="py-2 px-2 text-[10px] font-bold text-right text-gray-500">{item.quantityPcs}</TableCell>
-                      <TableCell className="py-2 px-2 text-[10px] font-bold text-right font-mono">${item.priceNet.toFixed(2)}</TableCell>
-                      <TableCell className="py-2 px-2 text-[10px] font-black text-right font-mono">${item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                    <TableRow key={i} className="border-b border-gray-200">
+                      <TableCell className="py-2 px-2 text-[10px]">{(pageIdx * 17) + i + 1}</TableCell>
+                      <TableCell className="py-2 px-2 text-[10px] font-black">{item.description}</TableCell>
+                      <TableCell className="py-2 px-2 text-[10px] text-right font-medium">{item.quantityCs || item.quantity || 0}</TableCell>
+                      <TableCell className="py-2 px-2 text-[10px] text-right font-mono">{item.priceNet?.toFixed(2)}</TableCell>
+                      <TableCell className="py-2 px-2 text-[10px] font-black text-right font-mono">{item.total?.toLocaleString()}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </div>
 
-            {/* Page Footer / Grand Footer */}
-            {pageIdx === totalPages - 1 ? (
-              <div className="mt-8 space-y-8">
-                <div className="grid grid-cols-2 gap-12">
-                  <div className="space-y-4">
-                    <div className="p-4 border rounded bg-gray-50">
-                      <h4 className="text-[9px] font-black uppercase mb-2 text-gray-400">Payment Terms</h4>
-                      <div className="text-[10px] font-bold space-y-1">
-                        <p>Method: {invoice.paymentTerms?.method || 'Bank Transfer'}</p>
-                        <p>Due Date: {invoice.paymentTerms?.dueDate || 'On Receipt'}</p>
-                        <p className="text-gray-500 italic mt-2">{invoice.paymentTerms?.notes || 'Please include invoice number in reference.'}</p>
+            {pageIdx === totalPages - 1 && (
+              <div className="mt-12 space-y-8">
+                <div className="flex justify-end">
+                  <div className="w-1/2 space-y-2 border-t-2 border-black pt-4">
+                    <div className="flex justify-between items-center text-sm font-black">
+                      <span>Grand Total ({currency}):</span>
+                      <span className="text-xl">{currency} {(invoice.total || invoice.totals?.gross || 0).toLocaleString()}</span>
+                    </div>
+                    {currency !== 'USD' && (
+                      <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 italic">
+                        <span>USD Equivalent:</span>
+                        <span>USD ${(invoice.totalUSD || invoice.total || invoice.totals?.gross || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                       </div>
-                    </div>
-                    <div className="p-4 border rounded bg-primary/[0.03]">
-                      <h4 className="text-[9px] font-black uppercase mb-1 text-primary">Amount in Words</h4>
-                      <p className="text-[10px] font-black italic">{amountToWords(invoice.totals?.gross || 0)}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-xs font-bold">
-                      <span className="text-gray-500">Total Net Weight:</span>
-                      <span>{invoice.totals?.weightNet} kg</span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs font-bold">
-                      <span className="text-gray-500">Total Gross Weight:</span>
-                      <span>{invoice.totals?.weightGross} kg</span>
-                    </div>
-                    <Separator className="my-2" />
-                    <div className="flex justify-between items-end">
-                      <div className="text-right flex-grow pr-4">
-                        <p className="text-[10px] font-black uppercase text-gray-400">Total Amount Payable</p>
-                        <p className="text-3xl font-black tracking-tighter text-primary">USD ${(invoice.totals?.gross || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
-
-                {/* Signatures */}
                 <div className="grid grid-cols-3 gap-8 pt-12 border-t">
                   <div className="text-center space-y-4">
-                    <div className="h-20 border-b border-gray-300 flex items-end justify-center pb-2">
-                      <span className="text-[8px] text-gray-300 uppercase">Manager Signature</span>
-                    </div>
-                    <p className="text-[9px] font-black uppercase">Issued by</p>
+                    <div className="h-16 border-b border-gray-300"></div>
+                    <p className="text-[9px] font-black uppercase">Issued By</p>
                   </div>
                   <div className="text-center space-y-4">
-                    <div className="h-20 border-b border-gray-300 flex items-end justify-center pb-2">
-                      <span className="text-[8px] text-gray-300 uppercase">Logistics Stamp</span>
-                    </div>
-                    <p className="text-[9px] font-black uppercase">Goods Collected</p>
+                    <div className="h-16 border-b border-gray-300"></div>
+                    <p className="text-[9px] font-black uppercase">Goods Dispatched</p>
                   </div>
                   <div className="text-center space-y-4">
-                    <div className="h-20 border-b border-gray-300 flex items-end justify-center pb-2">
-                      <span className="text-[8px] text-gray-300 uppercase">Customer Signature</span>
-                    </div>
+                    <div className="h-16 border-b border-gray-300"></div>
                     <p className="text-[9px] font-black uppercase">Receiver</p>
                   </div>
                 </div>
               </div>
-            ) : (
-              <div className="mt-4 pt-4 border-t text-right">
-                <p className="text-[10px] font-black uppercase text-gray-400 italic">Page Subtotal continues on next page...</p>
-              </div>
             )}
-
-            {/* Watermark */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-45 pointer-events-none opacity-[0.03]">
-              <span className="text-[150px] font-black tracking-tighter uppercase">{invoice.status}</span>
-            </div>
           </div>
         ))}
       </div>

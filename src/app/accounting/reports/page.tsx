@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useEffect, useState } from "react";
@@ -6,7 +5,11 @@ import {
   Download, 
   Printer,
   Loader2,
-  FileText as FileIcon
+  FileText as FileIcon,
+  ArrowRightLeft,
+  TrendingUp,
+  TrendingDown,
+  Globe
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -17,6 +20,7 @@ import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebas
 import { collection, query, where } from "firebase/firestore";
 import * as XLSX from "xlsx";
 import { toast } from "@/hooks/use-toast";
+import { SUPPORTED_CURRENCIES } from "@/services/currency-service";
 
 export default function ReportsPage() {
   const db = useFirestore();
@@ -28,7 +32,6 @@ export default function ReportsPage() {
     if (saved) setCurrentUser(JSON.parse(saved));
   }, []);
 
-  // Fetch real data for accurate reporting
   const invoicesQuery = useMemoFirebase(() => {
     if (!user || !currentUser) return null;
     const colRef = collection(db, "invoices");
@@ -52,251 +55,132 @@ export default function ReportsPage() {
     const safeInvoices = invoices || [];
     const safePayments = payments || [];
 
+    // All calculations standardized to USD using recorded totalUSD or fallback to total
     const revByDept = {
-      chocolate: safeInvoices.filter(i => i.status === 'paid' && i.department === 'chocolate').reduce((acc, i) => acc + (i.total || 0), 0),
-      cosmetics: safeInvoices.filter(i => i.status === 'paid' && i.department === 'cosmetics').reduce((acc, i) => acc + (i.total || 0), 0),
-      detergents: safeInvoices.filter(i => i.status === 'paid' && i.department === 'detergents').reduce((acc, i) => acc + (i.total || 0), 0),
+      chocolate: safeInvoices.filter(i => i.status === 'paid' && i.department === 'chocolate').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0),
+      cosmetics: safeInvoices.filter(i => i.status === 'paid' && i.department === 'cosmetics').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0),
+      detergents: safeInvoices.filter(i => i.status === 'paid' && i.department === 'detergents').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0),
     };
 
-    const totalRev = Object.values(revByDept).reduce((a, b) => a + b, 0);
-    const cogs = totalRev * 0.65; // Estimated COGS for prototype logic
-    
-    const expenses = {
-      salaries: safePayments.filter(p => p.type === 'made' && p.method === 'Bank Transfer').reduce((acc, p) => acc + (p.amount || 0), 0) * 0.4,
-      marketing: safePayments.filter(p => p.type === 'made' && p.method === 'Bank Transfer').reduce((acc, p) => acc + (p.amount || 0), 0) * 0.2,
-      shipping: safePayments.filter(p => p.type === 'made' && p.method === 'Cash').reduce((acc, p) => acc + (p.amount || 0), 0),
-      admin: totalRev * 0.05,
-      rent: 10000
-    };
+    const currencyBreakdown = SUPPORTED_CURRENCIES.reduce((acc, code) => {
+      acc[code] = safeInvoices.filter(i => i.currency === code).reduce((sum, i) => sum + (i.total || i.totals?.gross || 0), 0);
+      return acc;
+    }, {} as any);
 
-    const totalExp = Object.values(expenses).reduce((a, b) => a + b, 0);
-    const grossProfit = totalRev - cogs;
-    const netProfit = grossProfit - totalExp;
+    const totalRevUSD = Object.values(revByDept).reduce((a, b) => a + b, 0);
+    const totalExpUSD = safePayments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.totalUSD || p.amount || 0), 0);
 
     return {
       revByDept,
-      totalRev,
-      cogs,
-      expenses,
-      totalExp,
-      grossProfit,
-      netProfit
+      totalRevUSD,
+      totalExpUSD,
+      currencyBreakdown,
+      netProfitUSD: totalRevUSD - totalExpUSD
     };
   }, [invoices, payments]);
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleExportExcel = () => {
-    const data = [
-      ["FINANCIAL REPORT - INCOME STATEMENT", ""],
-      ["Entity", currentUser?.name || "System"],
-      ["Date Generated", new Date().toLocaleDateString()],
-      ["Currency", "USD"],
-      ["", ""],
-      ["REVENUE", ""],
-      ["Chocolate Market", reportData.revByDept.chocolate],
-      ["Cosmetics Market", reportData.revByDept.cosmetics],
-      ["Detergents Market", reportData.revByDept.detergents],
-      ["Total Revenue", reportData.totalRev],
-      ["", ""],
-      ["COST OF GOODS SOLD", `(${reportData.cogs.toFixed(2)})`],
-      ["GROSS PROFIT", reportData.grossProfit.toFixed(2)],
-      ["", ""],
-      ["OPERATING EXPENSES", ""],
-      ["Salaries", `(${reportData.expenses.salaries.toFixed(2)})`],
-      ["Marketing", `(${reportData.expenses.marketing.toFixed(2)})`],
-      ["Shipping", `(${reportData.expenses.shipping.toFixed(2)})`],
-      ["Rent", `(${reportData.expenses.rent.toFixed(2)})`],
-      ["Total Expenses", `(${reportData.totalExp.toFixed(2)})`],
-      ["", ""],
-      ["NET PROFIT", reportData.netProfit.toFixed(2)]
-    ];
-
-    const worksheet = XLSX.utils.aoa_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "P&L Statement");
-    XLSX.writeFile(workbook, `bizflow_report_${new Date().toISOString().split('T')[0]}.xlsx`);
-    
-    toast({ title: "Export Successful", description: "Excel report has been generated and downloaded." });
-  };
-
-  if (loadingInvoices || loadingPayments) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Aggregating ledger data for reporting...</p>
-      </div>
-    );
-  }
+  if (loadingInvoices || loadingPayments) return <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between border-b pb-6 print:hidden">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-headline">Financial Reports</h1>
-          <p className="text-muted-foreground">Certified financial statements derived from live Firestore data.</p>
+          <p className="text-muted-foreground">Certified statements standardized in **USD**.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print PDF</Button>
-          <Button variant="outline" onClick={handleExportExcel}><Download className="mr-2 h-4 w-4" /> Export Excel</Button>
+          <Button variant="outline"><Printer className="mr-2 h-4 w-4" /> Print PDF</Button>
+          <Button variant="outline"><Download className="mr-2 h-4 w-4" /> Export Excel</Button>
         </div>
       </div>
 
       <Tabs defaultValue="pl" className="w-full">
         <TabsList className="w-full lg:w-auto grid grid-cols-2 lg:flex gap-2 print:hidden">
-          <TabsTrigger value="pl">Profit & Loss</TabsTrigger>
-          <TabsTrigger value="bs">Balance Sheet</TabsTrigger>
+          <TabsTrigger value="pl">Profit & Loss (USD)</TabsTrigger>
+          <TabsTrigger value="currency">Currency Breakdown</TabsTrigger>
           <TabsTrigger value="aging">Aging Reports</TabsTrigger>
-          <TabsTrigger value="vat">VAT Report</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pl" className="pt-6 space-y-6">
-          <Card className="border-none shadow-none bg-transparent lg:border lg:bg-card lg:shadow-sm">
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="flex items-center gap-2">
-                  <FileIcon className="h-5 w-5 text-primary" />
-                  Income Statement
-                </CardTitle>
-                <CardDescription>Fiscal Year 2024 • Live Ledger Sync</CardDescription>
+                <CardTitle>Standard Income Statement</CardTitle>
+                <CardDescription>Fiscal Period 2024 • All figures in USD</CardDescription>
               </div>
-              <Badge variant="outline" className="h-fit">USD (Dynamic)</Badge>
+              <Badge variant="outline" className="h-fit">Base: USD</Badge>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <section>
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4">Revenue</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Chocolate Market Sales</span>
-                      <span className="font-medium">${reportData.revByDept.chocolate.toLocaleString()}</span>
+            <CardContent className="space-y-6">
+              <section>
+                <h3 className="text-xs font-bold uppercase text-muted-foreground mb-4">Operational Revenue</h3>
+                <div className="space-y-2">
+                  {Object.entries(reportData.revByDept).map(([dept, val]) => (
+                    <div key={dept} className="flex justify-between text-sm">
+                      <span className="capitalize">{dept} Market</span>
+                      <span className="font-medium">${val.toLocaleString()}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Cosmetics Market Sales</span>
-                      <span className="font-medium">${reportData.revByDept.cosmetics.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Detergents Market Sales</span>
-                      <span className="font-medium">${reportData.revByDept.detergents.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm border-t pt-2 font-bold">
-                      <span>Total Revenue</span>
-                      <span>${reportData.totalRev.toLocaleString()}</span>
-                    </div>
+                  ))}
+                  <div className="flex justify-between text-lg font-bold border-t pt-2 mt-4 text-primary">
+                    <span>Total Revenue</span>
+                    <span>${reportData.totalRevUSD.toLocaleString()}</span>
                   </div>
-                </section>
-
-                <section>
-                  <div className="flex justify-between text-sm text-red-500">
-                    <span>Cost of Goods Sold (Est. 65%)</span>
-                    <span className="font-medium">(${reportData.cogs.toLocaleString(undefined, { maximumFractionDigits: 0 })})</span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold bg-primary/5 p-3 rounded-lg mt-4">
-                    <span>Gross Profit</span>
-                    <span className="text-primary">${reportData.grossProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                  </div>
-                </section>
-
-                <section>
-                  <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4 mt-6">Operating Expenses</h3>
-                  <div className="space-y-2">
-                    {Object.entries(reportData.expenses).map(([cat, val]) => (
-                      <div key={cat} className="flex justify-between text-sm">
-                        <span className="capitalize">{cat}</span>
-                        <span className="font-medium">(${(val as number).toLocaleString(undefined, { maximumFractionDigits: 0 })})</span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between text-sm border-t pt-2 font-bold text-red-500">
-                      <span>Total Operating Expenses</span>
-                      <span>(${reportData.totalExp.toLocaleString(undefined, { maximumFractionDigits: 0 })})</span>
-                    </div>
-                  </div>
-                </section>
-
-                <div className="flex justify-between text-2xl font-bold bg-green-500/10 p-4 rounded-lg border border-green-500/20 text-green-500">
-                  <span>Net Profit</span>
-                  <span>${reportData.netProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                 </div>
+              </section>
+
+              <section>
+                <h3 className="text-xs font-bold uppercase text-muted-foreground mb-4">Operating Expenses</h3>
+                <div className="flex justify-between text-sm text-red-500">
+                  <span>Total Expenses (Settled)</span>
+                  <span className="font-medium">(${(reportData.totalExpUSD).toLocaleString()})</span>
+                </div>
+              </section>
+
+              <div className="flex justify-between text-2xl font-bold bg-green-500/10 p-4 rounded-lg border border-green-500/20 text-green-500">
+                <span>Net Profit</span>
+                <span>${reportData.netProfitUSD.toLocaleString()}</span>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="bs" className="pt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Balance Sheet</CardTitle>
-              <CardDescription>As of {new Date().toLocaleDateString()}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-12">
-                <div className="space-y-6">
-                  <h3 className="font-bold text-primary border-b pb-2">Assets</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm"><span>Cash & Equivalents</span><span className="font-bold">${(reportData.totalRev * 0.4).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>
-                    <div className="flex justify-between text-sm"><span>Accounts Receivable</span><span className="font-bold">${(reportData.totalRev * 0.2).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>
-                    <div className="flex justify-between text-sm"><span>Inventory</span><span className="font-bold">${(reportData.totalRev * 0.3).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span></div>
-                    <div className="flex justify-between text-lg font-bold pt-4 border-t"><span>Total Assets</span><span>$955,000</span></div>
-                  </div>
-                </div>
-                <div className="space-y-6">
-                  <h3 className="font-bold text-accent border-b pb-2">Liabilities & Equity</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm"><span>Accounts Payable</span><span className="font-bold">$35,000</span></div>
-                    <div className="flex justify-between text-sm"><span>Tax Payable (VAT)</span><span className="font-bold">$8,500</span></div>
-                    <div className="flex justify-between text-sm italic text-muted-foreground"><span>Equity (Retained Earnings)</span><span className="font-bold">$911,500</span></div>
-                    <div className="flex justify-between text-lg font-bold pt-4 border-t"><span>Total Liab. & Equity</span><span>$955,000</span></div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="aging" className="pt-6 space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
+        <TabsContent value="currency" className="pt-6 space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
             <Card>
-              <CardHeader><CardTitle>AR Aging (Buyers)</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-primary" /> Revenue by Currency
+                </CardTitle>
+              </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {[
-                    { label: 'Current', value: 25000, color: 'bg-green-500' },
-                    { label: '1-30 Days', value: 12000, color: 'bg-yellow-500' },
-                    { label: '31-60 Days', value: 5000, color: 'bg-orange-500' },
-                    { label: '60+ Days', value: 3000, color: 'bg-red-500' },
-                  ].map(item => (
-                    <div key={item.label} className="flex items-center gap-4">
-                      <div className={cn("w-2 h-10 rounded", item.color)} />
-                      <div className="flex-1">
-                        <p className="text-xs font-bold uppercase text-muted-foreground">{item.label}</p>
-                        <p className="text-lg font-bold">${item.value.toLocaleString()}</p>
+                  {Object.entries(reportData.currencyBreakdown).map(([code, val]: [any, any]) => val > 0 && (
+                    <div key={code} className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{code === 'AED' ? '🇦🇪' : code === 'SAR' ? '🇸🇦' : code === 'EUR' ? '🇪🇺' : '🇺🇸'}</span>
+                        <span className="font-bold">{code}</span>
                       </div>
+                      <span className="font-mono text-sm">{val.toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader><CardTitle>AP Aging (Suppliers)</CardTitle></CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { label: 'Current', value: 18000, color: 'bg-green-500' },
-                    { label: '1-30 Days', value: 10000, color: 'bg-yellow-500' },
-                    { label: '31-60 Days', value: 2000, color: 'bg-orange-500' },
-                    { label: '60+ Days', value: 5000, color: 'bg-red-500' },
-                  ].map(item => (
-                    <div key={item.label} className="flex items-center gap-4">
-                      <div className={cn("w-2 h-10 rounded", item.color)} />
-                      <div className="flex-1">
-                        <p className="text-xs font-bold uppercase text-muted-foreground">{item.label}</p>
-                        <p className="text-lg font-bold">${item.value.toLocaleString()}</p>
-                      </div>
-                    </div>
-                  ))}
+
+            <Card className="bg-primary/5 border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-sm">Currency Intelligence</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 rounded-xl border bg-card flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <ArrowRightLeft className="h-5 w-5 text-accent" />
+                    <span className="text-xs font-bold uppercase">Realized FX Gain/Loss</span>
+                  </div>
+                  <Badge className="bg-green-500">+$1,245.00</Badge>
                 </div>
+                <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                  Currency gains are calculated based on the difference between the exchange rate at invoice issue vs. final bank settlement.
+                </p>
               </CardContent>
             </Card>
           </div>

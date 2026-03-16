@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
@@ -12,7 +11,9 @@ import {
   TrendingUp,
   Target,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Globe,
+  FileText
 } from "lucide-react";
 import { 
   Tooltip, 
@@ -32,7 +33,7 @@ import { Employee } from "@/lib/mock-data";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { collection, query, orderBy, limit } from "firebase/firestore";
 
 const COLORS = ['#755EDE', '#5182E0', '#F59E0B', '#EF4444', '#10B981'];
 
@@ -42,172 +43,138 @@ export default function OverviewPage() {
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
   const db = useFirestore();
 
-  // Memoize Firestore Collections - Derived from live data
-  const suppliersCol = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
-  const customersCol = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
-  const uploadLogsCol = useMemoFirebase(() => user ? collection(db, "uploadLogs") : null, [db, user]);
-  const leadsCol = useMemoFirebase(() => user ? collection(db, "leads") : null, [db, user]);
-  const productsCol = useMemoFirebase(() => user ? collection(db, "products") : null, [db, user]);
-
-  const { data: fbSuppliers = [], isLoading: loadingSuppliers } = useCollection(suppliersCol);
-  const { data: fbCustomers = [], isLoading: loadingCustomers } = useCollection(customersCol);
-  const { data: fbUploadLogs = [], isLoading: loadingLogs } = useCollection(uploadLogsCol);
-  const { data: fbLeads = [], isLoading: loadingLeads } = useCollection(leadsCol);
-  const { data: fbProducts = [], isLoading: loadingProducts } = useCollection(productsCol);
-
   useEffect(() => {
     const savedUser = localStorage.getItem("demoUser");
     if (savedUser) {
       const u = JSON.parse(savedUser);
       setCurrentUser(u);
-      if (u.role === 'manager' && u.department !== 'all') {
-        router.push(`/department/${u.department}`);
-      }
     } else {
       router.push("/login");
     }
   }, [router]);
 
-  const deptComposition = useMemo(() => {
-    if (!fbCustomers) return [];
-    const depts = ['chocolate', 'cosmetics', 'detergents'];
-    return depts.map(d => ({
-      name: d.charAt(0).toUpperCase() + d.slice(1),
-      value: fbCustomers.filter((c: any) => c.departments?.includes(d)).length
-    })).filter(d => d.value > 0);
-  }, [fbCustomers]);
+  const invoicesCol = useMemoFirebase(() => user ? collection(db, "invoices") : null, [db, user]);
+  const customersCol = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
+  const { data: invoices = [], isLoading: loadingInvoices } = useCollection(invoicesCol);
+  const { data: customers = [] } = useCollection(customersCol);
 
-  const kpis = [
-    { title: "Suppliers", value: fbSuppliers?.length || 0, icon: Factory, color: "text-blue-500", loading: loadingSuppliers || isUserLoading },
-    { title: "Customers", value: fbCustomers?.length || 0, icon: Users, color: "text-purple-500", loading: loadingCustomers || isUserLoading },
-    { title: "Active Leads", value: fbLeads?.length || 0, icon: Target, color: "text-accent", loading: loadingLeads || isUserLoading },
-    { title: "Products", value: fbProducts?.length || 0, icon: TrendingUp, color: "text-orange-500", loading: loadingProducts || isUserLoading },
-    { title: "System", value: "Active", icon: ShieldCheck, color: "text-green-500", loading: false },
-  ];
+  const stats = useMemo(() => {
+    const safeInvoices = invoices || [];
+    const revenueUSD = safeInvoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
+    
+    // Currency breakdown
+    const breakdown = {
+      AED: safeInvoices.filter(i => i.currency === 'AED').reduce((acc, i) => acc + (i.total || i.totals?.gross || 0), 0),
+      SAR: safeInvoices.filter(i => i.currency === 'SAR').reduce((acc, i) => acc + (i.total || i.totals?.gross || 0), 0),
+      USD: safeInvoices.filter(i => !i.currency || i.currency === 'USD').reduce((acc, i) => acc + (i.total || i.totals?.gross || 0), 0)
+    };
 
-  if (!currentUser || (currentUser.role === 'manager' && currentUser.department !== 'all')) return null;
+    return {
+      revenueUSD,
+      customersCount: customers?.length || 0,
+      breakdown
+    };
+  }, [invoices, customers]);
+
+  if (!currentUser) return null;
 
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-headline">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, <strong className="text-primary">{currentUser.name}</strong>. Global system status live from Firestore.</p>
+          <p className="text-muted-foreground">Standardized Reporting in **USD**.</p>
         </div>
         <div className="flex gap-2">
-          <Link href="/admin/system">
-            <Button variant="outline" size="sm">
-              <AlertCircle className="mr-2 h-4 w-4" /> System Hub
-            </Button>
-          </Link>
-          <Link href="/employees">
-            <Button size="sm">
-              <UserPlus className="mr-2 h-4 w-4" /> Manage Team
-            </Button>
+          <Link href="/admin/system/currency">
+            <Button variant="outline" size="sm"><Globe className="mr-2 h-4 w-4" /> Currency Control</Button>
           </Link>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        {kpis.map((kpi) => (
-          <Card key={kpi.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-xs font-medium uppercase text-muted-foreground">{kpi.title}</CardTitle>
-              <kpi.icon className={cn("h-4 w-4", kpi.color)} />
-            </CardHeader>
-            <CardContent>
-              {kpi.loading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              ) : (
-                <div className="text-2xl font-bold">{kpi.value}</div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-7">
-        <Card className="lg:col-span-4">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Global Activity Feed</CardTitle>
-              <CardDescription>Live system events and data synchronization.</CardDescription>
-            </div>
-            <Link href="/uploads">
-              <Button variant="ghost" size="sm" className="text-xs">Full History <ArrowRight className="ml-2 h-3 w-3" /></Button>
-            </Link>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Revenue (Paid USD)</CardTitle>
+            <TrendingUp className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            {loadingLogs ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : fbUploadLogs && fbUploadLogs.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Market</TableHead>
-                    <TableHead>Event</TableHead>
-                    <TableHead>Admin</TableHead>
-                    <TableHead className="text-right">Time</TableHead>
+            <div className="text-2xl font-bold">${stats.revenueUSD.toLocaleString()}</div>
+            <div className="mt-2 flex gap-3 text-[9px] font-bold text-muted-foreground uppercase border-t pt-2">
+              <span>🇦🇪 {stats.breakdown.AED.toLocaleString()}</span>
+              <span>🇸🇦 {stats.breakdown.SAR.toLocaleString()}</span>
+              <span>🇺🇸 {stats.breakdown.USD.toLocaleString()}</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Total Customers</CardTitle>
+            <Users className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.customersCount}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">System Status</CardTitle>
+            <ShieldCheck className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Active</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Active Invoices</CardTitle>
+            <FileText className="h-4 w-4 text-accent" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{invoices.length}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Global Activity Feed</CardTitle>
+            <CardDescription>Recent multi-currency transactions.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Invoice #</TableHead>
+                  <TableHead>Customer</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {invoices.slice(0, 5).map(inv => (
+                  <TableRow key={inv.id}>
+                    <TableCell className="font-mono text-xs font-bold">{inv.number}</TableCell>
+                    <TableCell className="text-xs">{inv.customerName}</TableCell>
+                    <TableCell className="text-right font-bold text-accent">
+                      {inv.currency || 'USD'} {(inv.total || inv.totals?.gross || 0).toLocaleString()}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {fbUploadLogs.slice(0, 6).map((log: any) => (
-                    <TableRow key={log.id}>
-                      <TableCell>
-                         <Badge variant="secondary" className="capitalize text-[10px]">{log.department}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle2 className="h-3 w-3 text-green-500" />
-                          <span className="text-xs font-medium truncate max-w-[150px]">Import: {log.fileName}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs font-bold">{log.uploadedBy}</TableCell>
-                      <TableCell className="text-right text-[10px] text-muted-foreground">{formatFirebaseTimestamp(log.uploadDate)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            ) : (
-              <div className="py-12 text-center text-sm text-muted-foreground italic">
-                {isUserLoading ? "Initializing session..." : "No recent activity logs found. Try activating Admin Status in System Hub."}
-              </div>
-            )}
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Market Composition</CardTitle>
-            <CardDescription>Customer distribution across segments</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              {deptComposition.length > 0 ? (
-                <PieChart>
-                  <Pie
-                    data={deptComposition}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {deptComposition.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend verticalAlign="bottom" />
-                </PieChart>
-              ) : (
-                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">No distribution data</div>
-              )}
-            </ResponsiveContainer>
-          </CardContent>
+        <Card className="bg-secondary/10 border-dashed border-2 flex flex-col items-center justify-center text-center p-8">
+          <Globe className="h-12 w-12 text-primary/20 mb-4" />
+          <h3 className="font-bold">Multi-Currency Engine</h3>
+          <p className="text-xs text-muted-foreground mt-2 max-w-xs">
+            Live rates are synchronized daily. Every transaction is preserved with its historical exchange rate for perfect financial reconciliation.
+          </p>
+          <Link href="/admin/system/currency">
+            <Button variant="outline" size="sm" className="mt-6">Manage Rates</Button>
+          </Link>
         </Card>
       </div>
     </div>
