@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo } from "react";
@@ -54,9 +53,68 @@ export default function SupplierClient({ id }: SupplierClientProps) {
     }
   };
 
-  const handleExportPDF = () => {
-    if (typeof window !== "undefined") {
-      window.print();
+  const handleExportPDF = async () => {
+    if (!supplier) return;
+    
+    const element = document.getElementById("supplier-profile-container");
+    if (!element) return;
+
+    toast({
+      title: "Generating PDF",
+      description: "Preparing your professional supplier report...",
+    });
+
+    try {
+      const html2pdf = (await import("html2pdf.js")).default;
+      
+      // Create a worker instance
+      const worker = html2pdf();
+      
+      const opt = {
+        margin: [10, 10],
+        filename: `${supplier.name.toLowerCase().replace(/\s+/g, '-')}-profile.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          letterRendering: true,
+          windowWidth: 1200 
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      // We clone the element to manipulate it for the PDF without affecting the live UI
+      const clone = element.cloneNode(true) as HTMLElement;
+      
+      // Force light theme styles for the PDF generation
+      clone.style.backgroundColor = "white";
+      clone.style.color = "black";
+      
+      // Hide non-report elements in the clone
+      const toHide = clone.querySelectorAll('.print-hidden, button, [role="tablist"], .dropdown-menu');
+      toHide.forEach(el => (el as HTMLElement).style.display = 'none');
+
+      // Ensure cards look professional in PDF
+      const cards = clone.querySelectorAll('.card, div[class*="border"]');
+      cards.forEach(card => {
+        (card as HTMLElement).style.borderColor = "#e2e8f0";
+        (card as HTMLElement).style.boxShadow = "none";
+        (card as HTMLElement).style.backgroundColor = "#ffffff";
+      });
+
+      await worker.set(opt).from(clone).save();
+      
+      toast({
+        title: "Export Successful",
+        description: "Your report has been downloaded.",
+      });
+    } catch (error) {
+      console.error("PDF Generation Error:", error);
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "Could not generate PDF. Please try again.",
+      });
     }
   };
 
@@ -70,7 +128,6 @@ export default function SupplierClient({ id }: SupplierClientProps) {
       const body = encodeURIComponent(`Dear ${supplier?.name || "Team"},\n\nWe are reaching out from the Procurement Department regarding your current catalog and availability...`);
       const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
       
-      // Use hidden anchor for more reliable mailto triggering
       const link = document.createElement('a');
       link.href = mailtoUrl;
       link.click();
@@ -111,28 +168,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
   };
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-10">
-      <style jsx global>{`
-        @media print {
-          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn, .fixed, .dropdown-menu, .role-switcher {
-            display: none !important;
-          }
-          main, .md\:pl-64 {
-            padding: 0 !important;
-            margin: 0 !important;
-            padding-left: 0 !important;
-          }
-          .card {
-            border: 1px solid #e2e8f0 !important;
-            box-shadow: none !important;
-          }
-          body {
-            background: white !important;
-            color: black !important;
-          }
-        }
-      `}</style>
-
+    <div id="supplier-profile-container" className="space-y-8 max-w-7xl mx-auto pb-10">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="print-hidden">
@@ -167,7 +203,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
 
       <div className="grid gap-6 lg:grid-cols-4">
         <div className="lg:col-span-1 space-y-6">
-          <Card>
+          <Card className="card">
             <CardContent className="pt-6 space-y-6">
               <div className="flex flex-col items-center text-center space-y-3 pb-4">
                 <div className="h-24 w-24 rounded-2xl bg-primary/10 flex items-center justify-center text-4xl font-bold text-primary border-2 border-primary/20">
@@ -218,7 +254,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
             </CardContent>
           </Card>
 
-          <Card className="bg-secondary/30">
+          <Card className="bg-secondary/30 card">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-xs uppercase flex items-center gap-2">
                 <Clock className="h-3 w-3" /> Audit Trail
@@ -252,7 +288,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6 pt-4">
-              <Card>
+              <Card className="card">
                 <CardHeader>
                   <CardTitle className="text-lg">Enterprise Profile</CardTitle>
                 </CardHeader>
@@ -295,7 +331,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                 </CardContent>
               </Card>
 
-              <Card className="border-primary/30 bg-primary/5">
+              <Card className="border-primary/30 bg-primary/5 card">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <div className="flex items-center gap-2">
                     <Lock className="h-4 w-4 text-primary" />
@@ -313,7 +349,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
 
             <TabsContent value="products" className="space-y-6 pt-4">
               <div className="grid md:grid-cols-2 gap-6">
-                <Card>
+                <Card className="card">
                   <CardHeader>
                     <CardTitle className="text-sm">Production Focus</CardTitle>
                   </CardHeader>
@@ -327,7 +363,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                     )}
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="card">
                   <CardHeader>
                     <CardTitle className="text-sm">Department Alignment</CardTitle>
                   </CardHeader>
@@ -345,7 +381,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                 </Card>
               </div>
 
-              <Card>
+              <Card className="card">
                 <CardHeader>
                   <CardTitle>Catalog Staples</CardTitle>
                 </CardHeader>
@@ -380,7 +416,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
 
             <TabsContent value="contacts" className="space-y-6 pt-4">
               <div className="grid md:grid-cols-2 gap-6">
-                <Card>
+                <Card className="card">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <Factory className="h-4 w-4 text-primary" /> Key Account Manager
@@ -401,7 +437,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                     )}
                   </CardContent>
                 </Card>
-                <Card>
+                <Card className="card">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm flex items-center gap-2">
                       <Globe className="h-4 w-4 text-accent" /> Logistics & Export
@@ -426,7 +462,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
 
             <TabsContent value="commercial" className="space-y-6 pt-4">
               <div className="grid md:grid-cols-3 gap-4">
-                <Card className="text-center p-4">
+                <Card className="text-center p-4 card">
                   <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Pricing Strategy</div>
                   <Badge className={cn(
                     "w-fit mx-auto px-4 py-1",
@@ -438,17 +474,17 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                     {supplier.pricing?.tier || 'Standard'}
                   </Badge>
                 </Card>
-                <Card className="text-center p-4">
+                <Card className="text-center p-4 card">
                   <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Minimum Order (MOQ)</div>
                   <p className="text-sm font-bold">{supplier.pricing?.moq || 'Variable'}</p>
                 </Card>
-                <Card className="text-center p-4">
+                <Card className="text-center p-4 card">
                   <div className="text-[10px] uppercase font-bold text-muted-foreground mb-1">Entry Value (MOV)</div>
                   <p className="text-sm font-bold">${(supplier.pricing?.mov || 0).toLocaleString()}</p>
                 </Card>
               </div>
 
-              <Card>
+              <Card className="card">
                 <CardHeader>
                   <CardTitle>Trade & Settlement Terms</CardTitle>
                 </CardHeader>
@@ -504,7 +540,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
                   { id: 'fda', label: 'FDA Approved', icon: ShieldCheck, data: supplier.certifications?.fda }
                 ].map((cert) => (
                   <Card key={cert.id} className={cn(
-                    "p-4 border-2 transition-all",
+                    "p-4 border-2 transition-all card",
                     cert.data?.has ? "border-green-500/20 bg-green-500/5" : "border-muted opacity-50"
                   )}>
                     <div className="flex items-center justify-between mb-2">

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -48,9 +47,61 @@ export default function CustomerClient({ id }: { id: string }) {
     }
   };
 
-  const handleExportPDF = () => {
-    if (typeof window !== "undefined") {
-      window.print();
+  const handleExportPDF = async () => {
+    if (!customer) return;
+    
+    const element = document.getElementById("customer-profile-container");
+    if (!element) return;
+
+    toast({
+      title: "Generating PDF",
+      description: "Preparing your professional customer report...",
+    });
+
+    try {
+      const html2pdf = (await import("html2pdf.js")).default;
+      const worker = html2pdf();
+      
+      const opt = {
+        margin: [10, 10],
+        filename: `${customer.name.toLowerCase().replace(/\s+/g, '-')}-profile.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          letterRendering: true,
+          windowWidth: 1200 
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      const clone = element.cloneNode(true) as HTMLElement;
+      clone.style.backgroundColor = "white";
+      clone.style.color = "black";
+      
+      const toHide = clone.querySelectorAll('.print-hidden, button, [role="tablist"], .dropdown-menu');
+      toHide.forEach(el => (el as HTMLElement).style.display = 'none');
+
+      const cards = clone.querySelectorAll('.card, div[class*="border"]');
+      cards.forEach(card => {
+        (card as HTMLElement).style.borderColor = "#e2e8f0";
+        (card as HTMLElement).style.boxShadow = "none";
+        (card as HTMLElement).style.backgroundColor = "#ffffff";
+      });
+
+      await worker.set(opt).from(clone).save();
+      
+      toast({
+        title: "Export Successful",
+        description: "Your report has been downloaded.",
+      });
+    } catch (error) {
+      console.error("PDF Generation Error:", error);
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "Could not generate PDF. Please try again.",
+      });
     }
   };
 
@@ -106,28 +157,7 @@ export default function CustomerClient({ id }: { id: string }) {
   };
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto pb-20">
-      <style jsx global>{`
-        @media print {
-          aside, header, .print-hidden, button, [role="tablist"], .role-switcher-btn, .fixed, .dropdown-menu, .role-switcher {
-            display: none !important;
-          }
-          main, .md\:pl-64 {
-            padding: 0 !important;
-            margin: 0 !important;
-            padding-left: 0 !important;
-          }
-          .card {
-            border: 1px solid #e2e8f0 !important;
-            box-shadow: none !important;
-          }
-          body {
-            background: white !important;
-            color: black !important;
-          }
-        }
-      `}</style>
-
+    <div id="customer-profile-container" className="space-y-8 max-w-7xl mx-auto pb-20">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="print-hidden">
@@ -156,7 +186,7 @@ export default function CustomerClient({ id }: { id: string }) {
 
       <div className="grid gap-6 lg:grid-cols-4">
         <div className="lg:col-span-1 space-y-6">
-          <Card>
+          <Card className="card">
             <CardContent className="pt-6 space-y-6">
               <div className="flex flex-col items-center text-center space-y-3 pb-4">
                 <div className="h-24 w-24 rounded-2xl bg-accent/10 flex items-center justify-center text-4xl font-bold text-accent border-2 border-accent/20">
@@ -209,7 +239,7 @@ export default function CustomerClient({ id }: { id: string }) {
             </CardContent>
           </Card>
 
-          <Card className="bg-secondary/30">
+          <Card className="bg-secondary/30 card">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-xs uppercase flex items-center gap-2">
                 <Clock className="h-3 w-3" /> Latest Activity
@@ -244,7 +274,7 @@ export default function CustomerClient({ id }: { id: string }) {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6 pt-4">
-              <Card>
+              <Card className="card">
                 <CardHeader><CardTitle className="text-sm">Client Executive Summary</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-xs text-muted-foreground leading-relaxed">{customer.overview || 'No executive overview available for this corporate account.'}</p>
@@ -267,7 +297,7 @@ export default function CustomerClient({ id }: { id: string }) {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="card">
                 <CardHeader><CardTitle className="text-sm">Primary Decision Maker</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   {customer.contacts?.primary ? (
