@@ -58,6 +58,53 @@ export default function InvoiceClient({ id }: { id: string }) {
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!invoice) return;
+    
+    toast({
+      title: "Generating PDF",
+      description: "Preparing your professional invoice document...",
+    });
+
+    try {
+      const html2pdf = (await import("html2pdf.js")).default;
+      const element = document.getElementById("invoice-card");
+      
+      if (!element) return;
+
+      const opt = {
+        margin: [10, 10],
+        filename: `invoice-${invoice.number}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          letterRendering: true,
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      // Generate the PDF
+      html2pdf().set(opt).from(element).save();
+      
+      toast({
+        title: "Download Started",
+        description: "Your PDF document is being generated.",
+      });
+    } catch (error) {
+      console.error("PDF Generation Error:", error);
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "Could not generate PDF. Please try printing to PDF instead.",
+      });
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'paid': return <Badge className="bg-green-500 gap-1"><CheckCircle2 className="h-3 w-3" /> Paid</Badge>;
@@ -88,8 +135,8 @@ export default function InvoiceClient({ id }: { id: string }) {
   }
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 max-w-4xl mx-auto pb-20">
+      <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4" />
@@ -100,12 +147,12 @@ export default function InvoiceClient({ id }: { id: string }) {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline"><Printer className="mr-2 h-4 w-4" /> Print</Button>
-          <Button variant="outline"><Download className="mr-2 h-4 w-4" /> Download PDF</Button>
+          <Button variant="outline" onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print</Button>
+          <Button variant="outline" onClick={handleDownloadPDF}><Download className="mr-2 h-4 w-4" /> Download PDF</Button>
         </div>
       </div>
 
-      <Card className="overflow-hidden border-t-4 border-t-primary shadow-lg">
+      <Card id="invoice-card" className="overflow-hidden border-t-4 border-t-primary shadow-lg bg-card">
         <CardHeader className="bg-muted/30 pb-8 pt-10 px-10">
           <div className="flex flex-col md:flex-row justify-between gap-6">
             <div className="space-y-4">
@@ -129,8 +176,8 @@ export default function InvoiceClient({ id }: { id: string }) {
           </div>
         </CardHeader>
 
-        <CardContent className="p-10 space-y-10">
-          <div className="grid md:grid-cols-2 gap-12">
+        <CardContent className="p-10 space-y-10 bg-white text-black">
+          <div className="grid grid-cols-2 gap-12">
             <div className="space-y-4">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Bill To:</h3>
               <div className="space-y-1">
@@ -142,7 +189,7 @@ export default function InvoiceClient({ id }: { id: string }) {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 text-right md:text-left">
+            <div className="grid grid-cols-2 gap-4 text-left">
               <div className="space-y-1">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Invoice Date</p>
                 <p className="text-sm font-medium">Jan 12, 2024</p>
@@ -153,7 +200,7 @@ export default function InvoiceClient({ id }: { id: string }) {
               </div>
               <div className="space-y-1">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Issued By</p>
-                <p className="text-sm font-medium flex items-center justify-end md:justify-start gap-1">
+                <p className="text-sm font-medium flex items-center gap-1">
                   <User className="h-3 w-3" /> {invoice.createdBy}
                 </p>
               </div>
@@ -171,10 +218,10 @@ export default function InvoiceClient({ id }: { id: string }) {
               <TableBody>
                 <TableRow>
                   <TableCell className="py-6">
-                    <p className="font-bold">Standard Professional Services / Goods Supply</p>
+                    <p className="font-bold text-black">Standard Professional Services / Goods Supply</p>
                     <p className="text-xs text-muted-foreground mt-1">Market Segment Fulfillment: {invoice.department}</p>
                   </TableCell>
-                  <TableCell className="text-right font-mono font-bold py-6">
+                  <TableCell className="text-right font-mono font-bold py-6 text-black">
                     ${(invoice.total || 0).toLocaleString()}
                   </TableCell>
                 </TableRow>
@@ -210,7 +257,7 @@ export default function InvoiceClient({ id }: { id: string }) {
         </CardContent>
       </Card>
 
-      <div className="flex justify-between items-center bg-secondary/20 p-6 rounded-xl border border-dashed">
+      <div className="flex justify-between items-center bg-secondary/20 p-6 rounded-xl border border-dashed print:hidden">
         <div className="flex gap-3">
           {invoice.status !== 'paid' && (
             <Button onClick={handleMarkAsPaid} className="bg-green-600 hover:bg-green-700">
