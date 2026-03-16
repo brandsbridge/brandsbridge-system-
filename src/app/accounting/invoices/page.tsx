@@ -22,7 +22,16 @@ import {
   AlertTriangle,
   History,
   Check,
-  FileText
+  FileText,
+  Zap,
+  LayoutGrid,
+  FileEdit,
+  ArrowRight,
+  User,
+  Package,
+  Calculator,
+  Plus as PlusIcon,
+  X
 } from "lucide-react";
 import { 
   Table, 
@@ -60,10 +69,10 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection, query, where, orderBy } from "firebase/firestore";
 import { invoiceService } from "@/services/invoice-service";
@@ -73,12 +82,19 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 
+// --- Helper: Number to Words ---
+const numberToWords = (num: number) => {
+  // Simple implementation for demo
+  return "USD " + num.toLocaleString() + " ONLY";
+};
+
 export default function InvoicesPage() {
   const db = useFirestore();
   const { user } = useUser();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [creationStep, setCreationStep] = useState<"choice" | "auto" | "manual">("choice");
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
@@ -86,29 +102,35 @@ export default function InvoicesPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- Manual/Auto Form State ---
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [manualLineItems, setManualLineItems] = useState<any[]>([]);
+  const [invoiceType, setInvoiceType] = useState<any>("INV");
+  const [generatedNumber, setGeneratedNumber] = useState("");
+
   useEffect(() => {
     const saved = localStorage.getItem("demoUser");
     if (saved) setCurrentUser(JSON.parse(saved));
   }, []);
 
+  // --- Fetch Data ---
   const invoicesQuery = useMemoFirebase(() => {
     if (!user || !currentUser) return null;
     const colRef = collection(db, "invoices");
     return currentUser.department === 'all' 
-      ? colRef 
-      : query(colRef, where("department", "==", currentUser.department));
+      ? query(colRef, orderBy("createdAt", "desc"))
+      : query(colRef, where("department", "==", currentUser.department), orderBy("createdAt", "desc"));
   }, [db, user, currentUser]);
 
-  const scansQuery = useMemoFirebase(() => {
-    if (!user) return null;
-    return query(collection(db, "invoice_scans"), orderBy("scannedAt", "desc"));
-  }, [db, user]);
-
-  const suppliersQuery = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
+  const customersQuery = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
+  const productsQuery = useMemoFirebase(() => user ? collection(db, "products") : null, [db, user]);
+  const scansQuery = useMemoFirebase(() => user ? query(collection(db, "invoice_scans"), orderBy("scannedAt", "desc")) : null, [db, user]);
 
   const { data: invoices, isLoading } = useCollection(invoicesQuery);
-  const { data: scans, isLoading: isLoadingScans } = useCollection(scansQuery);
-  const { data: suppliers } = useCollection(suppliersQuery);
+  const { data: customers } = useCollection(customersQuery);
+  const { data: products } = useCollection(productsQuery);
+  const { data: scans } = useCollection(scansQuery);
 
   const filteredInvoices = useMemo(() => {
     const safeInvoices = invoices || [];
@@ -120,70 +142,118 @@ export default function InvoicesPage() {
     });
   }, [invoices, searchTerm, statusFilter]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // --- Sequence Generation ---
+  useEffect(() => {
+    if (isAddModalOpen && creationStep !== "choice") {
+      invoiceService.generateSequenceNumber(db, invoiceType).then(setGeneratedNumber);
+    }
+  }, [isAddModalOpen, creationStep, invoiceType, db]);
 
-    setIsScanning(true);
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const base64 = event.target?.result as string;
-      setScanImage(base64);
-      try {
-        const result = await scanInvoice({ photoDataUri: base64 });
-        setScanResult(result);
-        toast({ title: "Scan Complete", description: "AI has successfully analyzed the document." });
-      } catch (error) {
-        toast({ variant: "destructive", title: "Scan Failed", description: "Could not analyze the document." });
-      } finally {
-        setIsScanning(false);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
+  const handleAutoGenerate = async () => {
+    const customer = customers?.find(c => c.id === selectedCustomerId);
+    const selectedProds = products?.filter(p => selectedProductIds.includes(p.id)) || [];
 
-  const handleSaveScannedInvoice = () => {
-    if (!scanResult) return;
+    if (!customer || selectedProds.length === 0) {
+      toast({ variant: "destructive", title: "Incomplete Selection", description: "Please select a customer and at least one product." });
+      return;
+    }
+
+    const nextNumber = await invoiceService.generateSequenceNumber(db, 'INV');
+    
+    const lines = selectedProds.map(p => ({
+      gtin: p.gtin || '',
+      description: p.name,
+      packing: p.packing || 1,
+      quantityCs: 10,
+      quantityPcs: (p.packing || 1) * 10,
+      priceNet: 10.00, // Fallback price
+      vatRate: customer.country === 'UAE' ? 5 : 0,
+      total: (p.packing || 1) * 10 * 10.00
+    }));
+
+    const subtotal = lines.reduce((acc, l) => acc + l.total, 0);
+    const vatTotal = lines.reduce((acc, l) => acc + (l.total * (l.vatRate / 100)), 0);
 
     const data = {
-      number: scanResult.invoiceNumber.value || `SCN-${Date.now().toString().slice(-6)}`,
-      customerName: scanResult.vendor.name.value,
-      total: scanResult.total.value || 0,
-      subtotal: scanResult.subtotal.value || 0,
-      status: 'pending',
-      sentStatus: 'sent',
-      dueDate: scanResult.dueDate.value || "",
-      currency: scanResult.currency.value || "USD",
-      originalImageUrl: scanImage,
+      number: nextNumber,
+      type: 'INV',
+      status: 'draft',
+      dateIssue: new Date().toISOString().split('T')[0],
+      dateSale: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      customerName: customer.name,
+      customerId: customer.id,
+      destinationCountry: customer.country,
+      deliveryTerms: 'EXW',
       department: currentUser?.department || 'all',
-      createdBy: currentUser?.name || 'AI Scanner',
-      createdAt: new Date().toISOString()
+      createdBy: currentUser?.name || 'System',
+      lineItems: lines,
+      totals: {
+        net: subtotal,
+        vat: vatTotal,
+        gross: subtotal + vatTotal,
+        weightNet: selectedProds.reduce((acc, p) => acc + (p.weightNet || 0) * 10, 0),
+        weightGross: selectedProds.reduce((acc, p) => acc + (p.weightGross || 0) * 10, 0),
+        totalBoxes: lines.reduce((acc, l) => acc + l.quantityCs, 0)
+      },
+      paymentTerms: {
+        method: 'Bank Transfer',
+        dueDate: '30 Days',
+        notes: 'Auto-generated terms from profile.'
+      }
     };
 
     invoiceService.createInvoice(db, data);
-    
-    // Log scan accuracy
-    invoiceScanService.logScan(db, {
-      fileName: "Invoice_Scan.png",
-      accuracyRate: Math.round(scanResult.overallConfidence * 100),
-      status: "completed",
-      scannedBy: currentUser?.name || "System",
-      originalImageUrl: scanImage
-    });
-
-    setScanResult(null);
-    setScanImage(null);
-    setIsScanModalOpen(false);
-    toast({ title: "Invoice Created", description: `Record ${data.number} added from AI scan.` });
+    setIsAddModalOpen(false);
+    setCreationStep("choice");
+    setSelectedProductIds([]);
+    setSelectedCustomerId("");
+    toast({ title: "Invoice Auto-Generated", description: `Record ${data.number} has been created.` });
   };
 
-  const getConfidenceColor = (level: string) => {
-    switch (level) {
-      case 'high': return 'text-green-500';
-      case 'medium': return 'text-yellow-500 bg-yellow-500/10';
-      case 'low': return 'text-red-500 bg-red-500/10 border-red-500/20';
-      default: return 'text-muted-foreground';
-    }
+  const handleManualSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    
+    // Simplistic manual gathering for demo
+    const data = {
+      number: formData.get('number') || generatedNumber,
+      type: invoiceType,
+      status: 'draft',
+      dateIssue: formData.get('dateIssue'),
+      dateSale: formData.get('dateSale'),
+      dueDate: formData.get('dueDate'),
+      customerName: formData.get('buyerName'),
+      recipientName: formData.get('recipientName'),
+      destinationCountry: formData.get('country'),
+      deliveryTerms: formData.get('deliveryTerms'),
+      department: currentUser?.department || 'all',
+      createdBy: currentUser?.name || 'System',
+      shippingInfo: {
+        shipmentDate: formData.get('shipDate'),
+        containerNumber: formData.get('container'),
+        sealNumber: formData.get('seal')
+      },
+      lineItems: manualLineItems,
+      notes: formData.get('notes'),
+      internalNotes: formData.get('internalNotes'),
+      totals: {
+        gross: parseFloat(formData.get('grandTotal') as string) || 0
+      }
+    };
+
+    invoiceService.createInvoice(db, data);
+    setIsAddModalOpen(false);
+    setCreationStep("choice");
+    toast({ title: "Manual Invoice Created", description: `Document ${data.number} saved to ledger.` });
+  };
+
+  const addManualLine = () => {
+    setManualLineItems([...manualLineItems, { gtin: '', description: '', quantityCs: 0, priceNet: 0, total: 0 }]);
+  };
+
+  const removeManualLine = (idx: number) => {
+    setManualLineItems(manualLineItems.filter((_, i) => i !== idx));
   };
 
   const getStatusBadge = (status: string) => {
@@ -203,138 +273,289 @@ export default function InvoicesPage() {
           <p className="text-muted-foreground">Manage complex billing cycles and track accounts receivable.</p>
         </div>
         <div className="flex gap-2">
-          <Dialog open={isScanModalOpen} onOpenChange={setIsScanModalOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/5">
-                <Scan className="mr-2 h-4 w-4" /> Scan Invoice (AI)
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" /> AI Invoice Auditor
-                </DialogTitle>
-                <DialogDescription>Upload a document to automatically extract ledger fields using Gemini.</DialogDescription>
-              </DialogHeader>
+          <Button variant="outline" className="border-primary/50 text-primary hover:bg-primary/5" onClick={() => setIsScanModalOpen(true)}>
+            <Scan className="mr-2 h-4 w-4" /> AI Scan
+          </Button>
 
-              {!scanResult && !isScanning ? (
-                <div className="py-12 flex flex-col items-center justify-center border-2 border-dashed rounded-xl bg-secondary/5">
-                  <Upload className="h-12 w-12 text-muted-foreground/40 mb-4" />
-                  <p className="font-medium">Drag & drop or click to upload</p>
-                  <p className="text-xs text-muted-foreground mt-1">Supports JPG, PNG, and PDF</p>
-                  <Button className="mt-6" onClick={() => fileInputRef.current?.click()}>Choose File</Button>
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf" onChange={handleFileUpload} />
-                </div>
-              ) : isScanning ? (
-                <div className="py-20 flex flex-col items-center gap-4">
-                  <Loader2 className="h-12 w-12 text-primary animate-spin" />
-                  <p className="text-sm font-bold">Gemini is analyzing your document...</p>
-                  <p className="text-xs text-muted-foreground">Extracting line items and verifying confidence scores</p>
-                </div>
-              ) : (
-                <div className="grid md:grid-cols-2 gap-8 pt-4">
-                  <div className="space-y-4">
-                    <div className="rounded-xl overflow-hidden border bg-black flex items-center justify-center aspect-[3/4]">
-                      {scanImage && <img src={scanImage} alt="Original" className="max-h-full object-contain opacity-80" />}
-                    </div>
-                    <Button variant="ghost" size="sm" className="w-full" onClick={() => setScanResult(null)}>Scan Different File</Button>
-                  </div>
-
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase">Vendor / Client</Label>
-                        <div className={cn("p-2 rounded border flex items-center justify-between", getConfidenceColor(scanResult.vendor.name.confidence))}>
-                          <span className="text-sm font-bold">{scanResult.vendor.name.value}</span>
-                          {scanResult.vendor.name.confidence !== 'high' && <AlertTriangle className="h-3 w-3" />}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase">Invoice #</Label>
-                        <div className={cn("p-2 rounded border flex items-center justify-between", getConfidenceColor(scanResult.invoiceNumber.confidence))}>
-                          <span className="text-sm font-bold font-mono">{scanResult.invoiceNumber.value}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase">Date</Label>
-                        <Input defaultValue={scanResult.date.value} className={cn(getConfidenceColor(scanResult.date.confidence))} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase">Due Date</Label>
-                        <Input defaultValue={scanResult.dueDate.value} className={cn(getConfidenceColor(scanResult.dueDate.confidence))} />
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-[10px] font-bold uppercase">Line Items Extraction</Label>
-                      <div className="border rounded-lg overflow-hidden">
-                        <Table>
-                          <TableHeader className="bg-muted/50">
-                            <TableRow>
-                              <TableHead className="text-[10px]">Description</TableHead>
-                              <TableHead className="text-[10px] text-right">Qty</TableHead>
-                              <TableHead className="text-[10px] text-right">Total</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {scanResult.lineItems.map((item: any, idx: number) => (
-                              <TableRow key={idx} className="group">
-                                <TableCell className="py-2 text-[11px] font-medium">{item.description}</TableCell>
-                                <TableCell className="py-2 text-[11px] text-right">{item.quantity}</TableCell>
-                                <TableCell className="py-2 text-[11px] text-right font-bold">${item.total}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </div>
-
-                    <Card className="bg-primary/5 border-primary/20">
-                      <CardContent className="p-4 space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-muted-foreground">Extracted Total</span>
-                          <span className={cn("text-xl font-black", getConfidenceColor(scanResult.total.confidence))}>
-                            {scanResult.currency.value || '$'} {scanResult.total.value?.toLocaleString()}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-[10px]">
-                          <Badge variant="outline" className="bg-background">AI Confidence: {Math.round(scanResult.overallConfidence * 100)}%</Badge>
-                          {scanResult.overallConfidence < 0.8 && <span className="text-yellow-600 flex items-center gap-1 font-bold"><AlertTriangle className="h-3 w-3" /> Needs Review</span>}
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <div className="pt-4 flex gap-3">
-                      <Button variant="outline" className="flex-1" onClick={() => setIsScanModalOpen(false)}>Discard</Button>
-                      <Button className="flex-1 bg-primary" onClick={handleSaveScannedInvoice}>
-                        <Check className="mr-2 h-4 w-4" /> Commit to Ledger
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </DialogContent>
-          </Dialog>
-
-          <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+          <Dialog open={isAddModalOpen} onOpenChange={(open) => {
+            setIsAddModalOpen(open);
+            if (!open) setCreationStep("choice");
+          }}>
             <DialogTrigger asChild>
               <Button className="bg-primary shadow-lg shadow-primary/20"><Plus className="mr-2 h-4 w-4" /> New Invoice</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <form>
-                {/* Form implementation remains same as previous */}
-                <DialogHeader>
-                  <DialogTitle>Configure Sales Document</DialogTitle>
-                </DialogHeader>
-                <div className="py-12 text-center text-muted-foreground">Standard invoice form implementation...</div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
-                  <Button type="button" onClick={() => setIsAddModalOpen(false)}>Generate</Button>
-                </DialogFooter>
-              </form>
+            <DialogContent className={cn("max-h-[90vh] overflow-y-auto", creationStep === 'manual' ? "max-w-6xl" : "max-w-3xl")}>
+              <DialogHeader>
+                <DialogTitle>Generate Sales Document</DialogTitle>
+                <DialogDescription>Choose your creation method to proceed.</DialogDescription>
+              </DialogHeader>
+
+              {creationStep === "choice" && (
+                <div className="grid grid-cols-2 gap-6 py-12">
+                  <Card className="hover:border-primary cursor-pointer transition-all bg-secondary/5 group" onClick={() => setCreationStep("auto")}>
+                    <CardContent className="pt-8 text-center space-y-4">
+                      <div className="h-16 w-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                        <Zap className="h-8 w-8" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold">Auto Generate</h3>
+                        <p className="text-sm text-muted-foreground mt-1">Fills all data from profile & catalog</p>
+                      </div>
+                      <ArrowRight className="h-5 w-5 mx-auto text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </CardContent>
+                  </Card>
+
+                  <Card className="hover:border-accent cursor-pointer transition-all bg-secondary/5 group" onClick={() => setCreationStep("manual")}>
+                    <CardContent className="pt-8 text-center space-y-4">
+                      <div className="h-16 w-16 rounded-2xl bg-accent/10 text-accent flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                        <FileEdit className="h-8 w-8" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold">Manual Create</h3>
+                        <p className="text-sm text-muted-foreground mt-1">Full control over every ledger field</p>
+                      </div>
+                      <ArrowRight className="h-5 w-5 mx-auto text-accent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {creationStep === "auto" && (
+                <div className="space-y-6 py-4">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2"><User className="h-4 w-4" /> Select Customer</Label>
+                      <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+                        <SelectTrigger><SelectValue placeholder="Choose a corporate buyer..." /></SelectTrigger>
+                        <SelectContent>
+                          {customers?.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name} ({c.country})</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2"><Package className="h-4 w-4" /> Select Products</Label>
+                      <div className="border rounded-lg p-4 space-y-3 max-h-60 overflow-y-auto">
+                        {products?.map(p => (
+                          <div key={p.id} className="flex items-center space-x-2">
+                            <Checkbox 
+                              id={p.id} 
+                              checked={selectedProductIds.includes(p.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) setSelectedProductIds([...selectedProductIds, p.id]);
+                                else setSelectedProductIds(selectedProductIds.filter(id => id !== p.id));
+                              }}
+                            />
+                            <label htmlFor={p.id} className="text-sm font-medium leading-none cursor-pointer">
+                              {p.name} <span className="text-[10px] text-muted-foreground ml-2">{p.gtin}</span>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <DialogFooter className="border-t pt-6">
+                    <Button variant="ghost" onClick={() => setCreationStep("choice")}>Back</Button>
+                    <Button className="bg-primary" onClick={handleAutoGenerate}>
+                      <Zap className="mr-2 h-4 w-4" /> Auto Generate Invoice
+                    </Button>
+                  </DialogFooter>
+                </div>
+              )}
+
+              {creationStep === "manual" && (
+                <form onSubmit={handleManualSave} className="space-y-8 py-4">
+                  <div className="grid grid-cols-3 gap-6">
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Document Type</Label>
+                        <Select value={invoiceType} onValueChange={setInvoiceType}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="INV">Standard Invoice</SelectItem>
+                            <SelectItem value="EXP">Export Invoice</SelectItem>
+                            <SelectItem value="PRO">Proforma Invoice</SelectItem>
+                            <SelectItem value="CN">Credit Note</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Invoice #</Label>
+                        <Input name="number" value={generatedNumber} onChange={e => setGeneratedNumber(e.target.value)} className="font-mono text-xs" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Issue Date</Label>
+                        <Input name="dateIssue" type="date" defaultValue={new Date().toISOString().split('T')[0]} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Sale Date</Label>
+                        <Input name="dateSale" type="date" defaultValue={new Date().toISOString().split('T')[0]} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Due Date</Label>
+                        <Input name="dueDate" type="date" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Delivery Terms</Label>
+                        <Select name="deliveryTerms" defaultValue="EXW">
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="EXW">EXW</SelectItem>
+                            <SelectItem value="CIF">CIF</SelectItem>
+                            <SelectItem value="FOB">FOB</SelectItem>
+                            <SelectItem value="DDP">DDP</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="grid grid-cols-2 gap-8">
+                    <div className="space-y-4 bg-secondary/10 p-4 rounded-xl border">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                        <User className="h-3 w-3" /> Buyer / Consignee
+                      </h4>
+                      <div className="space-y-3">
+                        <Input name="buyerName" placeholder="Company Name" required />
+                        <Input name="country" placeholder="Destination Country" required />
+                        <Textarea name="buyerAddress" placeholder="Full Billing Address" className="h-20" />
+                      </div>
+                    </div>
+                    <div className="space-y-4 bg-secondary/10 p-4 rounded-xl border">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-accent flex items-center gap-2">
+                        <Package className="h-3 w-3" /> Recipient / Shipping
+                      </h4>
+                      <div className="space-y-3">
+                        <Input name="recipientName" placeholder="Consignee (if different)" />
+                        <Input name="container" placeholder="Container #" />
+                        <Input name="seal" placeholder="Seal #" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Line Items</h4>
+                      <Button type="button" variant="outline" size="sm" onClick={addManualLine}>
+                        <PlusIcon className="h-3 w-3 mr-1" /> Add Line
+                      </Button>
+                    </div>
+                    <div className="border rounded-xl overflow-hidden">
+                      <Table>
+                        <TableHeader className="bg-muted/50">
+                          <TableRow>
+                            <TableHead className="w-[40%] text-[10px] uppercase">Description</TableHead>
+                            <TableHead className="text-[10px] uppercase text-right">Qty (CS)</TableHead>
+                            <TableHead className="text-[10px] uppercase text-right">Price</TableHead>
+                            <TableHead className="text-[10px] uppercase text-right">Total</TableHead>
+                            <TableHead className="w-[50px]"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {manualLineItems.map((item, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell>
+                                <Input 
+                                  value={item.description} 
+                                  placeholder="Product name..." 
+                                  className="h-8 text-xs"
+                                  onChange={(e) => {
+                                    const lines = [...manualLineItems];
+                                    lines[idx].description = e.target.value;
+                                    setManualLineItems(lines);
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input 
+                                  type="number" 
+                                  value={item.quantityCs} 
+                                  className="h-8 text-xs text-right"
+                                  onChange={(e) => {
+                                    const lines = [...manualLineItems];
+                                    lines[idx].quantityCs = parseInt(e.target.value) || 0;
+                                    lines[idx].total = lines[idx].quantityCs * lines[idx].priceNet;
+                                    setManualLineItems(lines);
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input 
+                                  type="number" 
+                                  value={item.priceNet} 
+                                  className="h-8 text-xs text-right"
+                                  onChange={(e) => {
+                                    const lines = [...manualLineItems];
+                                    lines[idx].priceNet = parseFloat(e.target.value) || 0;
+                                    lines[idx].total = lines[idx].quantityCs * lines[idx].priceNet;
+                                    setManualLineItems(lines);
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell className="text-right font-bold text-xs">
+                                ${item.total.toLocaleString()}
+                              </TableCell>
+                              <TableCell>
+                                <Button type="button" variant="ghost" size="icon" onClick={() => removeManualLine(idx)}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Payment Notes</Label>
+                      <Textarea name="notes" placeholder="T&Cs, Bank Details, etc." className="h-24" />
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Internal Notes (Private)</Label>
+                      <Textarea name="internalNotes" placeholder="Hidden from client..." className="h-20" />
+                    </div>
+                    <div className="bg-primary/5 p-6 rounded-2xl border border-primary/20 space-y-4">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">Subtotal:</span>
+                        <span className="font-bold">${manualLineItems.reduce((acc, l) => acc + l.total, 0).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground">VAT (0%):</span>
+                        <span className="font-bold">$0.00</span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between items-end">
+                        <span className="text-xs font-bold uppercase text-primary">Grand Total:</span>
+                        <div className="text-right">
+                          <input type="hidden" name="grandTotal" value={manualLineItems.reduce((acc, l) => acc + l.total, 0)} />
+                          <span className="text-3xl font-black text-primary tracking-tighter">
+                            USD ${manualLineItems.reduce((acc, l) => acc + l.total, 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <DialogFooter className="pt-8 border-t">
+                    <Button type="button" variant="ghost" onClick={() => setCreationStep("choice")}>Back</Button>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline">Save Draft</Button>
+                      <Button type="submit" className="bg-primary">Generate Invoice</Button>
+                    </div>
+                  </DialogFooter>
+                </form>
+              )}
             </DialogContent>
           </Dialog>
         </div>
@@ -396,7 +617,7 @@ export default function InvoicesPage() {
                           <Badge variant="outline">Manual</Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-right font-bold text-accent">${(inv.total || 0).toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-bold text-accent">${(inv.total || inv.totals?.gross || 0).toLocaleString()}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
