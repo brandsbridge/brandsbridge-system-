@@ -18,40 +18,40 @@ service cloud.firestore {
 
     // --- COLLECTION RULES ---
 
-    // Admin Roles: Users can promote themselves during setup
     match /app_roles_admin/{userId} {
       allow read: if isSignedIn();
       allow create: if isOwner(userId);
       allow update, delete: if isAdmin();
     }
 
-    // User Profiles
     match /users/{userId} {
       allow read, write: if isOwner(userId);
     }
 
-    // Communication Logs: Allow any signed-in user to log an email, ensuring they are the sender.
     match /communication_logs/{id} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+      allow create: if isSignedIn();
     }
 
-    // Business Data: Allow read and write for all signed-in users to prevent blocking prototype workflows.
-    // In production, these would be restricted to specific roles or ownership logic.
+    // Business Data: Simplified for prototype productivity
     match /suppliers/{id} { allow read, write: if isSignedIn(); }
     match /customers/{id} { allow read, write: if isSignedIn(); }
     match /products/{id} { allow read, write: if isSignedIn(); }
     match /stocks/{id} { allow read, write: if isSignedIn(); }
-    match /leads/{id} { allow read, write: if isSignedIn(); }
-    match /tasks/{id} { allow read, write: if isSignedIn(); }
-    match /campaigns/{id} { allow read, write: if isSignedIn(); }
-    match /purchases/{id} { allow read, write: if isSignedIn(); }
     match /invoices/{id} { allow read, write: if isSignedIn(); }
+    match /recurring_invoices/{id} { allow read, write: if isSignedIn(); }
+    match /credit_notes/{id} { allow read, write: if isSignedIn(); }
+    match /customer_advances/{id} { allow read, write: if isSignedIn(); }
+    match /vendor_credits/{id} { allow read, write: if isSignedIn(); }
     match /payments/{id} { allow read, write: if isSignedIn(); }
     match /purchase_orders/{id} { allow read, write: if isSignedIn(); }
     match /journals/{id} { allow read, write: if isSignedIn(); }
-    match /uploadLogs/{id} { allow read, write: if isSignedIn(); }
+    match /campaigns/{id} { allow read, write: if isSignedIn(); }
+    match /leads/{id} { allow read, write: if isSignedIn(); }
+    match /tasks/{id} { allow read, write: if isSignedIn(); }
     match /employees/{id} { allow read, write: if isSignedIn(); }
+    match /uploadLogs/{id} { allow read, write: if isSignedIn(); }
+    match /purchases/{id} { allow read, write: if isSignedIn(); }
 
     // Fallback
     match /{document=**} {

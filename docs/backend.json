@@ -41,13 +41,76 @@
         "id": { "type": "string" },
         "number": { "type": "string" },
         "customerName": { "type": "string" },
+        "customerId": { "type": "string" },
         "total": { "type": "number" },
-        "status": { "type": "string", "enum": ["paid", "pending", "overdue"] },
+        "status": { "type": "string", "enum": ["paid", "pending", "overdue", "void"] },
         "dueDate": { "type": "string" },
         "department": { "type": "string" },
+        "isRecurring": { "type": "boolean" },
         "createdBy": { "type": "string" }
       },
       "required": ["number", "customerName", "total", "status", "department"]
+    },
+    "RecurringInvoice": {
+      "title": "Recurring Invoice Template",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "templateName": { "type": "string" },
+        "originalInvoiceId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "frequency": { "type": "string", "enum": ["daily", "weekly", "monthly", "quarterly", "yearly"] },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "lastGenerated": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "paused", "completed"] },
+        "amount": { "type": "number" },
+        "autoSend": { "type": "boolean" }
+      }
+    },
+    "CreditNote": {
+      "title": "Credit Note",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "number": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "invoiceId": { "type": "string" },
+        "amount": { "type": "number" },
+        "remainingAmount": { "type": "number" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "closed", "void"] },
+        "date": { "type": "string" }
+      }
+    },
+    "CustomerAdvance": {
+      "title": "Customer Advance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "amount": { "type": "number" },
+        "remainingAmount": { "type": "number" },
+        "reference": { "type": "string" },
+        "date": { "type": "string" },
+        "paymentMethod": { "type": "string" }
+      }
+    },
+    "VendorCredit": {
+      "title": "Vendor Credit",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "amount": { "type": "number" },
+        "remainingAmount": { "type": "number" },
+        "reason": { "type": "string" },
+        "date": { "type": "string" }
+      }
     },
     "Payment": {
       "title": "Payment",
@@ -77,71 +140,6 @@
         "date": { "type": "string" }
       },
       "required": ["number", "supplierName", "total", "status", "department"]
-    },
-    "JournalEntry": {
-      "title": "Journal Entry",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "date": { "type": "string" },
-        "reference": { "type": "string" },
-        "description": { "type": "string" },
-        "type": { "type": "string" },
-        "department": { "type": "string" },
-        "entries": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "accountCode": { "type": "string" },
-              "accountName": { "type": "string" },
-              "debit": { "type": "number" },
-              "credit": { "type": "number" }
-            }
-          }
-        }
-      }
-    },
-    "Campaign": {
-      "title": "Campaign",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "type": { "type": "string" },
-        "status": { "type": "string", "enum": ["draft", "active", "completed"] },
-        "department": { "type": "string" },
-        "startDate": { "type": "string" },
-        "endDate": { "type": "string" },
-        "goal": { "type": "number" },
-        "stats": {
-          "type": "object",
-          "properties": {
-            "sent": { "type": "number" },
-            "replied": { "type": "number" },
-            "revenue": { "type": "number" }
-          }
-        },
-        "createdBy": { "type": "string" }
-      },
-      "required": ["name", "type", "status", "department"]
-    },
-    "CommunicationLog": {
-      "title": "Communication Log",
-      "type": "object",
-      "description": "Records of in-platform email communications.",
-      "properties": {
-        "to": { "type": "string" },
-        "toName": { "type": "string" },
-        "subject": { "type": "string" },
-        "body": { "type": "string" },
-        "senderName": { "type": "string" },
-        "senderId": { "type": "string" },
-        "entityId": { "type": "string" },
-        "entityType": { "type": "string", "enum": ["supplier", "customer"] },
-        "status": { "type": "string" },
-        "sentAt": { "type": "string", "format": "date-time" }
-      }
     }
   },
   "auth": {
@@ -152,6 +150,10 @@
       { "path": "/suppliers/{id}", "definition": { "entityName": "Supplier", "description": "Global suppliers" } },
       { "path": "/customers/{id}", "definition": { "entityName": "Customer", "description": "B2B Customers" } },
       { "path": "/invoices/{id}", "definition": { "entityName": "Invoice", "description": "Sales invoices" } },
+      { "path": "/recurring_invoices/{id}", "definition": { "entityName": "RecurringInvoice", "description": "Auto-billing templates" } },
+      { "path": "/credit_notes/{id}", "definition": { "entityName": "CreditNote", "description": "Sales returns/credits" } },
+      { "path": "/customer_advances/{id}", "definition": { "entityName": "CustomerAdvance", "description": "Pre-payments" } },
+      { "path": "/vendor_credits/{id}", "definition": { "entityName": "VendorCredit", "description": "Supplier credits" } },
       { "path": "/payments/{id}", "definition": { "entityName": "Payment", "description": "Financial settlements" } },
       { "path": "/purchase_orders/{id}", "definition": { "entityName": "PurchaseOrder", "description": "Procurement orders" } },
       { "path": "/journals/{id}", "definition": { "entityName": "JournalEntry", "description": "General journal entries" } },

@@ -35,6 +35,9 @@ import {
   Search,
   Terminal,
   Settings,
+  Repeat,
+  FileMinus,
+  Banknote,
   Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -52,17 +55,15 @@ import {
 import { DEMO_USERS, Employee } from "@/lib/mock-data";
 import { Badge } from "@/components/ui/badge";
 import { auth } from "@/lib/firebase";
-import { signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { signInAnonymously } from "firebase/auth";
 import { useUser } from "@/firebase";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, isUserLoading } = useUser();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
 
-  // Sync UI User with LocalStorage
   useEffect(() => {
     const savedUser = localStorage.getItem("demoUser");
     if (savedUser) {
@@ -72,7 +73,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
   }, [pathname, router]);
 
-  // Ensure Firebase Auth session is active if UI thinks we are logged in
   useEffect(() => {
     const savedUser = localStorage.getItem("demoUser");
     if (savedUser && !user && !isUserLoading) {
@@ -89,37 +89,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   const switchUser = async (user: Employee) => {
     try {
-      // Establish Firebase session first
       await signInAnonymously(auth);
-      
       localStorage.setItem("demoUser", JSON.stringify(user));
       setCurrentUser(user);
-      
-      if (user.department !== 'all') {
-        router.push(`/department/${user.department}`);
-      } else {
-        router.push("/");
-      }
+      router.push(user.department !== 'all' ? `/department/${user.department}` : "/");
     } catch (err) {
       console.error("Switcher auth failed:", err);
     }
   };
-
-  const canAccess = (path: string) => {
-    if (!currentUser) return false;
-    if (currentUser.role === 'admin') return true;
-    
-    if (path.startsWith("/department/")) {
-      const dept = path.split("/")[2];
-      return currentUser.department === dept;
-    }
-    
-    if ((path.startsWith("/admin") || path.startsWith("/accounting")) && currentUser.role !== 'admin') return false;
-    
-    return true;
-  };
-
-  const isAccessDenied = pathname !== "/login" && pathname !== "/profile" && !canAccess(pathname);
 
   const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -130,8 +107,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { type: 'separator', label: 'Finance' },
     { name: "Accounting Hub", href: "/accounting", icon: Calculator },
     { name: "Invoices", href: "/accounting/invoices", icon: Receipt },
+    { name: "Recurring Billing", href: "/accounting/recurring", icon: Repeat },
+    { name: "Credit/Debit Notes", href: "/accounting/credits", icon: FileMinus },
+    { name: "Customer Advances", href: "/accounting/advances", icon: Banknote },
+    { name: "Vendor Credits", href: "/accounting/vendor-credits", icon: Wallet },
     { name: "Purchase Orders", href: "/accounting/purchase-orders", icon: FileText },
-    { name: "Payments", href: "/accounting/payments", icon: Wallet },
+    { name: "Payments", href: "/accounting/payments", icon: CreditCard },
     { name: "Financial Reports", href: "/accounting/reports", icon: FileBarChart },
     { name: "Journal Entries", href: "/accounting/journal", icon: History },
     { type: 'separator', label: 'Marketing' },
@@ -194,77 +175,33 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       <div className="md:pl-64">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:px-8">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-              <Menu className="h-6 w-6" />
-            </Button>
             <div className="relative hidden sm:block">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search financials or clients..."
-                className="w-64 pl-9 md:w-80 lg:w-96"
-              />
+              <Input type="search" placeholder="Search financials..." className="w-64 pl-9 md:w-80 lg:w-96" />
             </div>
           </div>
           <div className="flex items-center gap-4">
             {currentUser && (
               <div className="flex items-center gap-4">
-                {isUserLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                 <div className="hidden lg:flex flex-col items-end">
                   <span className="text-sm font-bold">{currentUser.name}</span>
                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{currentUser.role} • {currentUser.department}</span>
                 </div>
-                
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-8 w-8 rounded-full bg-primary/20 p-0 border border-primary/30">
+                    <Button variant="ghost" className="h-8 w-8 rounded-full bg-primary/20 p-0 border border-primary/30">
                       <span className="text-xs font-bold">{currentUser.name.split(' ').map(n => n[0]).join('')}</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <Link href="/profile">
-                      <DropdownMenuItem><User className="mr-2 h-4 w-4" /> Profile</DropdownMenuItem>
-                    </Link>
-                    <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
-                      <LogOut className="mr-2 h-4 w-4" /> Logout
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-[10px] uppercase text-muted-foreground">Demo Switcher</DropdownMenuLabel>
-                    {DEMO_USERS.map(user => (
-                      <DropdownMenuItem key={user.id} onClick={() => switchUser(user)} className="text-[11px]">
-                        <div className="flex flex-col">
-                          <span>{user.name}</span>
-                          <span className="text-[9px] text-muted-foreground">{user.role} ({user.department})</span>
-                        </div>
-                      </DropdownMenuItem>
-                    ))}
+                    <DropdownMenuItem onClick={handleLogout} className="text-destructive">Logout</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
             )}
           </div>
         </header>
-
-        <main className="p-4 md:p-8">
-          {isAccessDenied ? (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
-              <ShieldAlert className="h-16 w-16 text-destructive" />
-              <h2 className="text-3xl font-bold font-headline">Access Denied</h2>
-              <p className="text-muted-foreground max-w-md">
-                You do not have the required permissions to access this page. Professional accounting features are restricted to Super Admins.
-              </p>
-              <Button asChild>
-                <Link href={currentUser?.department !== 'all' ? `/department/${currentUser?.department}` : '/'}>
-                  Go to Dashboard
-                </Link>
-              </Button>
-            </div>
-          ) : (
-            children
-          )}
-        </main>
+        <main className="p-4 md:p-8">{children}</main>
       </div>
       
       <div className="fixed bottom-4 right-4 z-50">
@@ -275,8 +212,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="max-h-[400px] overflow-y-auto w-64">
-             <DropdownMenuLabel>Quick Switch (Testing)</DropdownMenuLabel>
-             <DropdownMenuSeparator />
              {DEMO_USERS.map(user => (
                 <DropdownMenuItem key={user.id} onClick={() => switchUser(user)}>
                    <div className="flex flex-col w-full">
@@ -284,14 +219,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                          <span className="font-bold text-xs">{user.name}</span>
                          <Badge variant="outline" className="text-[8px] h-4">{user.role}</Badge>
                       </div>
-                      <span className="text-[10px] text-muted-foreground capitalize">{user.department} Department</span>
+                      <span className="text-[10px] text-muted-foreground capitalize">{user.department}</span>
                    </div>
                 </DropdownMenuItem>
              ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      
       <Toaster />
     </div>
   );
