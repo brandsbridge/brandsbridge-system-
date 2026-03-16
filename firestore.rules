@@ -30,8 +30,13 @@ service cloud.firestore {
       allow read, write: if isOwner(userId);
     }
 
+    // Communication Logs: Allow any signed-in user to log an email, ensuring they are the sender.
+    match /communication_logs/{id} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.senderId == request.auth.uid;
+    }
+
     // Business Data: Allow read for all signed-in users, restrict write to Admins
-    // This allows Managers and Viewers to see the dashboard while preventing unauthorized changes.
     match /suppliers/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
     match /customers/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
     match /products/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }

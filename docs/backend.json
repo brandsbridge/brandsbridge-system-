@@ -125,6 +125,23 @@
         "createdBy": { "type": "string" }
       },
       "required": ["name", "type", "status", "department"]
+    },
+    "CommunicationLog": {
+      "title": "Communication Log",
+      "type": "object",
+      "description": "Records of in-platform email communications.",
+      "properties": {
+        "to": { "type": "string" },
+        "toName": { "type": "string" },
+        "subject": { "type": "string" },
+        "body": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderId": { "type": "string" },
+        "entityId": { "type": "string" },
+        "entityType": { "type": "string", "enum": ["supplier", "customer"] },
+        "status": { "type": "string" },
+        "sentAt": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "auth": {
@@ -139,6 +156,7 @@
       { "path": "/purchase_orders/{id}", "definition": { "entityName": "PurchaseOrder", "description": "Procurement orders" } },
       { "path": "/journals/{id}", "definition": { "entityName": "JournalEntry", "description": "General journal entries" } },
       { "path": "/campaigns/{id}", "definition": { "entityName": "Campaign", "description": "Marketing outreach" } },
+      { "path": "/communication_logs/{id}", "definition": { "entityName": "CommunicationLog", "description": "Email audit trail" } },
       { "path": "/app_roles_admin/{userId}", "definition": { "entityName": "AdminRole", "description": "Access control" } }
     ]
   }
