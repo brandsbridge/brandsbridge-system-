@@ -310,6 +310,16 @@ export default function SuppliersPage() {
     }
   };
 
+  const resetImport = () => {
+    setImportFile(null);
+    setImportStep("upload");
+    setPreviewData([]);
+    setFullValidData([]);
+    setValidationErrors([]);
+    setImportProgress(0);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -333,9 +343,25 @@ export default function SuppliersPage() {
                 <DialogTitle>Bulk Supplier Import</DialogTitle>
                 <DialogDescription>Synchronize your database with external spreadsheets.</DialogDescription>
               </DialogHeader>
-              {/* ... (Existing Import Step logic remains the same) ... */}
+              
               {importStep === "upload" && (
                 <div className="space-y-6">
+                  <div className="bg-secondary/20 p-6 rounded-xl border border-dashed border-primary/30 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold flex items-center gap-2">
+                          <FileDown className="h-4 w-4 text-primary" /> Download Import Templates
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-1">Required: <span className="text-primary font-bold">Company Name</span>. All other fields are optional.</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => resetImport()}>
+                          <FileText className="mr-2 h-3 w-3" /> CSV Template
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
                   <div 
                     className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-16 text-center hover:border-primary/50 transition-colors cursor-pointer bg-secondary/5"
                     onClick={() => fileInputRef.current?.click()}
@@ -346,7 +372,58 @@ export default function SuppliersPage() {
                   </div>
                 </div>
               )}
-              {/* Other steps omitted for brevity but should be maintained in full implementation */}
+
+              {importStep === "preview" && (
+                <div className="space-y-6">
+                  <div className="max-h-[400px] overflow-auto border rounded-lg">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          {previewData.length > 0 && Object.keys(previewData[0] || {}).map(k => (
+                            <TableHead key={k} className="text-[10px] uppercase whitespace-nowrap">{k}</TableHead>
+                          ))}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {previewData.map((row, i) => (
+                          <TableRow key={i}>
+                            {Object.values(row).map((val: any, j) => (
+                              <TableCell key={j} className="text-[11px] truncate max-w-[150px]">{String(val)}</TableCell>
+                            ))}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div className="space-y-1">
+                      <p className="text-sm font-bold text-primary">{fullValidData.length} Valid Records Ready</p>
+                      {validationErrors.length > 0 && <p className="text-xs text-destructive">{validationErrors.length} invalid rows will be skipped.</p>}
+                    </div>
+                    <div className="flex gap-3">
+                      <Button variant="ghost" onClick={resetImport}>Back</Button>
+                      <Button onClick={executeImport}>Begin Firestore Sync</Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {importStep === "importing" && (
+                <div className="py-20 flex flex-col items-center gap-4">
+                  <Loader2 className="h-12 w-12 text-primary animate-spin" />
+                  <Progress value={importProgress} className="w-full max-w-xs h-2" />
+                  <p className="text-sm">Synchronizing data to cloud...</p>
+                </div>
+              )}
+
+              {importStep === "success" && (
+                <div className="py-12 text-center space-y-4">
+                  <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
+                  <h3 className="text-xl font-bold">Cloud Sync Complete</h3>
+                  <p className="text-sm text-muted-foreground">Database updated successfully with imported records.</p>
+                  <Button onClick={() => setIsImportModalOpen(false)}>Return to Hub</Button>
+                </div>
+              )}
             </DialogContent>
           </Dialog>
 
@@ -494,11 +571,11 @@ export default function SuppliersPage() {
                       <DropdownMenuItem asChild>
                         <Link href={`/suppliers/${supplier.id}`}><ExternalLink className="mr-2 h-4 w-4" /> Full Profile</Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setEditingSupplier(supplier)}>
+                      <DropdownMenuItem onSelect={() => setEditingSupplier(supplier)}>
                         <Edit className="mr-2 h-4 w-4" /> Edit Record
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleDeleteSupplier(supplier.id, supplier.name)} className="text-destructive">
+                      <DropdownMenuItem onSelect={() => handleDeleteSupplier(supplier.id, supplier.name)} className="text-destructive font-bold">
                         <Trash2 className="mr-2 h-4 w-4" /> Archive
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -511,7 +588,7 @@ export default function SuppliersPage() {
       </Card>
 
       {/* Edit Supplier Dialog */}
-      <Dialog open={!!editingSupplier} onOpenChange={() => setEditingSupplier(null)}>
+      <Dialog open={!!editingSupplier} onOpenChange={(open) => !open && setEditingSupplier(null)}>
         <DialogContent className="max-w-2xl">
           <form onSubmit={handleUpdateSupplier}>
             <DialogHeader>
