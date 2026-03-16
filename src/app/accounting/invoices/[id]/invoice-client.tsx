@@ -18,7 +18,9 @@ import {
   Info,
   Mail,
   Link as LinkIcon,
-  Signature
+  Signature,
+  FileSearch,
+  Eye
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +34,13 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "@/components/ui/dialog";
 import { useDoc, useFirestore, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { invoiceService } from "@/services/invoice-service";
@@ -146,6 +155,21 @@ export default function InvoiceClient({ id }: { id: string }) {
           </div>
         </div>
         <div className="flex gap-2">
+          {invoice.originalImageUrl && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="border-primary/30 text-primary">
+                  <FileSearch className="mr-2 h-4 w-4" /> View Original
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh]">
+                <DialogHeader><DialogTitle>Original Document Reference</DialogTitle></DialogHeader>
+                <div className="rounded-xl overflow-hidden border bg-black flex items-center justify-center">
+                  <img src={invoice.originalImageUrl} alt="Original Invoice" className="max-h-[70vh] object-contain" />
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
           <Button variant="outline" onClick={() => setDisplayLanguage(displayLanguage === 'en' ? 'ar' : 'en')}>
             <Languages className="mr-2 h-4 w-4" /> {displayLanguage === 'en' ? 'Switch to Arabic' : 'Switch to English'}
           </Button>

@@ -59,10 +59,24 @@
         "termsAndConditions": { "type": "string" },
         "customFields": { "type": "array", "items": { "type": "object" } },
         "stampUrl": { "type": "string" },
+        "originalImageUrl": { "type": "string" },
         "createdBy": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["number", "customerName", "total", "status", "department"]
+    },
+    "InvoiceScan": {
+      "title": "Invoice Scan Log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fileName": { "type": "string" },
+        "scannedAt": { "type": "string", "format": "date-time" },
+        "scannedBy": { "type": "string" },
+        "accuracyRate": { "type": "number" },
+        "status": { "type": "string", "enum": ["completed", "failed"] },
+        "originalImageUrl": { "type": "string" }
+      }
     },
     "RecurringInvoice": {
       "title": "Recurring Invoice Template",
@@ -163,6 +177,7 @@
       { "path": "/suppliers/{id}", "definition": { "entityName": "Supplier", "description": "Global suppliers" } },
       { "path": "/customers/{id}", "definition": { "entityName": "Customer", "description": "B2B Customers" } },
       { "path": "/invoices/{id}", "definition": { "entityName": "Invoice", "description": "Sales invoices" } },
+      { "path": "/invoice_scans/{id}", "definition": { "entityName": "InvoiceScan", "description": "AI scanning logs" } },
       { "path": "/recurring_invoices/{id}", "definition": { "entityName": "RecurringInvoice", "description": "Auto-billing templates" } },
       { "path": "/credit_notes/{id}", "definition": { "entityName": "CreditNote", "description": "Sales returns/credits" } },
       { "path": "/customer_advances/{id}", "definition": { "entityName": "CustomerAdvance", "description": "Pre-payments" } },
