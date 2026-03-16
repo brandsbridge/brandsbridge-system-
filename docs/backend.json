@@ -2,7 +2,6 @@
 {
   "entities": {
     "Supplier": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Supplier",
       "type": "object",
       "description": "Represents a manufacturing or trading partner.",
@@ -11,162 +10,108 @@
         "name": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "country": { "type": "string" },
-        "natureOfBusiness": { "type": "string" },
-        "recordStatus": { "type": "string" },
-        "dataCompleteness": { "type": "number" },
+        "vatId": { "type": "string" },
+        "bdoNumber": { "type": "string" },
+        "bankInfo": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "bic": { "type": "string" },
+            "iban": { "type": "string" }
+          }
+        },
         "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "name", "email", "createdAt"]
+      }
     },
     "Customer": {
       "title": "Customer",
       "type": "object",
-      "description": "Represents a B2B buyer.",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "country": { "type": "string" },
-        "accountStatus": { "type": "string" },
-        "accountHealth": { "type": "string" },
-        "totalRevenue": { "type": "number" },
+        "address": { "type": "string" },
+        "vatId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "name", "createdAt"]
+      }
+    },
+    "Product": {
+      "title": "Product Catalog Item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "gtin": { "type": "string", "description": "Bar code / GTIN-13" },
+        "name": { "type": "string" },
+        "brand": { "type": "string" },
+        "category": { "type": "string" },
+        "packing": { "type": "number", "description": "pcs per case" },
+        "weightNet": { "type": "number", "description": "kg per case" },
+        "weightGross": { "type": "number" }
+      }
     },
     "Invoice": {
-      "title": "Invoice",
+      "title": "Professional Trade Invoice",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "number": { "type": "string" },
-        "customerName": { "type": "string" },
-        "customerId": { "type": "string" },
-        "total": { "type": "number" },
-        "subtotal": { "type": "number" },
-        "discountTotal": { "type": "number" },
-        "shippingCharges": { "type": "number" },
-        "status": { "type": "string", "enum": ["paid", "pending", "overdue", "void"] },
-        "sentStatus": { "type": "string", "enum": ["draft", "sent"] },
-        "dueDate": { "type": "string" },
-        "department": { "type": "string" },
-        "isRecurring": { "type": "boolean" },
-        "isProforma": { "type": "boolean" },
-        "language": { "type": "string", "enum": ["en", "ar"] },
-        "ccEmails": { "type": "string" },
-        "paymentLink": { "type": "string" },
-        "internalNotes": { "type": "string" },
-        "termsAndConditions": { "type": "string" },
-        "customFields": { "type": "array", "items": { "type": "object" } },
-        "stampUrl": { "type": "string" },
-        "originalImageUrl": { "type": "string" },
-        "createdBy": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["number", "customerName", "total", "status", "department"]
-    },
-    "InvoiceScan": {
-      "title": "Invoice Scan Log",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "fileName": { "type": "string" },
-        "scannedAt": { "type": "string", "format": "date-time" },
-        "scannedBy": { "type": "string" },
-        "accuracyRate": { "type": "number" },
-        "status": { "type": "string", "enum": ["completed", "failed"] },
-        "originalImageUrl": { "type": "string" }
+        "number": { "type": "string", "description": "Format: TYPE/SEQ/MM/YYYY" },
+        "type": { "type": "string", "enum": ["EXP", "INV", "PRO", "CN"] },
+        "status": { "type": "string", "enum": ["draft", "sent", "paid", "overdue", "cancelled"] },
+        "dateIssue": { "type": "string" },
+        "dateSale": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "buyerId": { "type": "string" },
+        "recipientId": { "type": "string" },
+        "deliveryTerms": { "type": "string", "enum": ["CIF", "FOB", "EXW", "DDP"] },
+        "destinationCountry": { "type": "string" },
+        "shippingInfo": {
+          "type": "object",
+          "properties": {
+            "shipmentDate": { "type": "string" },
+            "truckNumber": { "type": "string" },
+            "sealNumber": { "type": "string" },
+            "containerNumber": { "type": "string" },
+            "exchangeRate": { "type": "number" },
+            "orderNumber": { "type": "string" }
+          }
+        },
+        "lineItems": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "gtin": { "type": "string" },
+              "description": { "type": "string" },
+              "packing": { "type": "number" },
+              "quantityCs": { "type": "number" },
+              "quantityPcs": { "type": "number" },
+              "priceNet": { "type": "number" },
+              "vatRate": { "type": "number" },
+              "total": { "type": "number" }
+            }
+          }
+        },
+        "totals": {
+          "type": "object",
+          "properties": {
+            "net": { "type": "number" },
+            "vat": { "type": "number" },
+            "gross": { "type": "number" },
+            "weightNet": { "type": "number" },
+            "weightGross": { "type": "number" },
+            "totalBoxes": { "type": "number" }
+          }
+        },
+        "paymentTerms": {
+          "type": "object",
+          "properties": {
+            "method": { "type": "string" },
+            "dueDate": { "type": "string" },
+            "notes": { "type": "string" }
+          }
+        }
       }
-    },
-    "RecurringInvoice": {
-      "title": "Recurring Invoice Template",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "templateName": { "type": "string" },
-        "originalInvoiceId": { "type": "string" },
-        "customerId": { "type": "string" },
-        "customerName": { "type": "string" },
-        "frequency": { "type": "string", "enum": ["daily", "weekly", "monthly", "quarterly", "yearly"] },
-        "startDate": { "type": "string" },
-        "endDate": { "type": "string" },
-        "lastGenerated": { "type": "string" },
-        "status": { "type": "string", "enum": ["active", "paused", "completed"] },
-        "amount": { "type": "number" },
-        "autoSend": { "type": "boolean" }
-      }
-    },
-    "CreditNote": {
-      "title": "Credit Note",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "number": { "type": "string" },
-        "customerId": { "type": "string" },
-        "customerName": { "type": "string" },
-        "invoiceId": { "type": "string" },
-        "amount": { "type": "number" },
-        "remainingAmount": { "type": "number" },
-        "reason": { "type": "string" },
-        "status": { "type": "string", "enum": ["open", "closed", "void"] },
-        "date": { "type": "string" }
-      }
-    },
-    "CustomerAdvance": {
-      "title": "Customer Advance",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "customerId": { "type": "string" },
-        "customerName": { "type": "string" },
-        "amount": { "type": "number" },
-        "remainingAmount": { "type": "number" },
-        "reference": { "type": "string" },
-        "date": { "type": "string" },
-        "paymentMethod": { "type": "string" }
-      }
-    },
-    "VendorCredit": {
-      "title": "Vendor Credit",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "supplierId": { "type": "string" },
-        "supplierName": { "type": "string" },
-        "amount": { "type": "number" },
-        "remainingAmount": { "type": "number" },
-        "reason": { "type": "string" },
-        "date": { "type": "string" }
-      }
-    },
-    "Payment": {
-      "title": "Payment",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "partyName": { "type": "string" },
-        "amount": { "type": "number" },
-        "type": { "type": "string", "enum": ["received", "made"] },
-        "method": { "type": "string" },
-        "reference": { "type": "string" },
-        "department": { "type": "string" },
-        "date": { "type": "string" }
-      },
-      "required": ["partyName", "amount", "type", "department"]
-    },
-    "PurchaseOrder": {
-      "title": "Purchase Order",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "number": { "type": "string" },
-        "supplierName": { "type": "string" },
-        "total": { "type": "number" },
-        "status": { "type": "string" },
-        "department": { "type": "string" },
-        "date": { "type": "string" }
-      },
-      "required": ["number", "supplierName", "total", "status", "department"]
     }
   },
   "auth": {
@@ -174,20 +119,10 @@
   },
   "firestore": {
     "structure": [
-      { "path": "/suppliers/{id}", "definition": { "entityName": "Supplier", "description": "Global suppliers" } },
-      { "path": "/customers/{id}", "definition": { "entityName": "Customer", "description": "B2B Customers" } },
-      { "path": "/invoices/{id}", "definition": { "entityName": "Invoice", "description": "Sales invoices" } },
-      { "path": "/invoice_scans/{id}", "definition": { "entityName": "InvoiceScan", "description": "AI scanning logs" } },
-      { "path": "/recurring_invoices/{id}", "definition": { "entityName": "RecurringInvoice", "description": "Auto-billing templates" } },
-      { "path": "/credit_notes/{id}", "definition": { "entityName": "CreditNote", "description": "Sales returns/credits" } },
-      { "path": "/customer_advances/{id}", "definition": { "entityName": "CustomerAdvance", "description": "Pre-payments" } },
-      { "path": "/vendor_credits/{id}", "definition": { "entityName": "VendorCredit", "description": "Supplier credits" } },
-      { "path": "/payments/{id}", "definition": { "entityName": "Payment", "description": "Financial settlements" } },
-      { "path": "/purchase_orders/{id}", "definition": { "entityName": "PurchaseOrder", "description": "Procurement orders" } },
-      { "path": "/journals/{id}", "definition": { "entityName": "JournalEntry", "description": "General journal entries" } },
-      { "path": "/campaigns/{id}", "definition": { "entityName": "Campaign", "description": "Marketing outreach" } },
-      { "path": "/communication_logs/{id}", "definition": { "entityName": "CommunicationLog", "description": "Email audit trail" } },
-      { "path": "/app_roles_admin/{userId}", "definition": { "entityName": "AdminRole", "description": "Access control" } }
+      { "path": "/products/{id}", "definition": { "entityName": "Product", "description": "Global product catalog" } },
+      { "path": "/invoices/{id}", "definition": { "entityName": "Invoice", "description": "Sales and export invoices" } },
+      { "path": "/suppliers/{id}", "definition": { "entityName": "Supplier", "description": "Trading entities" } },
+      { "path": "/customers/{id}", "definition": { "entityName": "Customer", "description": "Buyers and recipients" } }
     ]
   }
 }

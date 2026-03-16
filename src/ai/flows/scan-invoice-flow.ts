@@ -1,64 +1,65 @@
 
 'use server';
 /**
- * @fileOverview An AI agent that scans invoice documents and extracts structured financial data.
- *
- * - scanInvoice - A function that handles the scanning process.
- * - ScanInvoiceInput - The input type for the scanInvoice function.
- * - ScanInvoiceOutput - The return type for the scanInvoice function.
+ * @fileOverview Enhanced AI agent for professional export invoice scanning.
+ * Extracts GTINs, logistic details, and line items with high precision.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-const ConfidenceLevelSchema = z.enum(['high', 'medium', 'low']).describe('Confidence level of the extraction.');
+const ConfidenceLevelSchema = z.enum(['high', 'medium', 'low']);
 
 const ExtractedFieldSchema = z.object({
-  value: z.string().nullable().describe('The extracted value.'),
-  confidence: ConfidenceLevelSchema,
-});
-
-const ExtractedNumberFieldSchema = z.object({
-  value: z.number().nullable().describe('The extracted numeric value.'),
+  value: z.string().nullable(),
   confidence: ConfidenceLevelSchema,
 });
 
 const ExtractedLineItemSchema = z.object({
-  description: z.string().describe('Product or service description.'),
-  quantity: z.number().describe('Quantity.'),
-  unitPrice: z.number().describe('Unit price.'),
-  total: z.number().describe('Line item total.'),
+  gtin: z.string().describe('GTIN-13 barcode'),
+  description: z.string().describe('Full product description'),
+  packing: z.number().describe('pcs per case'),
+  quantityCs: z.number().describe('cases'),
+  quantityPcs: z.number().describe('total pieces'),
+  priceNet: z.number().describe('unit price'),
+  total: z.number().describe('line total'),
   confidence: ConfidenceLevelSchema,
 });
 
 const ScanInvoiceInputSchema = z.object({
-  photoDataUri: z
-    .string()
-    .describe(
-      "A photo of an invoice, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
-    ),
+  photoDataUri: z.string()
 });
-export type ScanInvoiceInput = z.infer<typeof ScanInvoiceInputSchema>;
 
 const ScanInvoiceOutputSchema = z.object({
-  vendor: z.object({
-    name: ExtractedFieldSchema,
-    address: ExtractedFieldSchema.optional(),
+  header: z.object({
+    invoiceNumber: ExtractedFieldSchema,
+    type: z.string(),
+    dateIssue: ExtractedFieldSchema,
+    dateSale: ExtractedFieldSchema.optional()
   }),
-  invoiceNumber: ExtractedFieldSchema,
-  date: ExtractedFieldSchema,
-  dueDate: ExtractedFieldSchema,
-  currency: ExtractedFieldSchema,
+  entities: z.object({
+    sellerName: ExtractedFieldSchema,
+    buyerName: ExtractedFieldSchema,
+    recipientName: ExtractedFieldSchema
+  }),
+  logistics: z.object({
+    deliveryTerms: ExtractedFieldSchema,
+    containerNumber: ExtractedFieldSchema,
+    truckNumber: ExtractedFieldSchema,
+    totalWeightGross: z.number()
+  }),
   lineItems: z.array(ExtractedLineItemSchema),
-  subtotal: ExtractedNumberFieldSchema,
-  taxAmount: ExtractedNumberFieldSchema,
-  total: ExtractedNumberFieldSchema,
-  paymentTerms: ExtractedFieldSchema.optional(),
-  overallConfidence: z.number().describe('Overall confidence score from 0 to 1.'),
+  totals: z.object({
+    netAmount: z.number(),
+    vatAmount: z.number(),
+    grossAmount: z.number()
+  }),
+  overallConfidence: z.number()
 });
+
 export type ScanInvoiceOutput = z.infer<typeof ScanInvoiceOutputSchema>;
 
-export async function scanInvoice(input: ScanInvoiceInput): Promise<ScanInvoiceOutput> {
+export async function scanInvoice(input: { photoDataUri: string }): Promise<ScanInvoiceOutput> {
   return scanInvoiceFlow(input);
 }
 
@@ -66,27 +67,16 @@ const prompt = ai.definePrompt({
   name: 'scanInvoicePrompt',
   input: {schema: ScanInvoiceInputSchema},
   output: {schema: ScanInvoiceOutputSchema},
-  prompt: `You are an expert financial auditor specializing in OCR and invoice data extraction.
+  prompt: `You are an expert global trade auditor. Scan this EXPORT INVOICE and extract data with 100% precision.
+  
+  Focus areas:
+  1. Header: Extract number (e.g. FSE-EXP/00000099/10/2025).
+  2. Entities: Split Buyer and Recipient if they are in different columns.
+  3. Logistics: Find Container # and Truck #.
+  4. Line Items: CRITICAL - Extract the 13-digit GTIN barcode for every row.
+  5. Totals: Capture Net, VAT, and Gross USD.
 
-Examine the provided invoice image and extract all relevant financial fields. 
-
-For each field, assign a confidence level:
-- 'high': You are certain the data is correct.
-- 'medium': There is some ambiguity or the text is slightly blurry but readable.
-- 'low': The text is very difficult to read or you are making an educated guess.
-
-Invoice Image: {{media url=photoDataUri}}
-
-Extract:
-1. Vendor/Supplier Name and Address.
-2. Invoice Number.
-3. Date and Due Date.
-4. Currency (e.g., USD, AED, EUR).
-5. Line Items: description, quantity, unit price, and total.
-6. Subtotal, Tax Amount, and Final Total.
-7. Payment Terms if visible.
-
-Ensure all numeric values are numbers, not strings.`,
+  Image: {{media url=photoDataUri}}`,
 });
 
 const scanInvoiceFlow = ai.defineFlow(
