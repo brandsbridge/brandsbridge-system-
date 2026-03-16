@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import { 
   Search, 
   Plus, 
@@ -257,7 +258,11 @@ export default function InvoicesPage() {
                         <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem><Eye className="mr-2 h-4 w-4" /> View Details</DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link href={`/accounting/invoices/${inv.id}`}>
+                            <Eye className="mr-2 h-4 w-4" /> View Details
+                          </Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => invoiceService.updateInvoice(db, inv.id, { status: 'paid' })} className="text-green-500 font-bold">Mark as Paid</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => invoiceService.deleteInvoice(db, inv.id)} className="text-destructive">Archive</DropdownMenuItem>
