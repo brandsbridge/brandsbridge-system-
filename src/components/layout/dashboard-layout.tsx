@@ -38,7 +38,8 @@ import {
   Repeat,
   FileMinus,
   Banknote,
-  Loader2
+  Loader2,
+  CreditCard as CreditCardIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -106,13 +107,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { name: "Detergents Market", href: "/department/detergents", icon: Droplets, dept: 'detergents' },
     { type: 'separator', label: 'Finance' },
     { name: "Accounting Hub", href: "/accounting", icon: Calculator },
-    { name: "Invoices", href: "/accounting/invoices", icon: Receipt },
+    { name: "Expenses", href: "/accounting/expenses", icon: Receipt },
+    { name: "Invoices", href: "/accounting/invoices", icon: FileText },
     { name: "Recurring Billing", href: "/accounting/recurring", icon: Repeat },
     { name: "Credit/Debit Notes", href: "/accounting/credits", icon: FileMinus },
     { name: "Customer Advances", href: "/accounting/advances", icon: Banknote },
     { name: "Vendor Credits", href: "/accounting/vendor-credits", icon: Wallet },
     { name: "Purchase Orders", href: "/accounting/purchase-orders", icon: FileText },
-    { name: "Payments", href: "/accounting/payments", icon: CreditCard },
+    { name: "Payments", href: "/accounting/payments", icon: CreditCardIcon },
     { name: "Financial Reports", href: "/accounting/reports", icon: FileBarChart },
     { name: "Journal Entries", href: "/accounting/journal", icon: History },
     { type: 'separator', label: 'Marketing' },

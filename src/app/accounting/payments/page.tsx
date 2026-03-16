@@ -12,7 +12,9 @@ import {
   Banknote,
   Clock,
   Plus,
-  Loader2
+  Loader2,
+  FileText,
+  CreditCard
 } from "lucide-react";
 import { 
   Table, 
@@ -32,13 +34,17 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter
+  DialogFooter,
+  DialogDescription
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection, query, where } from "firebase/firestore";
 import { paymentService } from "@/services/payment-service";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
+import { CHART_OF_ACCOUNTS } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -78,8 +84,10 @@ export default function PaymentsPage() {
       amount: parseFloat(formData.get('amount') as string),
       type: formData.get('type'),
       method: formData.get('method'),
+      paidThrough: formData.get('paidThrough'),
       reference: formData.get('reference') || `REF-${Date.now().toString().slice(-4)}`,
-      department: currentUser?.department === 'all' ? formData.get('department') : currentUser?.department,
+      notes: formData.get('notes'),
+      department: currentUser?.department || 'all',
       date: new Date().toISOString(),
       createdAt: new Date().toISOString()
     };
@@ -88,6 +96,8 @@ export default function PaymentsPage() {
     setIsAddModalOpen(false);
     toast({ title: "Payment Recorded", description: `Financial settlement saved to ledger.` });
   };
+
+  const bankAccounts = CHART_OF_ACCOUNTS.filter(a => a.name.includes('Bank') || a.name.includes('Cash'));
 
   return (
     <div className="space-y-8">
@@ -102,23 +112,16 @@ export default function PaymentsPage() {
             <DialogTrigger asChild>
               <Button className="bg-primary"><Plus className="mr-2 h-4 w-4" /> Record Payment</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-xl">
               <form onSubmit={handleRecordPayment}>
                 <DialogHeader>
-                  <DialogTitle>Record New Settlement</DialogTitle>
+                  <DialogTitle>Financial Settlement</DialogTitle>
+                  <DialogDescription>Record inward customer payments or outward supplier settlements.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase">Party Name</label>
-                    <Input name="partyName" required placeholder="Customer or Supplier name" />
-                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase">Amount ($)</label>
-                      <Input name="amount" type="number" step="0.01" required placeholder="0.00" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase">Payment Type</label>
+                      <Label className="text-xs font-bold uppercase">Payment Type</Label>
                       <Select name="type" defaultValue="received">
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -127,10 +130,20 @@ export default function PaymentsPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase">Amount ($)</Label>
+                      <Input name="amount" type="number" step="0.01" required placeholder="0.00" />
+                    </div>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase">Contact / Party Name</Label>
+                    <Input name="partyName" required placeholder="Who is this payment with?" />
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase">Method</label>
+                      <Label className="text-xs font-bold uppercase">Payment Method</Label>
                       <Select name="method" defaultValue="Bank Transfer">
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -141,23 +154,27 @@ export default function PaymentsPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase">Reference #</label>
-                      <Input name="reference" placeholder="e.g. TXN-9942" />
-                    </div>
-                  </div>
-                  {currentUser?.department === 'all' && (
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase">Market Segment</label>
-                      <Select name="department" defaultValue="chocolate">
+                      <Label className="text-xs font-bold uppercase">Paid Through Account</Label>
+                      <Select name="paidThrough" defaultValue="1000">
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="chocolate">Chocolate</SelectItem>
-                          <SelectItem value="cosmetics">Cosmetics</SelectItem>
-                          <SelectItem value="detergents">Detergents</SelectItem>
+                          {bankAccounts.map(acc => (
+                            <SelectItem key={acc.code} value={acc.code}>{acc.name}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
-                  )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase">Reference #</Label>
+                    <Input name="reference" placeholder="e.g. TXN-9942 or Bank Ref" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase">Notes</Label>
+                    <Textarea name="notes" placeholder="Internal settlement details..." />
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
@@ -232,9 +249,9 @@ export default function PaymentsPage() {
                   </TableCell>
                   <TableCell>
                     {pay.type === 'received' ? (
-                      <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Inward</Badge>
+                      <Badge className="bg-green-500/10 text-green-500 border-green-500/20 text-[10px]">Inward</Badge>
                     ) : (
-                      <Badge className="bg-red-500/10 text-red-500 border-red-500/20">Outward</Badge>
+                      <Badge className="bg-red-500/10 text-red-500 border-red-500/20 text-[10px]">Outward</Badge>
                     )}
                   </TableCell>
                   <TableCell className={cn("text-right font-bold", pay.type === 'received' ? "text-green-500" : "text-red-500")}>

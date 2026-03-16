@@ -12,7 +12,8 @@ import {
   Truck, 
   AlertTriangle,
   Loader2,
-  Calendar
+  Calendar,
+  Paperclip
 } from "lucide-react";
 import { 
   Table, 
@@ -38,9 +39,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter
+  DialogFooter,
+  DialogDescription
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection, query, where } from "firebase/firestore";
 import { purchaseOrderService } from "@/services/purchase-order-service";
@@ -59,6 +63,10 @@ export default function PurchaseOrdersPage() {
     const saved = localStorage.getItem("demoUser");
     if (saved) setCurrentUser(JSON.parse(saved));
   }, []);
+
+  // Fetch Suppliers for dropdown
+  const suppliersQuery = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
+  const { data: suppliers } = useCollection(suppliersQuery);
 
   const poQuery = useMemoFirebase(() => {
     if (!user || !currentUser) return null;
@@ -79,27 +87,18 @@ export default function PurchaseOrdersPage() {
     });
   }, [purchaseOrders, searchTerm]);
 
-  const stats = useMemo(() => {
-    const safePOs = purchaseOrders || [];
-    const receivedValue = safePOs.filter(po => po.status === 'Fully Received').reduce((acc, po) => acc + (po.total || 0), 0);
-    const inTransitCount = safePOs.filter(po => po.status === 'Confirmed').length;
-    return {
-      active: safePOs.length,
-      inTransit: inTransitCount,
-      received: receivedValue
-    };
-  }, [purchaseOrders]);
-
   const handleCreatePO = (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const data = {
-      number: `PO-${Date.now().toString().slice(-6)}`,
-      supplierName: formData.get('supplierName'),
+      number: formData.get('reference') || `PO-${Date.now().toString().slice(-6)}`,
+      supplierId: formData.get('supplierId'),
+      supplierName: suppliers?.find(s => s.id === formData.get('supplierId'))?.name || formData.get('manualSupplier'),
       total: parseFloat(formData.get('total') as string),
       status: 'Confirmed',
+      notes: formData.get('notes'),
       date: new Date().toISOString(),
-      department: currentUser?.department === 'all' ? formData.get('department') : currentUser?.department,
+      department: currentUser?.department || 'all',
       createdAt: new Date().toISOString()
     };
 
@@ -129,33 +128,50 @@ export default function PurchaseOrdersPage() {
           <DialogTrigger asChild>
             <Button className="bg-primary"><Plus className="mr-2 h-4 w-4" /> Create PO</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             <form onSubmit={handleCreatePO}>
               <DialogHeader>
-                <DialogTitle>Issue New Purchase Order</DialogTitle>
+                <DialogTitle>Issue Purchase Order</DialogTitle>
+                <DialogDescription>Formal procurement request for your manufacturing partners.</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase">Supplier Name</label>
-                  <Input name="supplierName" required placeholder="e.g. Istanbul Industrial Group" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase">Total Estimated Value ($)</label>
-                  <Input name="total" type="number" step="0.01" required placeholder="0.00" />
-                </div>
-                {currentUser?.department === 'all' && (
+              <div className="grid grid-cols-2 gap-6 py-4">
+                <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase">Market Segment</label>
-                    <Select name="department" defaultValue="chocolate">
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Label className="text-xs font-bold uppercase">Select Supplier</Label>
+                    <Select name="supplierId">
+                      <SelectTrigger><SelectValue placeholder="Verified partners..." /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="chocolate">Chocolate</SelectItem>
-                        <SelectItem value="cosmetics">Cosmetics</SelectItem>
-                        <SelectItem value="detergents">Detergents</SelectItem>
+                        {suppliers?.map(s => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
-                )}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase">Manual Vendor (Optional)</Label>
+                    <Input name="manualSupplier" placeholder="If not in directory..." />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase">Estimated Total ($)</Label>
+                    <Input name="total" type="number" step="0.01" required placeholder="0.00" />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase">Reference / PO #</Label>
+                    <Input name="reference" placeholder="Auto-generated if empty" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase">Internal Notes</Label>
+                    <Textarea name="notes" placeholder="Instructions for logistics..." />
+                  </div>
+                  <div className="border-2 border-dashed rounded-lg p-4 text-center">
+                    <Button variant="ghost" size="sm" type="button" className="text-xs">
+                      <Paperclip className="mr-2 h-3 w-3" /> Attach Quote PDF
+                    </Button>
+                  </div>
+                </div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
@@ -173,7 +189,7 @@ export default function PurchaseOrdersPage() {
               <Package className="h-4 w-4 text-primary" />
               <span className="text-xs font-bold uppercase text-muted-foreground">Active POs</span>
             </div>
-            <div className="text-2xl font-bold">{stats.active}</div>
+            <div className="text-2xl font-bold">{filteredPOs.length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -182,14 +198,16 @@ export default function PurchaseOrdersPage() {
               <Truck className="h-4 w-4 text-orange-500" />
               <span className="text-xs font-bold uppercase text-muted-foreground">In Transit</span>
             </div>
-            <div className="text-2xl font-bold">{stats.inTransit}</div>
+            <div className="text-2xl font-bold">
+              {filteredPOs.filter(po => po.status === 'Confirmed').length}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className="h-4 w-4 text-destructive" />
-              <span className="text-xs font-bold uppercase text-muted-foreground">Discrepancies</span>
+              <span className="text-xs font-bold uppercase text-muted-foreground">Open Issues</span>
             </div>
             <div className="text-2xl font-bold">0</div>
           </CardContent>
@@ -198,9 +216,11 @@ export default function PurchaseOrdersPage() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-2">
               <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span className="text-xs font-bold uppercase text-muted-foreground">Received (MTD)</span>
+              <span className="text-xs font-bold uppercase text-muted-foreground">Value (MTD)</span>
             </div>
-            <div className="text-2xl font-bold">${stats.received.toLocaleString()}</div>
+            <div className="text-2xl font-bold">
+              ${filteredPOs.reduce((acc, po) => acc + (po.total || 0), 0).toLocaleString()}
+            </div>
           </CardContent>
         </Card>
       </div>
