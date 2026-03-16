@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useMemo } from "react";
+import React from "react";
 import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, Mail, Phone, Globe, Calendar, Clock, 
@@ -18,7 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { useFirestore, useDoc } from "@/firebase";
+import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
@@ -39,8 +40,8 @@ export default function SupplierClient({ id }: SupplierClientProps) {
   const db = useFirestore();
   const { toast } = useToast();
 
-  const supplierRef = useMemo(() => doc(db, "suppliers", id), [db, id]);
-  const { data: supplier, loading } = useDoc(supplierRef);
+  const supplierRef = useMemoFirebase(() => doc(db, "suppliers", id), [db, id]);
+  const { data: supplier, isLoading: loading } = useDoc(supplierRef);
   
   const handleShare = () => {
     if (typeof window !== "undefined") {
@@ -67,9 +68,6 @@ export default function SupplierClient({ id }: SupplierClientProps) {
     try {
       const html2pdf = (await import("html2pdf.js")).default;
       
-      // Create a worker instance
-      const worker = html2pdf();
-      
       const opt = {
         margin: [10, 10],
         filename: `${supplier.name.toLowerCase().replace(/\s+/g, '-')}-profile.pdf`,
@@ -83,18 +81,13 @@ export default function SupplierClient({ id }: SupplierClientProps) {
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      // We clone the element to manipulate it for the PDF without affecting the live UI
       const clone = element.cloneNode(true) as HTMLElement;
-      
-      // Force light theme styles for the PDF generation
       clone.style.backgroundColor = "white";
       clone.style.color = "black";
       
-      // Hide non-report elements in the clone
       const toHide = clone.querySelectorAll('.print-hidden, button, [role="tablist"], .dropdown-menu');
       toHide.forEach(el => (el as HTMLElement).style.display = 'none');
 
-      // Ensure cards look professional in PDF
       const cards = clone.querySelectorAll('.card, div[class*="border"]');
       cards.forEach(card => {
         (card as HTMLElement).style.borderColor = "#e2e8f0";
@@ -102,7 +95,7 @@ export default function SupplierClient({ id }: SupplierClientProps) {
         (card as HTMLElement).style.backgroundColor = "#ffffff";
       });
 
-      await worker.set(opt).from(clone).save();
+      html2pdf().set(opt).from(clone).save();
       
       toast({
         title: "Export Successful",
@@ -119,18 +112,23 @@ export default function SupplierClient({ id }: SupplierClientProps) {
   };
 
   const handleContactSupplier = () => {
+    // Check multiple potential email fields for data robustness
     const email = supplier?.email || 
                   supplier?.contacts?.sales?.email || 
-                  supplier?.contacts?.export?.email;
+                  supplier?.contacts?.export?.email ||
+                  supplier?.contacts?.primary?.email;
     
     if (email) {
       const subject = encodeURIComponent(`Business Inquiry: ${supplier?.name || "Partner Inquiry"}`);
       const body = encodeURIComponent(`Dear ${supplier?.name || "Team"},\n\nWe are reaching out from the Procurement Department regarding your current catalog and availability...`);
       const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
       
+      // Use a temporary anchor to reliably trigger the default mail app
       const link = document.createElement('a');
       link.href = mailtoUrl;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
     } else {
       toast({
         variant: "destructive",

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -15,7 +16,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { useFirestore, useDoc } from "@/firebase";
+import { useFirestore, useDoc, useMemoFirebase } from "@/firebase";
 import { doc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,8 +34,8 @@ export default function CustomerClient({ id }: { id: string }) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
   
-  const customerRef = useMemo(() => doc(db, "customers", id), [db, id]);
-  const { data: customer, loading } = useDoc(customerRef);
+  const customerRef = useMemoFirebase(() => doc(db, "customers", id), [db, id]);
+  const { data: customer, isLoading: loading } = useDoc(customerRef);
 
   const handleShare = () => {
     if (typeof window !== "undefined") {
@@ -60,7 +61,6 @@ export default function CustomerClient({ id }: { id: string }) {
 
     try {
       const html2pdf = (await import("html2pdf.js")).default;
-      const worker = html2pdf();
       
       const opt = {
         margin: [10, 10],
@@ -89,7 +89,7 @@ export default function CustomerClient({ id }: { id: string }) {
         (card as HTMLElement).style.backgroundColor = "#ffffff";
       });
 
-      await worker.set(opt).from(clone).save();
+      html2pdf().set(opt).from(clone).save();
       
       toast({
         title: "Export Successful",
@@ -106,6 +106,7 @@ export default function CustomerClient({ id }: { id: string }) {
   };
 
   const handleComposeEmail = () => {
+    // Resolve email address across multiple data structures
     const email = customer?.email || 
                   customer?.contacts?.primary?.email || 
                   customer?.contacts?.finance?.email;
@@ -115,9 +116,12 @@ export default function CustomerClient({ id }: { id: string }) {
       const body = encodeURIComponent(`Dear ${customer?.name || "Team"},\n\nI am reaching out regarding your account status and upcoming opportunities...`);
       const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
       
+      // Temporary link strategy for cross-browser stability
       const link = document.createElement('a');
       link.href = mailtoUrl;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
     } else {
       toast({
         variant: "destructive",
