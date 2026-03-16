@@ -6,16 +6,16 @@ import Link from "next/link";
 import { 
   Search, 
   Plus, 
-  Filter, 
   Download, 
   MoreVertical, 
-  FileText, 
-  Send, 
-  CheckCircle2, 
-  Clock, 
-  XCircle,
   Eye,
-  Loader2
+  Loader2,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  PlusCircle,
+  Trash2,
+  Info
 } from "lucide-react";
 import { 
   Table, 
@@ -45,12 +45,20 @@ import {
   DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection, query, where } from "firebase/firestore";
 import { invoiceService } from "@/services/invoice-service";
-import { formatFirebaseTimestamp } from "@/lib/db-utils";
-import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
 export default function InvoicesPage() {
@@ -86,23 +94,31 @@ export default function InvoicesPage() {
     });
   }, [invoices, searchTerm, statusFilter]);
 
-  const stats = useMemo(() => {
-    const safeInvoices = invoices || [];
-    const total = safeInvoices.reduce((acc, i) => acc + (i.total || 0), 0);
-    const paid = safeInvoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + (i.total || 0), 0);
-    const pending = safeInvoices.filter(i => ['pending', 'overdue'].includes(i.status)).reduce((acc, i) => acc + (i.total || 0), 0);
-    return { total, paid, pending };
-  }, [invoices]);
-
   const handleCreateInvoice = (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
+    
+    const subtotal = parseFloat(formData.get('subtotal') as string) || 0;
+    const discountTotal = parseFloat(formData.get('discountTotal') as string) || 0;
+    const shippingCharges = parseFloat(formData.get('shippingCharges') as string) || 0;
+    const total = subtotal - discountTotal + shippingCharges;
+
     const data = {
       number: `INV-${Date.now().toString().slice(-6)}`,
       customerName: formData.get('customerName'),
-      total: parseFloat(formData.get('total') as string),
+      total,
+      subtotal,
+      discountTotal,
+      shippingCharges,
       status: 'pending',
+      sentStatus: 'draft',
       dueDate: formData.get('dueDate'),
+      isProforma: formData.get('isProforma') === 'on',
+      language: formData.get('language') || 'en',
+      ccEmails: formData.get('ccEmails'),
+      paymentLink: formData.get('paymentLink'),
+      internalNotes: formData.get('internalNotes'),
+      termsAndConditions: formData.get('termsAndConditions') || "Payment is due within 30 days.",
       department: currentUser?.department === 'all' ? formData.get('department') : currentUser?.department,
       createdBy: currentUser?.name || 'System',
       createdAt: new Date().toISOString()
@@ -127,83 +143,128 @@ export default function InvoicesPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-headline">Sales Invoices</h1>
-          <p className="text-muted-foreground">Manage billing cycles and track accounts receivable.</p>
+          <p className="text-muted-foreground">Manage complex billing cycles and track accounts receivable.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline"><Download className="mr-2 h-4 w-4" /> Export CSV</Button>
           <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-primary"><Plus className="mr-2 h-4 w-4" /> New Invoice</Button>
+              <Button className="bg-primary shadow-lg shadow-primary/20"><Plus className="mr-2 h-4 w-4" /> New Advanced Invoice</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <form onSubmit={handleCreateInvoice}>
                 <DialogHeader>
-                  <DialogTitle>Generate New Invoice</DialogTitle>
+                  <DialogTitle>Configure Sales Document</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase">Customer Name</label>
-                    <Input name="customerName" required placeholder="e.g. Arab Food Logistics" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+                
+                <Tabs defaultValue="general" className="mt-6">
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="general">General</TabsTrigger>
+                    <TabsTrigger value="financials">Financials</TabsTrigger>
+                    <TabsTrigger value="documentation">Documentation</TabsTrigger>
+                    <TabsTrigger value="notes">Notes & Terms</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="general" className="space-y-4 pt-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase">Customer Name</label>
+                        <Input name="customerName" required placeholder="e.g. Arab Food Logistics" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase">Due Date</label>
+                        <Input name="dueDate" type="date" required />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center space-x-2">
+                        <Switch id="isProforma" name="isProforma" />
+                        <Label htmlFor="isProforma">Proforma Invoice</Label>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase">Document Language</label>
+                        <Select name="language" defaultValue="en">
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="en">English (US)</SelectItem>
+                            <SelectItem value="ar">Arabic (UAE)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    {currentUser?.department === 'all' && (
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase">Market Segment</label>
+                        <Select name="department" defaultValue="chocolate">
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="chocolate">Chocolate</SelectItem>
+                            <SelectItem value="cosmetics">Cosmetics</SelectItem>
+                            <SelectItem value="detergents">Detergents</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="financials" className="space-y-4 pt-4">
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase">Gross Subtotal ($)</label>
+                        <Input name="subtotal" type="number" step="0.01" required placeholder="0.00" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase">Overall Discount ($)</label>
+                        <Input name="discountTotal" type="number" step="0.01" defaultValue="0.00" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase">Shipping Charges ($)</label>
+                        <Input name="shippingCharges" type="number" step="0.01" defaultValue="0.00" />
+                      </div>
+                    </div>
+                    <div className="p-4 bg-muted/30 rounded-lg border border-dashed text-center">
+                      <p className="text-xs text-muted-foreground flex items-center justify-center gap-2">
+                        <Info className="h-3 w-3" /> Net total will be calculated automatically upon submission.
+                      </p>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="documentation" className="space-y-4 pt-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase">Total Amount ($)</label>
-                      <Input name="total" type="number" step="0.01" required placeholder="0.00" />
+                      <label className="text-xs font-bold uppercase">CC Emails (Multiple)</label>
+                      <Input name="ccEmails" placeholder="finance@client.com, manager@client.com" />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase">Due Date</label>
-                      <Input name="dueDate" type="date" required />
+                      <label className="text-xs font-bold uppercase">Digital Payment Link</label>
+                      <Input name="paymentLink" placeholder="https://stripe.com/..." />
                     </div>
-                  </div>
-                  {currentUser?.department === 'all' && (
+                    <div className="border-2 border-dashed rounded-xl p-8 text-center bg-secondary/5">
+                      <p className="text-sm font-medium">Digital Stamp & Signature Area</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">Upload verified stamp for this transaction (Optional)</p>
+                      <Button variant="outline" size="sm" type="button" className="mt-4">Choose File</Button>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="notes" className="space-y-4 pt-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase">Market Segment</label>
-                      <Select name="department" defaultValue="chocolate">
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="chocolate">Chocolate</SelectItem>
-                          <SelectItem value="cosmetics">Cosmetics</SelectItem>
-                          <SelectItem value="detergents">Detergents</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <label className="text-xs font-bold uppercase text-primary">Internal Notes (Private)</label>
+                      <Textarea name="internalNotes" placeholder="Context for management only. Not visible on invoice PDF." />
                     </div>
-                  )}
-                </div>
-                <DialogFooter>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase">Terms & Conditions (Public)</label>
+                      <Textarea name="termsAndConditions" defaultValue="Payment is expected within 30 days from invoice date. Please mention invoice # in bank reference." />
+                    </div>
+                  </TabsContent>
+                </Tabs>
+
+                <DialogFooter className="mt-8">
                   <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
-                  <Button type="submit">Save Invoice</Button>
+                  <Button type="submit">Finalize & Generate</Button>
                 </DialogFooter>
               </form>
             </DialogContent>
           </Dialog>
         </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Total Invoiced</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${stats.total.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Amount Collected</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-500">${stats.paid.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Outstanding (AR)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-500">${stats.pending.toLocaleString()}</div>
-          </CardContent>
-        </Card>
       </div>
 
       <Card>
@@ -231,7 +292,7 @@ export default function InvoicesPage() {
               <TableRow>
                 <TableHead>Invoice #</TableHead>
                 <TableHead>Customer</TableHead>
-                <TableHead>Dept</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Due Date</TableHead>
                 <TableHead className="text-right">Total Amount</TableHead>
@@ -241,13 +302,18 @@ export default function InvoicesPage() {
             <TableBody>
               {filteredInvoices.map(inv => (
                 <TableRow key={inv.id}>
-                  <TableCell className="font-mono text-xs font-bold">{inv.number}</TableCell>
+                  <TableCell className="font-mono text-xs font-bold">
+                    {inv.number}
+                    {inv.language === 'ar' && <Badge variant="outline" className="ml-2 text-[8px]">AR</Badge>}
+                  </TableCell>
                   <TableCell>
                     <div className="text-sm font-medium">{inv.customerName}</div>
                     <div className="text-[10px] text-muted-foreground uppercase">By {inv.createdBy}</div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className="capitalize text-[10px]">{inv.department}</Badge>
+                    <Badge variant={inv.isProforma ? 'secondary' : 'outline'} className="capitalize text-[10px]">
+                      {inv.isProforma ? 'Proforma' : 'Standard'}
+                    </Badge>
                   </TableCell>
                   <TableCell>{getStatusBadge(inv.status)}</TableCell>
                   <TableCell className="text-xs text-muted-foreground">{inv.dueDate}</TableCell>
@@ -263,6 +329,9 @@ export default function InvoicesPage() {
                             <Eye className="mr-2 h-4 w-4" /> View Details
                           </Link>
                         </DropdownMenuItem>
+                        {inv.sentStatus === 'draft' && (
+                          <DropdownMenuItem onClick={() => invoiceService.updateInvoice(db, inv.id, { sentStatus: 'sent' })}>Mark as Sent</DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => invoiceService.updateInvoice(db, inv.id, { status: 'paid' })} className="text-green-500 font-bold">Mark as Paid</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => invoiceService.deleteInvoice(db, inv.id)} className="text-destructive">Archive</DropdownMenuItem>
