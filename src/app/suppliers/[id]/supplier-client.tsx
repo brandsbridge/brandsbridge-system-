@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState } from "react";
@@ -8,7 +7,7 @@ import {
   Share2, Download, Send, 
   MessageSquare, Clock, Phone,
   Briefcase, Star, Loader2, Edit, Trash2, MoreVertical,
-  Globe, Factory, ShieldCheck, Box, Package
+  Globe, Factory, ShieldCheck, Box, Package, DollarSign
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -101,20 +100,21 @@ export default function SupplierClient({ id }: { id: string }) {
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
-      // Temporarily hide UI elements for clean capture
-      const toHide = element.querySelectorAll('.print-hidden, button, [role="tablist"], .dropdown-menu');
+      const clone = element.cloneNode(true) as HTMLElement;
+      clone.style.backgroundColor = "white";
+      clone.style.color = "black";
+      
+      const toHide = clone.querySelectorAll('.print-hidden, button, [role="tablist"], .dropdown-menu');
       toHide.forEach(el => (el as HTMLElement).style.display = 'none');
 
-      await html2pdf().set(opt).from(element).save();
+      html2pdf().set(opt).from(clone).save();
       
-      // Restore UI elements
-      toHide.forEach(el => (el as HTMLElement).style.display = '');
-
       toast({
         title: "Export Successful",
         description: "Your report has been downloaded.",
       });
     } catch (error) {
+      console.error("PDF Generation Error:", error);
       toast({
         variant: "destructive",
         title: "Export Failed",
@@ -244,7 +244,7 @@ export default function SupplierClient({ id }: { id: string }) {
         <div className="flex gap-2 flex-wrap print-hidden">
           <Button variant="outline" onClick={handleShare}><Share2 className="h-4 w-4 mr-2" /> Share</Button>
           <Button variant="outline" onClick={handleExportPDF}><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
-          <Button className="bg-primary" onClick={handleOpenContactDialog}><Mail className="h-4 w-4 mr-2" /> Contact Supplier</Button>
+          <Button className="bg-primary shadow-lg shadow-primary/20" onClick={handleOpenContactDialog}><Send className="h-4 w-4 mr-2" /> Contact Supplier</Button>
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -265,7 +265,7 @@ export default function SupplierClient({ id }: { id: string }) {
 
       <div className="grid gap-6 lg:grid-cols-4">
         <div className="lg:col-span-1 space-y-6">
-          <Card>
+          <Card className="card">
             <CardContent className="pt-6 space-y-6">
               <div className="flex flex-col items-center text-center space-y-3 pb-4">
                 <div className="h-24 w-24 rounded-2xl bg-primary/10 flex items-center justify-center text-4xl font-bold text-primary border-2 border-primary/20">
@@ -310,7 +310,7 @@ export default function SupplierClient({ id }: { id: string }) {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6 pt-4">
-              <Card>
+              <Card className="card">
                 <CardHeader><CardTitle className="text-sm">Strategic Intelligence</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-xs text-muted-foreground leading-relaxed">{supplier.overview || 'No extended overview provided for this manufacturing partner.'}</p>
@@ -327,7 +327,7 @@ export default function SupplierClient({ id }: { id: string }) {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="card">
                 <CardHeader><CardTitle className="text-sm">Primary Sales Contact</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   {supplier.contacts?.sales ? (
@@ -354,7 +354,7 @@ export default function SupplierClient({ id }: { id: string }) {
             </TabsContent>
 
             <TabsContent value="products" className="space-y-6 pt-4">
-              <Card>
+              <Card className="card">
                 <CardHeader><CardTitle className="text-sm">Specialized Categories</CardTitle></CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
@@ -367,7 +367,7 @@ export default function SupplierClient({ id }: { id: string }) {
                 </CardContent>
               </Card>
               
-              <Card>
+              <Card className="card">
                 <CardHeader><CardTitle className="text-sm">Logistics & MOQs</CardTitle></CardHeader>
                 <CardContent className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
@@ -383,7 +383,7 @@ export default function SupplierClient({ id }: { id: string }) {
             </TabsContent>
 
             <TabsContent value="compliance" className="space-y-6 pt-4">
-              <Card>
+              <Card className="card">
                 <CardHeader><CardTitle className="text-sm">Verification Status</CardTitle></CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 gap-4">
