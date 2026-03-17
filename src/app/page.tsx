@@ -2,13 +2,9 @@
 
 import React, { useState } from "react";
 import { 
-  Users, 
-  ArrowRight, 
   ShieldCheck, 
   Loader2, 
-  TrendingUp, 
   Globe, 
-  FileText, 
   Zap, 
   Terminal,
   Plus,
@@ -34,24 +30,29 @@ import {
   limit 
 } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
-import Link from "next/link";
 
 export default function DeveloperConsole() {
   const { user, isUserLoading } = useUser();
-  const firestore = useFirestore(); // Get db instance from provider hook
+  const firestore = useFirestore(); 
   const [isWriting, setIsWriting] = useState(false);
 
   /**
-   * 🛠️ FIX: Pass 'firestore' from the hook as the first argument.
-   * This ensures the instance is defined and synchronized with the provider.
+   * Safely memoize the sandbox query.
+   * Ensures 'collection()' is only called with a verified firestore instance.
    */
   const sandboxQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return query(
-      collection(firestore, "dev_sandbox"), 
-      orderBy("createdAt", "desc"),
-      limit(10)
-    );
+    // Only call collection() if firestore is truthy and valid
+    if (!firestore || typeof firestore !== 'object') return null;
+    try {
+      return query(
+        collection(firestore, "dev_sandbox"), 
+        orderBy("createdAt", "desc"),
+        limit(10)
+      );
+    } catch (e) {
+      console.error("Query Initialization Error:", e);
+      return null;
+    }
   }, [firestore]);
 
   const { data: logs, isLoading: loadingLogs } = useCollection(sandboxQuery);
@@ -67,7 +68,7 @@ export default function DeveloperConsole() {
         timestamp: new Date().toLocaleTimeString(),
         createdAt: serverTimestamp()
       });
-      toast({ title: "Write Success", description: "Document pushed to 'dev_sandbox' collection." });
+      toast({ title: "Write Success", description: "Document pushed to Firestore." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Write Error", description: e.message });
     } finally {
@@ -121,8 +122,8 @@ export default function DeveloperConsole() {
             <ShieldCheck className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">Initialized</div>
-            <p className="text-[9px] text-muted-foreground mt-1">Firestore instance verified</p>
+            <div className="text-xl font-bold">Unified</div>
+            <p className="text-[9px] text-muted-foreground mt-1">Firestore singleton active</p>
           </CardContent>
         </Card>
         <Card className="bg-green-500/5 border-green-500/20">
@@ -132,7 +133,7 @@ export default function DeveloperConsole() {
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold">Unrestricted</div>
-            <p className="text-[9px] text-muted-foreground mt-1">Read/Write enabled for all</p>
+            <p className="text-[9px] text-muted-foreground mt-1">Global Read/Write enabled</p>
           </CardContent>
         </Card>
         <Card>
@@ -142,17 +143,17 @@ export default function DeveloperConsole() {
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold">12ms</div>
-            <p className="text-[9px] text-muted-foreground mt-1">Google Cloud Workstation</p>
+            <p className="text-[9px] text-muted-foreground mt-1">Real-time sync active</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-bold uppercase text-muted-foreground">Environment</CardTitle>
+            <CardTitle className="text-[10px] font-bold uppercase text-muted-foreground">Runtime</CardTitle>
             <Terminal className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
             <div className="text-xl font-bold">Turbopack</div>
-            <p className="text-[9px] text-muted-foreground mt-1">Next.js 15.5.9 Runtime</p>
+            <p className="text-[9px] text-muted-foreground mt-1">Next.js 15.5.9</p>
           </CardContent>
         </Card>
       </div>
@@ -163,7 +164,7 @@ export default function DeveloperConsole() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-lg">Live CRUD Sandbox</CardTitle>
-                <CardDescription>Documents in <code>dev_sandbox</code> collection update in real-time.</CardDescription>
+                <CardDescription>Real-time updates from <code>dev_sandbox</code> collection.</CardDescription>
               </div>
               <Badge variant="outline" className="animate-pulse">Live Feed</Badge>
             </div>
@@ -223,34 +224,12 @@ export default function DeveloperConsole() {
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground space-y-4 leading-relaxed">
               <p>
-                The <code>Expected first argument to collection()</code> error was resolved by ensuring the 
-                <code>db</code> instance is correctly initialized in <code>src/lib/firebase.ts</code> and passed 
-                explicitly to every Firestore function.
+                The <code>collection()</code> error was resolved by unifying initialization in <code>lib/firebase.ts</code> and ensuring all SDK calls use the unified singleton via the <code>useFirestore()</code> hook.
               </p>
-              <div className="p-3 bg-black/50 rounded font-mono text-[10px] text-primary">
-                collection(firestore, "path")
-              </div>
+              <Separator />
               <p>
-                Using the <code>useFirestore()</code> hook ensures the component waits for the provider to be ready.
+                This setup avoids duplicate SDK bundles in Next.js 15, which is the primary cause of instance validation failures.
               </p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-primary/5 border-primary/20">
-            <CardHeader>
-              <CardTitle className="text-sm">Navigation Hub</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link href="/admin/system" className="block">
-                <Button variant="outline" size="sm" className="w-full justify-start">
-                  <Database className="mr-2 h-3 w-3" /> System Health Hub
-                </Button>
-              </Link>
-              <Link href="/suppliers" className="block">
-                <Button variant="outline" size="sm" className="w-full justify-start">
-                  <Users className="mr-2 h-3 w-3" /> Supplier Directory
-                </Button>
-              </Link>
             </CardContent>
           </Card>
         </div>

@@ -1,16 +1,27 @@
 'use client';
 
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
+import { getFirestore, Firestore } from "firebase/firestore";
+import { getAuth, Auth } from "firebase/auth";
 import { firebaseConfig } from "@/firebase/config";
 
 /**
  * Singleton Firebase Initialization
- * This ensures 'db' is initialized exactly once and exported as a stable reference.
+ * This is the ONE TRUE SOURCE for Firebase instances in the app.
  */
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
-const auth = getAuth(app);
+let app: FirebaseApp;
+let db: Firestore;
+let auth: Auth;
+
+// Initialize once
+if (getApps().length === 0) {
+  app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  auth = getAuth(app);
+} else {
+  app = getApp();
+  db = getFirestore(app);
+  auth = getAuth(app);
+}
 
 export { app, db, auth };
