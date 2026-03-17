@@ -13,7 +13,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Globe,
-  FileText
+  FileText,
+  Zap,
+  Terminal
 } from "lucide-react";
 import { 
   Tooltip, 
@@ -26,6 +28,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
@@ -35,26 +38,23 @@ import { useRouter } from "next/navigation";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection, query, orderBy, limit } from "firebase/firestore";
 
-const COLORS = ['#755EDE', '#5182E0', '#F59E0B', '#EF4444', '#10B981'];
-
 export default function OverviewPage() {
   const router = useRouter();
-  const { user, isUserLoading } = useUser();
+  const { user } = useUser();
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
   const db = useFirestore();
 
   useEffect(() => {
     const savedUser = localStorage.getItem("demoUser");
     if (savedUser) {
-      const u = JSON.parse(savedUser);
-      setCurrentUser(u);
-    } else {
-      router.push("/login");
+      setCurrentUser(JSON.parse(savedUser));
     }
-  }, [router]);
+    // Redirect logic moved to DashboardLayout to avoid loops
+  }, []);
 
   const invoicesCol = useMemoFirebase(() => user ? collection(db, "invoices") : null, [db, user]);
   const customersCol = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
+  
   const { data: invoices = [], isLoading: loadingInvoices } = useCollection(invoicesCol);
   const { data: customers = [] } = useCollection(customersCol);
 
@@ -62,7 +62,6 @@ export default function OverviewPage() {
     const safeInvoices = invoices || [];
     const revenueUSD = safeInvoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
     
-    // Currency breakdown
     const breakdown = {
       AED: safeInvoices.filter(i => i.currency === 'AED').reduce((acc, i) => acc + (i.total || i.totals?.gross || 0), 0),
       SAR: safeInvoices.filter(i => i.currency === 'SAR').reduce((acc, i) => acc + (i.total || i.totals?.gross || 0), 0),
@@ -76,7 +75,11 @@ export default function OverviewPage() {
     };
   }, [invoices, customers]);
 
-  if (!currentUser) return null;
+  if (!currentUser) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
 
   return (
     <div className="space-y-8">
@@ -89,6 +92,9 @@ export default function OverviewPage() {
           <Link href="/admin/system/currency">
             <Button variant="outline" size="sm"><Globe className="mr-2 h-4 w-4" /> Currency Control</Button>
           </Link>
+          <Button className="bg-primary shadow-lg shadow-primary/20" size="sm">
+            <Zap className="mr-2 h-4 w-4" /> AI Strategy
+          </Button>
         </div>
       </div>
 
@@ -131,10 +137,12 @@ export default function OverviewPage() {
             <FileText className="h-4 w-4 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{invoices.length}</div>
+            <div className="text-2xl font-bold">{invoices?.length || 0}</div>
           </CardContent>
         </Card>
       </div>
+
+      <Separator />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -152,7 +160,7 @@ export default function OverviewPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.slice(0, 5).map(inv => (
+                {invoices?.slice(0, 5).map(inv => (
                   <TableRow key={inv.id}>
                     <TableCell className="font-mono text-xs font-bold">{inv.number}</TableCell>
                     <TableCell className="text-xs">{inv.customerName}</TableCell>
@@ -161,19 +169,24 @@ export default function OverviewPage() {
                     </TableCell>
                   </TableRow>
                 ))}
+                {(!invoices || invoices.length === 0) && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground italic">No recent transactions found.</TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
 
         <Card className="bg-secondary/10 border-dashed border-2 flex flex-col items-center justify-center text-center p-8">
-          <Globe className="h-12 w-12 text-primary/20 mb-4" />
-          <h3 className="font-bold">Multi-Currency Engine</h3>
+          <Terminal className="h-12 w-12 text-primary/20 mb-4" />
+          <h3 className="font-bold">Automation Node</h3>
           <p className="text-xs text-muted-foreground mt-2 max-w-xs">
-            Live rates are synchronized daily. Every transaction is preserved with its historical exchange rate for perfect financial reconciliation.
+            Live webhooks are currently active. All Firestore changes are being streamed to your external automation pipelines in real-time.
           </p>
-          <Link href="/admin/system/currency">
-            <Button variant="outline" size="sm" className="mt-6">Manage Rates</Button>
+          <Link href="/automation">
+            <Button variant="outline" size="sm" className="mt-6">Manage Workflows</Button>
           </Link>
         </Card>
       </div>
