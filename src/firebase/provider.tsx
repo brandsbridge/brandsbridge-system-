@@ -67,7 +67,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
       (error) => {
-        console.error("FirebaseProvider Error:", error);
+        console.error("FirebaseProvider Auth Error:", error);
         setUserAuthState({ user: null, isUserLoading: false, userError: error });
       }
     );
@@ -75,7 +75,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   }, [auth]);
 
   const contextValue = useMemo((): FirebaseContextState => {
-    // Crucial check: only set servicesAvailable if firestore is a valid object
+    // Strict validation: Ensure firestore is a valid object before declaring services available
     const servicesAvailable = !!(firebaseApp && firestore && auth && typeof firestore === 'object');
     return {
       areServicesAvailable: servicesAvailable,
@@ -103,8 +103,10 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     throw new Error('useFirebase must be used within a FirebaseProvider.');
   }
 
+  // If services are not available yet, we throw to be caught by the parent's logic or handle gracefully.
+  // This ensures that the first argument to collection() is never undefined when retrieved via useFirestore().
   if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth) {
-    throw new Error('Firebase core services not available. The Firestore instance may be uninitialized.');
+    throw new Error('Firebase core services not available. This usually happens if initialization is pending or failed.');
   }
 
   return {
@@ -123,6 +125,10 @@ export const useFirebaseApp = (): FirebaseApp => useFirebase().firebaseApp;
 
 type MemoFirebase <T> = T & {__memo?: boolean};
 
+/**
+ * useMemoFirebase stabilizes Firestore references/queries.
+ * It also marks them so the useCollection/useDoc hooks can verify they were memoized.
+ */
 export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T | (MemoFirebase<T>) {
   const memoized = useMemo(factory, deps);
   if(typeof memoized !== 'object' || memoized === null) return memoized;

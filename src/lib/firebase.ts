@@ -8,12 +8,12 @@ import { firebaseConfig } from "@/firebase/config";
 /**
  * Singleton Firebase Initialization
  * This is the ONE TRUE SOURCE for Firebase instances in the app.
+ * It prevents multiple initializations in Next.js 15 / Turbopack environments.
  */
 let app: FirebaseApp;
 let db: Firestore;
 let auth: Auth;
 
-// Initialize once
 if (getApps().length === 0) {
   app = initializeApp(firebaseConfig);
   db = getFirestore(app);

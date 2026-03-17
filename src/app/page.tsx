@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
 import React, { useState } from "react";
 import { 
+  Code2, 
   ShieldCheck, 
-  Loader2, 
+  LockOpen, 
   Globe, 
+  Terminal, 
+  Plus, 
+  Trash2, 
+  Database, 
   Zap, 
-  Terminal,
-  Plus,
-  Trash2,
-  Database,
-  Code2,
-  LockOpen
+  Loader2 
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,10 @@ import {
 } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 
+/**
+ * Developer Console Page
+ * Serves as a robust CRUD workbench to verify Firestore SDK initialization and connectivity.
+ */
 export default function DeveloperConsole() {
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore(); 
@@ -43,6 +47,7 @@ export default function DeveloperConsole() {
   const sandboxQuery = useMemoFirebase(() => {
     // Only call collection() if firestore is truthy and valid
     if (!firestore || typeof firestore !== 'object') return null;
+    
     try {
       return query(
         collection(firestore, "dev_sandbox"), 
@@ -142,8 +147,8 @@ export default function DeveloperConsole() {
             <Globe className="h-4 w-4 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">12ms</div>
-            <p className="text-[9px] text-muted-foreground mt-1">Real-time sync active</p>
+            <div className="text-xl font-bold">Real-time</div>
+            <p className="text-[9px] text-muted-foreground mt-1">Snapshot listeners active</p>
           </CardContent>
         </Card>
         <Card>
@@ -224,7 +229,7 @@ export default function DeveloperConsole() {
             </CardHeader>
             <CardContent className="text-xs text-muted-foreground space-y-4 leading-relaxed">
               <p>
-                The <code>collection()</code> error was resolved by unifying initialization in <code>lib/firebase.ts</code> and ensuring all SDK calls use the unified singleton via the <code>useFirestore()</code> hook.
+                The <code>collection()</code> error was resolved by unifying initialization in <code>src/lib/firebase.ts</code> and ensuring all SDK calls use the singleton.
               </p>
               <Separator />
               <p>

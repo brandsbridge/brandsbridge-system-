@@ -21,17 +21,12 @@ export interface UseCollectionResult<T> {
 }
 
 /**
- * Standard path extractor that doesn't rely on internal _query properties.
+ * Safely extracts path for error context without using private properties.
  */
 function getSafePath(ref: any): string {
   if (!ref) return "unknown";
-  if (ref.path) return ref.path;
-  // If it's a query, we attempt to find the collection path
-  try {
-    return ref._query?.path?.canonicalString() || "query";
-  } catch {
-    return "query";
-  }
+  // CollectionReference has a .path property. Query does not.
+  return ref.path || "queried-collection";
 }
 
 export function useCollection<T = any>(
@@ -42,6 +37,7 @@ export function useCollection<T = any>(
   const [error, setError] = useState<FirestoreError | Error | null>(null);
 
   useEffect(() => {
+    // Safety check: skip if the ref/query is nullish
     if (!memoizedTargetRefOrQuery) {
       setData(null);
       setIsLoading(false);
@@ -79,6 +75,7 @@ export function useCollection<T = any>(
     return () => unsubscribe();
   }, [memoizedTargetRefOrQuery]);
 
+  // Next.js 15 safety: warn if hooks are called with unmemoized volatile references
   if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
     throw new Error('Firestore query/collection was not properly memoized using useMemoFirebase');
   }

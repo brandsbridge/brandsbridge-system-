@@ -1,11 +1,11 @@
 'use client';
 
+/**
+ * Bridges the unified singleton from src/lib/firebase.ts
+ * to the internal Firebase provider system.
+ */
 import { app, db, auth } from '@/lib/firebase';
 
-/**
- * Returns the unified Firebase SDK instances.
- * This ensures consistency across components, hooks, and services.
- */
 export function initializeFirebase() {
   return {
     firebaseApp: app,
