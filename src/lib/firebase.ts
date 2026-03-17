@@ -4,9 +4,10 @@ import { initializeFirebase } from "@/firebase/init";
 
 /**
  * Shared SDK instances for non-React contexts or direct access.
- * We map the internal keys (firestore -> db, firebaseApp -> app) 
- * to match the application's historical usage.
+ * We initialize the services and map them to the application's expected keys.
  */
-const { firebaseApp: app, firestore: db, auth } = initializeFirebase();
+const services = initializeFirebase();
 
-export { app, db, auth };
+export const app = services.firebaseApp;
+export const db = services.firestore;
+export const auth = services.auth;
