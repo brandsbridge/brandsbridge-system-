@@ -6,8 +6,8 @@ import { getAuth } from "firebase/auth";
 import { firebaseConfig } from "@/firebase/config";
 
 /**
- * Ensures Firebase is initialized only once.
- * Returns the singleton instances for use across the application.
+ * Singleton Firebase Initialization
+ * This ensures 'db' and 'auth' are exported correctly for use in collection() calls.
  */
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);

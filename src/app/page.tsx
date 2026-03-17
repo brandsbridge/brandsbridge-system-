@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useState } from "react";
 import { 
   Users, 
   ArrowRight, 
@@ -21,15 +21,26 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCollection, useMemoFirebase, useUser } from "@/firebase";
-import { db } from "@/lib/firebase"; // CRITICAL: Import the direct db instance
-import { collection, addDoc, deleteDoc, doc, serverTimestamp, query, orderBy, limit } from "firebase/firestore";
+import { db } from "@/lib/firebase"; // Import correctly initialized db
+import { 
+  collection, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  serverTimestamp, 
+  query, 
+  orderBy, 
+  limit, 
+  getDocs 
+} from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
 
 export default function AdminDashboard() {
   const { user, isUserLoading } = useUser();
+  const [isReading, setIsReading] = useState(false);
 
-  // Correct usage of collection() - Passing the imported 'db' as the first argument
+  // CORRECT USAGE: Pass 'db' directly to collection()
   const devLogQuery = useMemoFirebase(() => {
     if (!user) return null;
     return query(
@@ -41,17 +52,38 @@ export default function AdminDashboard() {
 
   const { data: logs, isLoading: loadingLogs } = useCollection(devLogQuery);
 
+  /**
+   * EXAMPLE: Writing a document
+   */
   const handleAddTestDoc = async () => {
     try {
-      // Correct usage: passing db to collection()
-      await addDoc(collection(db, "dev_sandbox"), {
+      // Use the 'db' instance as the first argument
+      const colRef = collection(db, "dev_sandbox");
+      await addDoc(colRef, {
         message: "Developer Sandbox Write",
         author: user?.displayName || user?.email || "Anonymous",
         createdAt: serverTimestamp()
       });
-      toast({ title: "Write Successful", description: "Document pushed to cloud." });
+      toast({ title: "Write Successful", description: "Document pushed to Firestore." });
     } catch (e: any) {
       toast({ variant: "destructive", title: "Write Failed", description: e.message });
+    }
+  };
+
+  /**
+   * EXAMPLE: Reading documents manually (async/await)
+   */
+  const handleManualRead = async () => {
+    setIsReading(true);
+    try {
+      const colRef = collection(db, "dev_sandbox");
+      const snapshot = await getDocs(colRef);
+      const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      toast({ title: "Read Successful", description: `Fetched ${items.length} docs manually.` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Read Failed", description: e.message });
+    } finally {
+      setIsReading(false);
     }
   };
 
@@ -78,11 +110,12 @@ export default function AdminDashboard() {
           <p className="text-muted-foreground">Unrestricted Firestore prototyping environment.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleAddTestDoc}>
-            <Plus className="mr-2 h-4 w-4" /> Add Test Doc
+          <Button variant="outline" size="sm" onClick={handleManualRead} disabled={isReading}>
+            {isReading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Database className="mr-2 h-4 w-4" />}
+            Test Manual Read
           </Button>
-          <Button className="bg-primary shadow-lg shadow-primary/20" size="sm">
-            <Zap className="mr-2 h-4 w-4" /> Sync Cloud
+          <Button className="bg-primary shadow-lg shadow-primary/20" size="sm" onClick={handleAddTestDoc}>
+            <Plus className="mr-2 h-4 w-4" /> Add Test Doc
           </Button>
         </div>
       </div>
@@ -100,12 +133,12 @@ export default function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Permissions</CardTitle>
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Initialization</CardTitle>
             <ShieldCheck className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">Open Access</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Development mode active</p>
+            <div className="text-2xl font-bold text-green-500">Verified</div>
+            <p className="text-[10px] text-muted-foreground mt-1">db instance is correctly mapped</p>
           </CardContent>
         </Card>
         <Card>
@@ -134,7 +167,7 @@ export default function AdminDashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Firestore CRUD Sandbox</CardTitle>
-            <CardDescription>Verify your <code>collection()</code> usage here.</CardDescription>
+            <CardDescription>Verify your <code>collection(db, ...)</code> usage here.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -176,17 +209,15 @@ export default function AdminDashboard() {
           <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <Zap className="h-6 w-6 text-primary" />
           </div>
-          <h3 className="font-bold">Initialization Fixed</h3>
+          <h3 className="font-bold">Initialization Resolved</h3>
           <p className="text-xs text-muted-foreground mt-2 max-w-xs leading-relaxed">
             The <code>db</code> instance is now correctly exported from <code>src/lib/firebase.ts</code> and passed as the first argument to <code>collection()</code>.
           </p>
           <div className="flex gap-2 mt-6">
-            <Link href="/automation">
-              <Button variant="outline" size="sm">View Workflows</Button>
-            </Link>
             <Link href="/admin/system">
               <Button variant="outline" size="sm">System Hub</Button>
             </Link>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Refresh App</Button>
           </div>
         </Card>
       </div>

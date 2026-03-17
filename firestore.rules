@@ -1,9 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // --- DEVELOPMENT MODE ---
-    // This allows global read/write access to facilitate rapid prototyping.
-    // WARNING: This is NOT secure for production.
+    // DEVELOPMENT MODE: Allow anyone to read/write all collections
+    // IMPORTANT: Change this to secure rules before deploying to production!
     match /{document=**} {
       allow read, write: if true;
     }
