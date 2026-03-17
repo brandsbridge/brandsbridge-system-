@@ -1,9 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // TEMPORARY DEVELOPMENT RULES:
-    // Allows anyone to read and write to all collections.
-    // WARNING: Change this to secure rules before deploying to production!
+    // 🔓 UNRESTRICTED DEVELOPMENT MODE
+    // WARNING: This allows anyone to read/write any data. 
+    // Re-enable authentication checks before deploying to production!
     match /{document=**} {
       allow read, write: if true;
     }
