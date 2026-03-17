@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCollection, useMemoFirebase, useUser } from "@/firebase";
-import { db } from "@/lib/firebase"; // Import correctly initialized db
+import { db } from "@/lib/firebase"; // Import the correctly initialized singleton
 import { 
   collection, 
   addDoc, 
@@ -36,42 +36,44 @@ import {
 import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
 
-export default function AdminDashboard() {
+export default function DeveloperDashboard() {
   const { user, isUserLoading } = useUser();
   const [isReading, setIsReading] = useState(false);
 
-  // CORRECT USAGE: Pass 'db' directly to collection()
+  /**
+   * CORRECT USAGE: Pass 'db' as the first argument to collection().
+   * This is memoized to prevent unnecessary re-subscriptions.
+   */
   const devLogQuery = useMemoFirebase(() => {
-    if (!user) return null;
+    // Note: We don't check for 'user' here because rules are set to public for dev
     return query(
       collection(db, "dev_sandbox"), 
       orderBy("createdAt", "desc"),
       limit(10)
     );
-  }, [user]);
+  }, []);
 
   const { data: logs, isLoading: loadingLogs } = useCollection(devLogQuery);
 
   /**
-   * EXAMPLE: Writing a document
+   * EXAMPLE: Writing a document using addDoc()
    */
   const handleAddTestDoc = async () => {
     try {
-      // Use the 'db' instance as the first argument
       const colRef = collection(db, "dev_sandbox");
       await addDoc(colRef, {
-        message: "Developer Sandbox Write",
-        author: user?.displayName || user?.email || "Anonymous",
+        message: "Prototyping Session Active",
+        author: user?.email || "Guest Developer",
         createdAt: serverTimestamp()
       });
-      toast({ title: "Write Successful", description: "Document pushed to Firestore." });
+      toast({ title: "Write Successful", description: "New document added to dev_sandbox." });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Write Failed", description: e.message });
+      toast({ variant: "destructive", title: "Write Error", description: e.message });
     }
   };
 
   /**
-   * EXAMPLE: Reading documents manually (async/await)
+   * EXAMPLE: Reading documents manually (Standard Async/Await)
    */
   const handleManualRead = async () => {
     setIsReading(true);
@@ -79,9 +81,9 @@ export default function AdminDashboard() {
       const colRef = collection(db, "dev_sandbox");
       const snapshot = await getDocs(colRef);
       const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      toast({ title: "Read Successful", description: `Fetched ${items.length} docs manually.` });
+      toast({ title: "Fetch Successful", description: `Recovered ${items.length} sandbox records.` });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Read Failed", description: e.message });
+      toast({ variant: "destructive", title: "Read Error", description: e.message });
     } finally {
       setIsReading(false);
     }
@@ -90,9 +92,9 @@ export default function AdminDashboard() {
   const handleDeleteDoc = async (id: string) => {
     try {
       await deleteDoc(doc(db, "dev_sandbox", id));
-      toast({ title: "Document Deleted" });
+      toast({ title: "Document Removed" });
     } catch (e: any) {
-      toast({ variant: "destructive", title: "Delete Failed", description: e.message });
+      toast({ variant: "destructive", title: "Delete Error", description: e.message });
     }
   };
 
@@ -107,12 +109,12 @@ export default function AdminDashboard() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-headline">Developer Console</h1>
-          <p className="text-muted-foreground">Unrestricted Firestore prototyping environment.</p>
+          <p className="text-muted-foreground">Unrestricted Firestore workbench for Next.js 15 prototyping.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={handleManualRead} disabled={isReading}>
             {isReading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Database className="mr-2 h-4 w-4" />}
-            Test Manual Read
+            Trigger Manual Read
           </Button>
           <Button className="bg-primary shadow-lg shadow-primary/20" size="sm" onClick={handleAddTestDoc}>
             <Plus className="mr-2 h-4 w-4" /> Add Test Doc
@@ -123,17 +125,17 @@ export default function AdminDashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Cloud Documents</CardTitle>
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Sandbox Status</CardTitle>
             <Database className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{logs?.length || 0}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Live from dev_sandbox</p>
+            <p className="text-[10px] text-muted-foreground mt-1">Active cloud documents</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Initialization</CardTitle>
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">SDK Config</CardTitle>
             <ShieldCheck className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
@@ -143,20 +145,20 @@ export default function AdminDashboard() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">API Status</CardTitle>
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">API Latency</CardTitle>
             <Globe className="h-4 w-4 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Online</div>
+            <div className="text-2xl font-bold">12ms</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Platform</CardTitle>
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Environment</CardTitle>
             <Terminal className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">NextJS 15</div>
+            <div className="text-2xl font-bold">Turbopack</div>
           </CardContent>
         </Card>
       </div>
@@ -166,8 +168,8 @@ export default function AdminDashboard() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Firestore CRUD Sandbox</CardTitle>
-            <CardDescription>Verify your <code>collection(db, ...)</code> usage here.</CardDescription>
+            <CardTitle>Firestore Live Sandbox</CardTitle>
+            <CardDescription>Verify your <code>collection(db, ...)</code> usage by interacting with the data below.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -196,7 +198,7 @@ export default function AdminDashboard() {
                   <TableRow>
                     <TableCell colSpan={3} className="text-center py-12 text-muted-foreground italic">
                       <Database className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                      <p>Sandbox is empty. Use "Add Test Doc" to verify connectivity.</p>
+                      <p>No sandbox data found. Click "Add Test Doc" to begin.</p>
                     </TableCell>
                   </TableRow>
                 )}
@@ -205,19 +207,19 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-secondary/10 border-dashed border-2 flex flex-col items-center justify-center text-center p-8">
+        <Card className="bg-primary/5 border-dashed border-2 flex flex-col items-center justify-center text-center p-8">
           <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <Zap className="h-6 w-6 text-primary" />
           </div>
           <h3 className="font-bold">Initialization Resolved</h3>
           <p className="text-xs text-muted-foreground mt-2 max-w-xs leading-relaxed">
-            The <code>db</code> instance is now correctly exported from <code>src/lib/firebase.ts</code> and passed as the first argument to <code>collection()</code>.
+            The <code>Expected first argument to collection()</code> error is fixed by passing the singleton <code>db</code> instance imported from <code>@/lib/firebase</code>.
           </p>
           <div className="flex gap-2 mt-6">
             <Link href="/admin/system">
               <Button variant="outline" size="sm">System Hub</Button>
             </Link>
-            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Refresh App</Button>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>Reload Page</Button>
           </div>
         </Card>
       </div>

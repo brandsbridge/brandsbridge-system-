@@ -7,7 +7,7 @@ import { firebaseConfig } from "@/firebase/config";
 
 /**
  * Singleton Firebase Initialization
- * This ensures 'db' and 'auth' are exported correctly for use in collection() calls.
+ * Ensures that the 'db' instance is always defined and ready for use in collection() calls.
  */
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const db = getFirestore(app);
