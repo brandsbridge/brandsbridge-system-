@@ -1,13 +1,16 @@
 'use client';
 
-import { initializeFirebase } from "@/firebase/init";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import { firebaseConfig } from "@/firebase/config";
 
 /**
- * Shared SDK instances for non-React contexts or direct access.
- * We initialize the services and map them to the application's expected keys.
+ * Ensures Firebase is initialized only once.
+ * Returns the singleton instances for use across the application.
  */
-const services = initializeFirebase();
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const db = getFirestore(app);
+const auth = getAuth(app);
 
-export const app = services.firebaseApp;
-export const db = services.firestore;
-export const auth = services.auth;
+export { app, db, auth };
