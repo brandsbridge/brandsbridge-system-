@@ -1,285 +1,298 @@
-
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  ArrowLeft, Send, Mail, Users, TrendingUp, 
-  BarChart3, MousePointer2, PieChart as PieIcon,
-  Calendar, CheckCircle2, Clock
+  ArrowLeft, 
+  Calendar, 
+  Tag, 
+  Target, 
+  FileText, 
+  Edit, 
+  Loader2,
+  Clock,
+  Layers
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
-} from "@/components/ui/table";
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
-} from "recharts";
-import { MOCK_CAMPAIGNS, MOCK_EMAILS, MOCK_PURCHASES } from "@/lib/mock-data";
-import { formatFirebaseTimestamp } from "@/lib/db-utils";
+import { Separator } from "@/components/ui/separator";
+import { useDoc, useFirestore, useMemoFirebase } from "@/firebase";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { toast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export default function CampaignClient({ id }: { id: string }) {
   const router = useRouter();
-  const campaign = useMemo(() => MOCK_CAMPAIGNS.find(c => c.id === id), [id]);
-  const campaignEmails = useMemo(() => MOCK_EMAILS.filter(e => e.campaignId === id), [id]);
-  const campaignPurchases = useMemo(() => MOCK_PURCHASES.filter(p => campaignEmails.some(e => e.sentTo === p.buyerName)), [campaignEmails]);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!campaign) return <div>Campaign not found</div>;
+  const campaignRef = useMemoFirebase(() => doc(db, "campaigns", id), [id]);
+  const { data: campaign, isLoading } = useDoc(campaignRef);
 
-  const replyRate = (campaign.stats.replied / (campaign.stats.sent || 1)) * 100;
-  const conversionRate = (campaignPurchases.length / (campaign.stats.replied || 1)) * 100;
+  const handleUpdateCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    const formData = new FormData(e.target as HTMLFormElement);
+    
+    const data = {
+      name: formData.get("name"),
+      type: formData.get("type"),
+      targetMarket: formData.get("targetMarket"),
+      startDate: formData.get("startDate"),
+      endDate: formData.get("endDate"),
+      status: formData.get("status"),
+      description: formData.get("description"),
+      notes: formData.get("notes"),
+      updatedAt: serverTimestamp(),
+    };
 
-  const timelineData = [
-    { day: 'Day 1', sent: 20, replies: 2 },
-    { day: 'Day 2', sent: 45, replies: 5 },
-    { day: 'Day 3', sent: 15, replies: 8 },
-    { day: 'Day 4', sent: 30, replies: 12 },
-    { day: 'Day 5', sent: 40, replies: 8 },
-  ];
+    try {
+      await setDoc(campaignRef, data, { merge: true });
+      toast({ title: "Campaign Strategy Updated" });
+      setIsEditModalOpen(false);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Update Failed" });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!campaign) {
+    return (
+      <div className="text-center py-20 space-y-4">
+        <h2 className="text-2xl font-bold">Record Not Found</h2>
+        <Button onClick={() => router.push("/campaigns")}>Back to List</Button>
+      </div>
+    );
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Active": return "bg-green-500/10 text-green-500 border-green-500/20";
+      case "Completed": return "bg-blue-500/10 text-blue-500 border-blue-500/20";
+      case "Cancelled": return "bg-destructive/10 text-destructive border-destructive/20";
+      default: return "bg-muted text-muted-foreground";
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
+    <div className="space-y-8 max-w-5xl mx-auto pb-20">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => router.push("/campaigns")}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight">{campaign.name}</h1>
+              <Badge className={cn("text-[10px] font-bold", getStatusColor(campaign.status))}>
+                {campaign.status}
+              </Badge>
+            </div>
+            <p className="text-muted-foreground text-sm mt-1">Campaign Overview & Strategy</p>
+          </div>
+        </div>
+        <Button onClick={() => setIsEditModalOpen(true)}>
+          <Edit className="mr-2 h-4 w-4" /> Edit Strategy
         </Button>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">{campaign.name}</h1>
-            <Badge className="capitalize">{campaign.status}</Badge>
-          </div>
-          <p className="text-muted-foreground text-sm mt-1">
-            Target: {campaign.department} Market • Created by {campaign.createdBy}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline">Pause Campaign</Button>
-          <Button>Edit Setup</Button>
-        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Emails Sent</CardTitle>
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card className="md:col-span-2 border-border/50">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" /> Strategy & Goals
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{campaign.stats.sent}</div>
-            <div className="flex items-center justify-between text-[10px] mt-2">
-              <span>Delivery Success</span>
-              <span className="text-green-500">99.2%</span>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Description</Label>
+              <p className="text-sm leading-relaxed">{campaign.description || "No description provided."}</p>
+            </div>
+            
+            <Separator />
+            
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Internal Notes</Label>
+              <p className="text-sm italic text-muted-foreground">{campaign.notes || "No internal notes recorded."}</p>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Reply Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-accent">{replyRate.toFixed(1)}%</div>
-            <Progress value={replyRate} className="h-1 mt-2" />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Total Revenue</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-500">${campaign.stats.revenue.toLocaleString()}</div>
-            <div className="text-[10px] text-muted-foreground mt-2">ROI: {(campaign.stats.revenue / 500).toFixed(1)}x</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Conversion</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{conversionRate.toFixed(1)}%</div>
-            <div className="text-[10px] text-muted-foreground mt-2">{campaignPurchases.length} Orders closed</div>
-          </CardContent>
-        </Card>
+
+        <div className="space-y-6">
+          <Card className="border-border/50">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Campaign Data</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Tag className="h-3 w-3" /> Type
+                </span>
+                <Badge variant="secondary">{campaign.type}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Target className="h-3 w-3" /> Market
+                </span>
+                <span className="text-sm font-medium">{campaign.targetMarket}</span>
+              </div>
+              <Separator />
+              <div className="space-y-3 pt-1">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Launch Date</span>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    {campaign.startDate}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground">End Date</span>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Clock className="h-4 w-4 text-accent" />
+                    {campaign.endDate}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-secondary/10 border-border/50">
+            <CardHeader>
+              <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Audit Log</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-[10px]">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Created:</span>
+                <span>{campaign.createdAt ? new Date(campaign.createdAt.seconds * 1000).toLocaleDateString() : "N/A"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Last Modified:</span>
+                <span>{campaign.updatedAt ? new Date(campaign.updatedAt.seconds * 1000).toLocaleDateString() : "N/A"}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      <Tabs defaultValue="overview">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="emails">Email Log</TabsTrigger>
-          <TabsTrigger value="responses">Responses</TabsTrigger>
-          <TabsTrigger value="revenue">Revenue</TabsTrigger>
-          <TabsTrigger value="timeline">Timeline</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="pt-4 space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Performance Trend</CardTitle>
-              </CardHeader>
-              <CardContent className="h-[250px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={timelineData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis dataKey="day" fontSize={10} axisLine={false} tickLine={false} />
-                    <YAxis fontSize={10} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }} />
-                    <Bar dataKey="sent" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="replies" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Campaign Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <form onSubmit={handleUpdateCampaign}>
+            <DialogHeader>
+              <DialogTitle>Edit Campaign Strategy</DialogTitle>
+              <DialogDescription>Modify timelines or campaign objectives.</DialogDescription>
+            </DialogHeader>
+            
+            <div className="grid grid-cols-2 gap-6 py-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Campaign Name</Label>
+                  <Input name="name" defaultValue={campaign.name} required />
+                </div>
+                
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Type</p>
-                    <p className="text-sm font-medium capitalize">{campaign.type}</p>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Type</Label>
+                    <Select name="type" defaultValue={campaign.type}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Promotion">Promotion</SelectItem>
+                        <SelectItem value="Announcement">Announcement</SelectItem>
+                        <SelectItem value="Seasonal">Seasonal</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Goal</p>
-                    <p className="text-sm font-medium">{campaign.goal} Responses</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Start Date</p>
-                    <p className="text-sm font-medium">{campaign.startDate}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground">End Date</p>
-                    <p className="text-sm font-medium">{campaign.endDate}</p>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Status</Label>
+                    <Select name="status" defaultValue={campaign.status}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Draft">Draft</SelectItem>
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Completed">Completed</SelectItem>
+                        <SelectItem value="Cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                <div className="pt-4 border-t">
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Target Audience</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    All buyers in the {campaign.department} sector with high response history and interest in seasonal offers.
-                  </p>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Target Market</Label>
+                  <Select name="targetMarket" defaultValue={campaign.targetMarket}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Chocolate Market">Chocolate Market</SelectItem>
+                      <SelectItem value="Cosmetics Market">Cosmetics Market</SelectItem>
+                      <SelectItem value="Detergents Market">Detergents Market</SelectItem>
+                      <SelectItem value="All Markets">All Markets</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="emails" className="pt-4">
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Recipient</TableHead>
-                  <TableHead>Sent By</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {campaignEmails.slice(0, 10).map(email => (
-                  <TableRow key={email.id}>
-                    <TableCell className="font-medium text-xs">{email.sentTo}</TableCell>
-                    <TableCell className="text-xs">{email.sentBy}</TableCell>
-                    <TableCell className="text-[10px] text-muted-foreground">{formatFirebaseTimestamp(email.date)}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize text-[10px]">{email.status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" className="h-7 text-[10px]">View Thread</Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="responses" className="pt-4">
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Intent</TableHead>
-                  <TableHead>Response Time</TableHead>
-                  <TableHead>Outcome</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {campaignEmails.filter(e => e.replyReceived).map(reply => (
-                  <TableRow key={reply.id}>
-                    <TableCell className="font-bold text-xs">{reply.sentTo}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="capitalize text-[10px]">Positive Interest</Badge>
-                    </TableCell>
-                    <TableCell className="text-xs">{reply.responseTimeHours}h</TableCell>
-                    <TableCell>
-                      <Badge className="capitalize text-[10px] bg-green-500">{reply.actionTaken}</Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="revenue" className="pt-4">
-          <div className="grid gap-6">
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Purchase ID</TableHead>
-                    <TableHead>Buyer</TableHead>
-                    <TableHead>Revenue</TableHead>
-                    <TableHead>Profit</TableHead>
-                    <TableHead>Closer</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {campaignPurchases.map(purchase => (
-                    <TableRow key={purchase.id}>
-                      <TableCell className="font-mono text-[10px]">{purchase.id}</TableCell>
-                      <TableCell className="font-bold text-xs">{purchase.buyerName}</TableCell>
-                      <TableCell className="text-accent font-bold">${purchase.totalRevenue.toLocaleString()}</TableCell>
-                      <TableCell className="text-green-500">${purchase.netProfit.toLocaleString()}</TableCell>
-                      <TableCell className="text-xs">{purchase.employeeName}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="timeline" className="pt-4">
-          <Card className="p-8">
-            <div className="relative border-l-2 border-primary/20 pl-8 space-y-12">
-              <div className="relative">
-                <div className="absolute -left-10 mt-1 h-4 w-4 rounded-full bg-primary" />
-                <h4 className="font-bold text-sm">Campaign Launch</h4>
-                <p className="text-[10px] text-muted-foreground uppercase">{campaign.startDate}</p>
-                <p className="text-xs text-muted-foreground mt-2">Batch 1: 50 priority buyers sent invitations.</p>
               </div>
-              <div className="relative">
-                <div className="absolute -left-10 mt-1 h-4 w-4 rounded-full bg-accent" />
-                <h4 className="font-bold text-sm">Peak Engagement</h4>
-                <p className="text-[10px] text-muted-foreground uppercase">3 Days after launch</p>
-                <p className="text-xs text-muted-foreground mt-2">15 positive replies received. Follow-up triggered.</p>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Start Date</Label>
+                    <Input name="startDate" type="date" defaultValue={campaign.startDate} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">End Date</Label>
+                    <Input name="endDate" type="date" defaultValue={campaign.endDate} required />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Description</Label>
+                  <Textarea name="description" defaultValue={campaign.description} placeholder="Goal of this campaign..." className="h-[108px]" />
+                </div>
               </div>
-              <div className="relative">
-                <div className="absolute -left-10 mt-1 h-4 w-4 rounded-full bg-green-500" />
-                <h4 className="font-bold text-sm">First Conversion</h4>
-                <p className="text-[10px] text-muted-foreground uppercase">1 Week after launch</p>
-                <p className="text-xs text-muted-foreground mt-2">$2,500 order closed with Sweet Tooth Retail.</p>
+
+              <div className="col-span-2 space-y-2">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Internal Notes</Label>
+                <Textarea name="notes" defaultValue={campaign.notes} placeholder="Logistics or special instructions..." className="h-20" />
               </div>
             </div>
-          </Card>
-        </TabsContent>
-      </Tabs>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Update Campaign
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,9 +1,19 @@
-
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { Plus, Send, TrendingUp, Mail, MousePointer2, ExternalLink, Loader2, ShieldAlert } from "lucide-react";
+import { 
+  Plus, 
+  Search, 
+  Eye, 
+  Edit, 
+  Trash2, 
+  Loader2, 
+  Calendar,
+  Layers,
+  Tag,
+  AlertCircle
+} from "lucide-react";
 import { 
   Table, 
   TableBody, 
@@ -15,7 +25,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -33,265 +42,314 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
-import { MOCK_CAMPAIGNS } from "@/lib/mock-data";
-import { cn } from "@/lib/utils";
-import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection } from "firebase/firestore";
-import { campaignService } from "@/services/campaign-service";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
+import { collection, deleteDoc, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { toast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 export default function CampaignsPage() {
-  const db = useFirestore();
-  const { user, isUserLoading } = useUser();
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCampaign, setEditingSupplier] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    const saved = localStorage.getItem("demoUser");
-    if (saved) setCurrentUser(JSON.parse(saved));
-  }, []);
+  // Firestore Data Fetching
+  const campaignsQuery = useMemoFirebase(() => collection(db, "campaigns"), []);
+  const { data: campaignsData, isLoading } = useCollection(campaignsQuery);
+  const campaigns = campaignsData || [];
 
-  const campaignsCol = useMemoFirebase(() => 
-    user ? collection(db, "campaigns") : null
-  , [db, user]);
-
-  const { data: fbCampaigns, isLoading } = useCollection(campaignsCol);
-
-  const campaigns = useMemo(() => 
-    (fbCampaigns && fbCampaigns.length > 0) ? fbCampaigns : MOCK_CAMPAIGNS
-  , [fbCampaigns]);
-
+  // KPI Calculations
   const stats = useMemo(() => {
-    const safeCampaigns = campaigns || [];
     return {
-      total: safeCampaigns.length,
-      sent: safeCampaigns.reduce((acc: number, c: any) => acc + (c.stats?.sent || 0), 0),
-      replied: safeCampaigns.reduce((acc: number, c: any) => acc + (c.stats?.replied || 0), 0),
-      revenue: safeCampaigns.reduce((acc: number, c: any) => acc + (c.stats?.revenue || 0), 0)
+      total: campaigns.length,
+      active: campaigns.filter(c => c.status === "Active").length,
+      completed: campaigns.filter(c => c.status === "Completed").length,
+      draft: campaigns.filter(c => c.status === "Draft").length,
     };
   }, [campaigns]);
 
-  const avgReplyRate = (stats.replied / (stats.sent || 1)) * 100;
+  // Filtering
+  const filteredCampaigns = useMemo(() => {
+    return campaigns.filter(c => 
+      (c.name || "").toLowerCase().includes(searchTerm.toLowerCase())
+    ).sort((a, b) => {
+      const dateA = a.createdAt?.seconds || 0;
+      const dateB = b.createdAt?.seconds || 0;
+      return dateB - dateA;
+    });
+  }, [campaigns, searchTerm]);
 
-  const handleCreateCampaign = (e: React.FormEvent) => {
+  // Handlers
+  const handleSaveCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-      toast({ variant: "destructive", title: "Action Denied", description: "Firebase session is not active. Please refresh." });
-      return;
-    }
-
+    setIsSubmitting(true);
     const formData = new FormData(e.target as HTMLFormElement);
+    
+    const campaignId = editingCampaign?.id || doc(collection(db, "campaigns")).id;
+    const campaignRef = doc(db, "campaigns", campaignId);
+
     const data = {
-      name: formData.get('name'),
-      type: formData.get('type'),
-      department: formData.get('department'),
-      status: 'active',
-      startDate: formData.get('startDate'),
-      endDate: formData.get('endDate'),
-      goal: parseInt(formData.get('goal') as string) || 0,
-      stats: { sent: 0, replied: 0, revenue: 0 },
-      createdBy: currentUser?.name || 'System',
-      createdAt: new Date().toISOString()
+      name: formData.get("name"),
+      type: formData.get("type"),
+      targetMarket: formData.get("targetMarket"),
+      startDate: formData.get("startDate"),
+      endDate: formData.get("endDate"),
+      status: formData.get("status"),
+      description: formData.get("description"),
+      notes: formData.get("notes"),
+      updatedAt: serverTimestamp(),
+      ...(editingCampaign ? {} : { createdAt: serverTimestamp() })
     };
 
-    campaignService.createCampaign(db, data);
-    setIsAddModalOpen(false);
-    toast({ 
-      title: "Campaign Launched", 
-      description: `Outreach for ${data.name} has been initialized.` 
-    });
+    try {
+      await setDoc(campaignRef, data, { merge: true });
+      toast({ title: editingCampaign ? "Campaign Updated" : "Campaign Created" });
+      setIsModalOpen(false);
+      setEditingSupplier(null);
+    } catch (err) {
+      toast({ variant: "destructive", title: "Operation Failed", description: "Could not save campaign data." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this campaign?")) return;
+    try {
+      await deleteDoc(doc(db, "campaigns", id));
+      toast({ title: "Campaign Removed" });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Delete Failed" });
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Active": return "bg-green-500/10 text-green-500 border-green-500/20";
+      case "Completed": return "bg-blue-500/10 text-blue-500 border-blue-500/20";
+      case "Cancelled": return "bg-destructive/10 text-destructive border-destructive/20";
+      default: return "bg-muted text-muted-foreground";
+    }
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pb-12">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight font-headline">Campaign Management</h1>
-          <p className="text-muted-foreground">Orchestrate cross-department outreach and track conversion ROI.</p>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">Campaigns</h1>
+          <p className="text-muted-foreground">Track and manage your marketing campaigns</p>
         </div>
         
-        <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <Dialog open={isModalOpen} onOpenChange={(open) => {
+          setIsModalOpen(open);
+          if (!open) setEditingSupplier(null);
+        }}>
           <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90" disabled={isUserLoading}>
-              {isUserLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-              Create Campaign
+            <Button className="bg-primary">
+              <Plus className="mr-2 h-4 w-4" /> Create Campaign
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            {!user ? (
-              <div className="py-12 text-center space-y-4">
-                <ShieldAlert className="h-12 w-12 text-destructive mx-auto" />
-                <h3 className="text-lg font-bold">Authentication Required</h3>
-                <p className="text-sm text-muted-foreground">Please wait for the Firebase session to initialize or visit the <strong>System Hub</strong> to activate Admin status.</p>
-                <Button variant="outline" onClick={() => window.location.reload()}>Reload Session</Button>
-              </div>
-            ) : (
-              <form onSubmit={handleCreateCampaign}>
-                <DialogHeader>
-                  <DialogTitle>Launch New Campaign</DialogTitle>
-                  <DialogDescription>Define your outreach strategy and target segment.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
+          <DialogContent className="max-w-2xl">
+            <form onSubmit={handleSaveCampaign}>
+              <DialogHeader>
+                <DialogTitle>{editingCampaign ? "Edit Campaign" : "Launch New Campaign"}</DialogTitle>
+                <DialogDescription>Define your marketing strategy and target audience.</DialogDescription>
+              </DialogHeader>
+              
+              <div className="grid grid-cols-2 gap-6 py-6">
+                <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase">Campaign Name</label>
-                    <Input name="name" required placeholder="e.g. Q3 Seasonal Offer" />
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Campaign Name</Label>
+                    <Input name="name" defaultValue={editingCampaign?.name} required placeholder="e.g. Summer Flash Sale" />
                   </div>
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase">Type</label>
-                      <Select name="type" defaultValue="email">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Type</Label>
+                      <Select name="type" defaultValue={editingCampaign?.type || "Promotion"}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="email">Email Outreach</SelectItem>
-                          <SelectItem value="newsletter">Monthly Newsletter</SelectItem>
-                          <SelectItem value="promotion">Flash Promotion</SelectItem>
+                          <SelectItem value="Promotion">Promotion</SelectItem>
+                          <SelectItem value="Announcement">Announcement</SelectItem>
+                          <SelectItem value="Seasonal">Seasonal</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase">Department</label>
-                      <Select name="department" defaultValue="chocolate">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Status</Label>
+                      <Select name="status" defaultValue={editingCampaign?.status || "Draft"}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="chocolate">Chocolate</SelectItem>
-                          <SelectItem value="cosmetics">Cosmetics</SelectItem>
-                          <SelectItem value="detergents">Detergents</SelectItem>
+                          <SelectItem value="Draft">Draft</SelectItem>
+                          <SelectItem value="Active">Active</SelectItem>
+                          <SelectItem value="Completed">Completed</SelectItem>
+                          <SelectItem value="Cancelled">Cancelled</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase">Start Date</label>
-                      <Input name="startDate" type="date" required />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold uppercase">End Date</label>
-                      <Input name="endDate" type="date" required />
-                    </div>
-                  </div>
+
                   <div className="space-y-2">
-                    <label className="text-xs font-bold uppercase">Response Goal (Count)</label>
-                    <Input name="goal" type="number" required placeholder="50" />
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Target Market</Label>
+                    <Select name="targetMarket" defaultValue={editingCampaign?.targetMarket || "All Markets"}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Chocolate Market">Chocolate Market</SelectItem>
+                        <SelectItem value="Cosmetics Market">Cosmetics Market</SelectItem>
+                        <SelectItem value="Detergents Market">Detergents Market</SelectItem>
+                        <SelectItem value="All Markets">All Markets</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
-                  <Button type="submit">Initialize Campaign</Button>
-                </DialogFooter>
-              </form>
-            )}
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Start Date</Label>
+                      <Input name="startDate" type="date" defaultValue={editingCampaign?.startDate} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">End Date</Label>
+                      <Input name="endDate" type="date" defaultValue={editingCampaign?.endDate} required />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-[10px] uppercase font-bold text-muted-foreground">Description</Label>
+                    <Textarea name="description" defaultValue={editingCampaign?.description} placeholder="Goal of this campaign..." className="h-[108px]" />
+                  </div>
+                </div>
+
+                <div className="col-span-2 space-y-2">
+                  <Label className="text-[10px] uppercase font-bold text-muted-foreground">Internal Notes</Label>
+                  <Textarea name="notes" defaultValue={editingCampaign?.notes} placeholder="Logistics, budgets, or special instructions..." className="h-20" />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {editingCampaign ? "Save Changes" : "Create Campaign"}
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card className="bg-card border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Campaigns</CardTitle>
-            <Send className="h-4 w-4 text-primary" />
+            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Total Campaigns</CardTitle>
+            <Tag className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <div className="text-2xl font-bold">{stats.total}</div>}
-            <p className="text-[10px] text-muted-foreground mt-1">Live from Firestore</p>
+            <div className="text-2xl font-bold">{isLoading ? "..." : stats.total}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-card border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Emails Sent</CardTitle>
-            <Mail className="h-4 w-4 text-accent" />
+            <CardTitle className="text-xs font-bold uppercase text-green-500">Active</CardTitle>
+            <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.sent.toLocaleString()}</div>
-            <p className="text-[10px] text-muted-foreground mt-1">Across all departments</p>
+            <div className="text-2xl font-bold text-green-500">{isLoading ? "..." : stats.active}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-card border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Reply Rate</CardTitle>
-            <MousePointer2 className="h-4 w-4 text-orange-500" />
+            <CardTitle className="text-xs font-bold uppercase text-blue-500">Completed</CardTitle>
+            <Calendar className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{avgReplyRate.toFixed(1)}%</div>
-            <Progress value={avgReplyRate} className="h-1 mt-2" />
+            <div className="text-2xl font-bold text-blue-500">{isLoading ? "..." : stats.completed}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-card border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Campaign Revenue</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-xs font-bold uppercase text-muted-foreground">Drafts</CardTitle>
+            <Layers className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${stats.revenue.toLocaleString()}</div>
-            <p className="text-[10px] text-green-500 mt-1">+12% vs last quarter</p>
+            <div className="text-2xl font-bold">{isLoading ? "..." : stats.draft}</div>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
+      <Card className="border-border/50">
+        <div className="p-4 border-b">
+          <div className="relative w-full md:w-96">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search campaigns..." 
+              className="pl-9"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+        
         {isLoading ? (
-          <div className="py-20 flex justify-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
+          <div className="py-20 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Campaign Name</TableHead>
-                <TableHead>Target</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Target Market</TableHead>
+                <TableHead>Dates</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Performance</TableHead>
-                <TableHead>Revenue</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {campaigns.map((campaign: any) => {
-                const replyRate = ((campaign.stats?.replied || 0) / (campaign.stats?.sent || 1)) * 100;
-                return (
-                  <TableRow key={campaign.id}>
-                    <TableCell>
-                      <div className="font-bold">{campaign.name}</div>
-                      <div className="text-[10px] text-muted-foreground uppercase">{campaign.type}</div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize text-[10px]">{campaign.department}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        className={cn(
-                          "capitalize text-[10px]",
-                          campaign.status === 'active' && "bg-green-500",
-                          campaign.status === 'completed' && "bg-secondary text-secondary-foreground",
-                          campaign.status === 'draft' && "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        {campaign.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1 w-[120px]">
-                        <div className="flex justify-between text-[10px]">
-                          <span>{campaign.stats?.replied || 0} Replies</span>
-                          <span className="font-bold">{replyRate.toFixed(0)}%</span>
-                        </div>
-                        <Progress value={replyRate} className="h-1" />
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium text-accent">
-                      ${(campaign.stats?.revenue || 0).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link href={`/campaigns/${campaign.id}`}>
-                        <Button variant="ghost" size="sm" className="h-8">
-                          View Details <ExternalLink className="ml-2 h-3 w-3" />
-                        </Button>
+              {filteredCampaigns.map((c) => (
+                <TableRow key={c.id} className="group">
+                  <TableCell className="font-bold">{c.name}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-[10px] uppercase font-bold">{c.type}</Badge>
+                  </TableCell>
+                  <TableCell className="text-xs">{c.targetMarket}</TableCell>
+                  <TableCell>
+                    <div className="text-[10px] text-muted-foreground">
+                      {c.startDate} <span className="mx-1">→</span> {c.endDate}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={cn("text-[10px] font-bold", getStatusColor(c.status))}>
+                      {c.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Link href={`/campaigns/${c.id}`}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
                       </Link>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {campaigns.length === 0 && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
+                        setEditingSupplier(c);
+                        setIsModalOpen(true);
+                      }}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(c.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredCampaigns.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No campaigns found.</TableCell>
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground italic">
+                    {searchTerm ? "No matching campaigns found." : "No campaigns recorded yet."}
+                  </TableCell>
                 </TableRow>
               )}
             </TableBody>
