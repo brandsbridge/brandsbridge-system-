@@ -71,8 +71,11 @@ export default function PaymentsPage() {
     return collection(db, "customer_advances");
   }, [db, user]);
 
-  const { data: payments = [], isLoading: loadingPayments } = useCollection(paymentsQuery);
-  const { data: advances = [], isLoading: loadingAdvances } = useCollection(advancesQuery);
+  const { data: paymentsData, isLoading: loadingPayments } = useCollection(paymentsQuery);
+  const { data: advancesData, isLoading: loadingAdvances } = useCollection(advancesQuery);
+
+  const payments = paymentsData || [];
+  const advances = advancesData || [];
 
   const handleRecordPayment = (e: React.FormEvent) => {
     e.preventDefault();
