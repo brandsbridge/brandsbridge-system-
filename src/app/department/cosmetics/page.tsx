@@ -4,17 +4,17 @@
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { 
-  Star, 
   Mail, 
   TrendingUp, 
   ImageIcon, 
   Plus, 
   Upload,
-  Users as UsersIcon,
   Share2,
   ExternalLink,
   Loader2,
-  Box
+  FileText,
+  Download,
+  Trash2
 } from "lucide-react";
 import { 
   Table, 
@@ -28,16 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip as RechartsTooltip, 
-  ResponsiveContainer,
-  Cell
-} from "recharts";
+import { Separator } from "@/components/ui/separator";
 import { 
   Tooltip, 
   TooltipContent, 
@@ -62,19 +53,13 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase";
-import { collection, query, where } from "firebase/firestore";
+import { useCollection, useFirestore, useMemoFirebase, useDoc } from "@/firebase";
+import { collection, query, where, doc, updateDoc, arrayUnion, arrayRemove, setDoc } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { app } from "@/lib/firebase";
 import { supplierService } from "@/services/supplier-service";
 import { customerService } from "@/services/customer-service";
 import { toast } from "@/hooks/use-toast";
-
-const StarRating = ({ rating }: { rating: number }) => (
-  <div className="flex gap-0.5">
-    {[1, 2, 3, 4, 5].map(i => (
-      <Star key={i} className={cn("h-3 w-3", i <= Math.round(rating || 0) ? "fill-yellow-500 text-yellow-500" : "text-muted-foreground")} />
-    ))}
-  </div>
-);
 
 export default function CosmeticsDepartmentPage() {
   const departmentId = "cosmetics";
@@ -83,6 +68,7 @@ export default function CosmeticsDepartmentPage() {
   
   const [activeTab, setActiveTab] = useState("suppliers");
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const db = useFirestore();
 
   // Firestore Queries for this specific market
@@ -101,6 +87,63 @@ export default function CosmeticsDepartmentPage() {
   const products = productsData || [];
   const stocks = stocksData || [];
 
+  // Market Assets logic
+  const assetsRef = useMemoFirebase(() => doc(db, "market_assets", departmentId), [db, departmentId]);
+  const { data: assetsDoc } = useDoc(assetsRef);
+  const assets = assetsDoc?.files || [];
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const storage = getStorage(app);
+    const storagePath = `attachments/${departmentId}/${Date.now()}_${file.name}`;
+    const fileRef = ref(storage, storagePath);
+
+    try {
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      
+      const newFile = {
+        name: file.name,
+        storagePath,
+        url,
+        type: file.type,
+        uploadedAt: new Date().toISOString(),
+        size: file.size
+      };
+
+      await setDoc(assetsRef, {
+        files: arrayUnion(newFile)
+      }, { merge: true });
+      
+      toast({ title: "File Uploaded", description: `${file.name} is now available.` });
+    } catch (error) {
+      console.error(error);
+      toast({ variant: "destructive", title: "Upload Failed", description: "Could not save file to cloud." });
+    } finally {
+      setIsUploading(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleFileDelete = async (fileObj: any) => {
+    const storage = getStorage(app);
+    const fileRef = ref(storage, fileObj.storagePath);
+
+    try {
+      await deleteObject(fileRef);
+      await updateDoc(assetsRef, {
+        files: arrayRemove(fileObj)
+      });
+      toast({ title: "File Removed", description: "Attachment has been deleted." });
+    } catch (error) {
+      console.error(error);
+      toast({ variant: "destructive", title: "Delete Failed", description: "Could not remove file from storage." });
+    }
+  };
+
   const priceIntellData = useMemo(() => {
     return products.map(p => {
       const pStocks = stocks.filter(s => s.productId === p.id).sort((a, b) => a.price - b.price);
@@ -114,25 +157,17 @@ export default function CosmeticsDepartmentPage() {
         quantity: bestDeal?.quantity || 0,
         leadTime: bestDeal?.leadTime || 0,
         sellingPrice,
-        profit: sellingPrice - (bestDeal?.price || 0),
-        allPrices: pStocks.map(s => ({
-          name: suppliers.find(sup => sup.id === s.supplierId)?.name || 'Unknown',
-          price: s.price
-        }))
+        profit: sellingPrice - (bestDeal?.price || 0)
       };
     });
   }, [products, stocks, suppliers]);
 
   const stats = useMemo(() => {
-    const avgSupRating = suppliers.reduce((acc, s) => acc + (s.internalRating || 3), 0) / (suppliers.length || 1);
-    const avgBuyRating = buyers.reduce((acc, b) => acc + (b.internalRating || 3), 0) / (buyers.length || 1);
     return {
       suppliersCount: suppliers.length,
       sharedSuppliers: suppliers.filter(s => s.departments && s.departments.length > 1).length,
-      avgSupRating,
       buyersCount: buyers.length,
       sharedBuyers: buyers.filter(b => b.departments && b.departments.length > 1).length,
-      avgBuyRating,
       bestDeals: priceIntellData.filter(d => d.bestPrice > 0).length,
       totalPipeline: priceIntellData.reduce((acc, p) => acc + (p.sellingPrice * p.quantity), 0)
     };
@@ -244,9 +279,6 @@ export default function CosmeticsDepartmentPage() {
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="text-2xl font-bold">{loadingSuppliers ? "..." : stats.suppliersCount}</div>
-            <div className="mt-1 flex items-center gap-1">
-              <StarRating rating={stats.avgSupRating} />
-            </div>
           </CardContent>
         </Card>
         <Card>
@@ -256,9 +288,6 @@ export default function CosmeticsDepartmentPage() {
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="text-2xl font-bold">{loadingBuyers ? "..." : stats.buyersCount}</div>
-            <div className="mt-1 flex items-center gap-1">
-              <StarRating rating={stats.avgBuyRating} />
-            </div>
           </CardContent>
         </Card>
         <Card>
@@ -267,7 +296,7 @@ export default function CosmeticsDepartmentPage() {
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <div className="text-2xl font-bold">{stats.bestDeals}</div>
-            <p className="text-[10px] text-green-500 flex items-center gap-1 mt-1"><TrendingUp className="h-3 w-3" /> Live Data</p>
+            <p className="text-[10px] text-green-500 flex items-center gap-1 mt-1"><TrendingUp className="h-3 w-3" /> Updated</p>
           </CardContent>
         </Card>
         <Card>
@@ -291,10 +320,9 @@ export default function CosmeticsDepartmentPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
+        <TabsList className="grid w-full grid-cols-3 lg:w-[450px]">
           <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
           <TabsTrigger value="buyers">Buyers</TabsTrigger>
-          <TabsTrigger value="intelligence">Price Intelligence</TabsTrigger>
           <TabsTrigger value="catalog">Catalog</TabsTrigger>
         </TabsList>
 
@@ -306,13 +334,12 @@ export default function CosmeticsDepartmentPage() {
                   <TableHead>Company</TableHead>
                   <TableHead>Lead Time</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Rating</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loadingSuppliers ? (
-                  <TableRow><TableCell colSpan={5} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={4} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
                 ) : suppliers.map(s => (
                   <TableRow key={s.id}>
                     <TableCell>
@@ -342,9 +369,6 @@ export default function CosmeticsDepartmentPage() {
                         {s.recordStatus}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <StarRating rating={s.internalRating || 3} />
-                    </TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" variant="outline" className="text-[10px] h-7">
                         <Mail className="mr-1 h-3 w-3" /> Request Stock
@@ -353,7 +377,7 @@ export default function CosmeticsDepartmentPage() {
                   </TableRow>
                 ))}
                 {!loadingSuppliers && suppliers.length === 0 && (
-                  <TableRow><TableCell colSpan={5} className="text-center py-12 text-muted-foreground italic">No suppliers linked to this market segment.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic">No suppliers linked to this market segment.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -367,13 +391,12 @@ export default function CosmeticsDepartmentPage() {
                 <TableRow>
                   <TableHead>Buyer Name</TableHead>
                   <TableHead>Account</TableHead>
-                  <TableHead>Engagement</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loadingBuyers ? (
-                  <TableRow><TableCell colSpan={4} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={3} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
                 ) : buyers.map(b => (
                   <TableRow key={b.id}>
                     <TableCell>
@@ -393,54 +416,17 @@ export default function CosmeticsDepartmentPage() {
                     <TableCell>
                       <Badge variant="outline" className="capitalize">{b.accountStatus}</Badge>
                     </TableCell>
-                    <TableCell>
-                      <StarRating rating={b.internalRating || 3} />
-                    </TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" variant="ghost">Edit Notes</Button>
                     </TableCell>
                   </TableRow>
                 ))}
                 {!loadingBuyers && buyers.length === 0 && (
-                  <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic">No corporate buyers registered in this market.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={3} className="text-center py-12 text-muted-foreground italic">No corporate buyers registered in this market.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="intelligence" className="space-y-6 pt-4">
-          <div className="grid gap-6 md:grid-cols-2">
-            {priceIntellData.filter(p => p.allPrices.length > 0).map(p => (
-              <Card key={p.id} className="overflow-hidden">
-                <CardHeader className="bg-muted/50 p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-sm">{p.name}</CardTitle>
-                    </div>
-                    {p.isFeatured && <Badge className="bg-purple-500 animate-pulse">Best Deal</Badge>}
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <div className="h-[200px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={p.allPrices} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                        <XAxis dataKey="name" fontSize={8} tickLine={false} axisLine={false} />
-                        <YAxis fontSize={8} tickLine={false} axisLine={false} />
-                        <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', fontSize: '10px' }} />
-                        <Bar dataKey="price" radius={[4, 4, 0, 0]}>
-                          {p.allPrices.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.price === p.bestPrice ? '#10B981' : '#94A3B8'} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
         </TabsContent>
 
         <TabsContent value="catalog" className="space-y-6 pt-4">
@@ -463,6 +449,84 @@ export default function CosmeticsDepartmentPage() {
               </Card>
             ))}
           </div>
+
+          <Separator className="my-8" />
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Market Attachments</CardTitle>
+                  <CardDescription>Reference documents and price lists for the {name}.</CardDescription>
+                </div>
+                <div className="relative">
+                  <input
+                    type="file"
+                    id={`file-upload-${departmentId}`}
+                    className="hidden"
+                    onChange={handleFileUpload}
+                    disabled={isUploading}
+                  />
+                  <Button 
+                    disabled={isUploading} 
+                    onClick={() => document.getElementById(`file-upload-${departmentId}`)?.click()}
+                  >
+                    {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                    Upload Attachment
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>File Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Date Added</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {assets.map((file: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-medium flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-primary" />
+                        {file.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-[10px] uppercase">
+                          {file.type?.split('/')[1] || 'file'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(file.uploadedAt).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="icon" asChild>
+                            <a href={file.url} target="_blank" rel="noopener noreferrer">
+                              <Download className="h-4 w-4" />
+                            </a>
+                          </Button>
+                          <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleFileDelete(file)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {assets.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic text-xs">
+                        No attachments uploaded for this market.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
