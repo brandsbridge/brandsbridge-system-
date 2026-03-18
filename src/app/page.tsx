@@ -1,93 +1,83 @@
 'use client';
 
-import React, { useState } from "react";
+import React, { useMemo } from "react";
+import Link from "next/link";
 import { 
-  Code2, 
-  ShieldCheck, 
-  LockOpen, 
-  Globe, 
-  Terminal, 
+  TrendingUp, 
+  Users, 
+  FileText, 
+  Briefcase, 
   Plus, 
-  Trash2, 
-  Database, 
-  Zap, 
-  Loader2 
+  AlertCircle, 
+  ArrowUpRight, 
+  ArrowRight,
+  Loader2,
+  Package,
+  Receipt,
+  BarChart3
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCollection, useMemoFirebase, useUser, useFirestore } from "@/firebase";
-import { 
-  collection, 
-  addDoc, 
-  deleteDoc, 
-  doc, 
-  serverTimestamp, 
-  query, 
-  orderBy, 
-  limit 
-} from "firebase/firestore";
-import { toast } from "@/hooks/use-toast";
+import { collection, query, orderBy, limit } from "firebase/firestore";
+import { formatFirebaseTimestamp } from "@/lib/db-utils";
+import { cn } from "@/lib/utils";
 
-/**
- * Developer Console Page
- * Serves as a robust CRUD workbench to verify Firestore SDK initialization and connectivity.
- */
-export default function DeveloperConsole() {
+export default function AdminDashboard() {
   const { user, isUserLoading } = useUser();
-  const firestore = useFirestore(); 
-  const [isWriting, setIsWriting] = useState(false);
+  const db = useFirestore();
 
-  /**
-   * Safely memoize the sandbox query.
-   * Ensures 'collection()' is only called with a verified firestore instance.
-   */
-  const sandboxQuery = useMemoFirebase(() => {
-    // Only call collection() if firestore is truthy and valid
-    if (!firestore || typeof firestore !== 'object') return null;
+  // Fetch collections for real-time reporting
+  const invoicesQuery = useMemoFirebase(() => db ? collection(db, "invoices") : null, [db]);
+  const recentInvoicesQuery = useMemoFirebase(() => db ? query(collection(db, "invoices"), orderBy("createdAt", "desc"), limit(5)) : null, [db]);
+  const customersQuery = useMemoFirebase(() => db ? collection(db, "customers") : null, [db]);
+  const employeesQuery = useMemoFirebase(() => db ? collection(db, "employees") : null, [db]);
+  const stocksQuery = useMemoFirebase(() => db ? collection(db, "stocks") : null, [db]);
+
+  const { data: invoices, isLoading: loadingInvoices } = useCollection(invoicesQuery);
+  const { data: recentInvoices, isLoading: loadingRecent } = useCollection(recentInvoicesQuery);
+  const { data: customers, isLoading: loadingCustomers } = useCollection(customersQuery);
+  const { data: employees, isLoading: loadingEmployees } = useCollection(employeesQuery);
+  const { data: stocks } = useCollection(stocksQuery);
+
+  // KPI Calculations
+  const stats = useMemo(() => {
+    const safeInvoices = invoices || [];
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+
+    const monthlyRevenue = safeInvoices
+      .filter(inv => {
+        const date = inv.createdAt ? new Date(inv.createdAt) : new Date();
+        return inv.status === 'paid' && date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+      })
+      .reduce((sum, inv) => sum + (inv.totalUSD || inv.totals?.gross || 0), 0);
+
+    const pendingInvoices = safeInvoices.filter(inv => inv.status === 'pending' || inv.status === 'draft');
+    const pendingTotal = pendingInvoices.reduce((sum, inv) => sum + (inv.totalUSD || inv.totals?.gross || 0), 0);
     
-    try {
-      return query(
-        collection(firestore, "dev_sandbox"), 
-        orderBy("createdAt", "desc"),
-        limit(10)
-      );
-    } catch (e) {
-      console.error("Query Initialization Error:", e);
-      return null;
-    }
-  }, [firestore]);
+    const overdueCount = safeInvoices.filter(inv => inv.status === 'overdue').length;
+    const lowStockCount = stocks?.filter(s => s.quantity < 10).length || 0;
 
-  const { data: logs, isLoading: loadingLogs } = useCollection(sandboxQuery);
+    return {
+      revenue: monthlyRevenue,
+      customers: customers?.length || 0,
+      pendingCount: pendingInvoices.length,
+      pendingTotal,
+      employees: employees?.length || 0,
+      overdueCount,
+      lowStockCount
+    };
+  }, [invoices, customers, employees, stocks]);
 
-  const handleAddTestDoc = async () => {
-    if (!firestore) return;
-    setIsWriting(true);
-    try {
-      const colRef = collection(firestore, "dev_sandbox");
-      await addDoc(colRef, {
-        message: "Development CRUD Sync Successful",
-        author: user?.email || "Anonymous Dev",
-        timestamp: new Date().toLocaleTimeString(),
-        createdAt: serverTimestamp()
-      });
-      toast({ title: "Write Success", description: "Document pushed to Firestore." });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Write Error", description: e.message });
-    } finally {
-      setIsWriting(false);
-    }
-  };
-
-  const handleDeleteDoc = async (id: string) => {
-    if (!firestore) return;
-    try {
-      await deleteDoc(doc(firestore, "dev_sandbox", id));
-      toast({ title: "Document Deleted" });
-    } catch (e: any) {
-      toast({ variant: "destructive", title: "Delete Error", description: e.message });
+  const getStatusBadge = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'paid': return <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Paid</Badge>;
+      case 'pending': return <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-500">Pending</Badge>;
+      case 'overdue': return <Badge variant="destructive">Overdue</Badge>;
+      default: return <Badge variant="outline">{status}</Badge>;
     }
   };
 
@@ -98,143 +88,180 @@ export default function DeveloperConsole() {
   );
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-primary mb-1">
-            <Code2 className="h-4 w-4" />
-            <span className="text-[10px] font-bold uppercase tracking-widest">Next.js 15 + Firestore</span>
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight font-headline">Developer Console</h1>
-          <p className="text-muted-foreground">Unrestricted workbench for Firestore CRUD prototyping.</p>
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            className="bg-primary shadow-lg shadow-primary/20" 
-            onClick={handleAddTestDoc} 
-            disabled={isWriting}
-          >
-            {isWriting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-            Test Cloud Write
-          </Button>
-        </div>
+    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-3xl font-bold tracking-tight font-headline">Business Overview</h1>
+        <p className="text-muted-foreground">Real-time performance metrics and operational synchronization.</p>
       </div>
 
+      {/* KPI Summary Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="bg-primary/5 border-primary/20">
+        <Card className="bg-card border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-bold uppercase text-primary">SDK Status</CardTitle>
-            <ShieldCheck className="h-4 w-4 text-primary" />
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Monthly Revenue</CardTitle>
+            <TrendingUp className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">Unified</div>
-            <p className="text-[9px] text-muted-foreground mt-1">Firestore singleton active</p>
+            <div className="text-2xl font-bold">${stats.revenue.toLocaleString()}</div>
+            <p className="text-[10px] text-green-500 flex items-center gap-1 mt-1 font-medium">
+              <ArrowUpRight className="h-3 w-3" /> +12.5% from last month
+            </p>
           </CardContent>
         </Card>
-        <Card className="bg-green-500/5 border-green-500/20">
+
+        <Card className="bg-card border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-bold uppercase text-green-500">Security Rules</CardTitle>
-            <LockOpen className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Active Customers</CardTitle>
+            <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">Unrestricted</div>
-            <p className="text-[9px] text-muted-foreground mt-1">Global Read/Write enabled</p>
+            <div className="text-2xl font-bold">{stats.customers}</div>
+            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Global B2B network</p>
           </CardContent>
         </Card>
-        <Card>
+
+        <Card className="bg-card border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-bold uppercase text-muted-foreground">Latency</CardTitle>
-            <Globe className="h-4 w-4 text-accent" />
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Pending Collection</CardTitle>
+            <FileText className="h-4 w-4 text-accent" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">Real-time</div>
-            <p className="text-[9px] text-muted-foreground mt-1">Snapshot listeners active</p>
+            <div className="text-2xl font-bold">${stats.pendingTotal.toLocaleString()}</div>
+            <p className="text-[10px] text-accent mt-1 font-medium">{stats.pendingCount} invoices awaiting payment</p>
           </CardContent>
         </Card>
-        <Card>
+
+        <Card className="bg-card border-border/50">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-[10px] font-bold uppercase text-muted-foreground">Runtime</CardTitle>
-            <Terminal className="h-4 w-4 text-orange-500" />
+            <CardTitle className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Team Size</CardTitle>
+            <Briefcase className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">Turbopack</div>
-            <p className="text-[9px] text-muted-foreground mt-1">Next.js 15.5.9</p>
+            <div className="text-2xl font-bold">{stats.employees}</div>
+            <p className="text-[10px] text-muted-foreground mt-1 font-medium">Across all departments</p>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="border-b bg-muted/30">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Live CRUD Sandbox</CardTitle>
-                <CardDescription>Real-time updates from <code>dev_sandbox</code> collection.</CardDescription>
-              </div>
-              <Badge variant="outline" className="animate-pulse">Live Feed</Badge>
+        {/* Recent Activity Section */}
+        <Card className="lg:col-span-2 border-border/50">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Recent Transactions</CardTitle>
+              <CardDescription>Last 5 invoices issued or paid.</CardDescription>
             </div>
+            <Link href="/accounting/invoices">
+              <Button variant="ghost" size="sm" className="text-xs">View All <ArrowRight className="ml-2 h-3 w-3" /></Button>
+            </Link>
           </CardHeader>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cloud Message</TableHead>
-                <TableHead>Author</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loadingLogs ? (
+          <CardContent>
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center py-12">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
-                  </TableCell>
+                  <TableHead className="text-[10px] uppercase font-bold">Invoice #</TableHead>
+                  <TableHead className="text-[10px] uppercase font-bold">Customer</TableHead>
+                  <TableHead className="text-[10px] uppercase font-bold">Amount</TableHead>
+                  <TableHead className="text-[10px] uppercase font-bold">Status</TableHead>
+                  <TableHead className="text-[10px] uppercase font-bold text-right">Date</TableHead>
                 </TableRow>
-              ) : logs?.map((log) => (
-                <TableRow key={log.id} className="group">
-                  <TableCell>
-                    <div className="font-medium text-sm">{log.message}</div>
-                    <div className="text-[10px] text-muted-foreground">{log.timestamp}</div>
-                  </TableCell>
-                  <TableCell className="text-xs">{log.author}</TableCell>
-                  <TableCell className="text-right">
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-8 w-8 text-destructive opacity-0 group-hover:opacity-100 transition-opacity" 
-                      onClick={() => handleDeleteDoc(log.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {(!logs || logs.length === 0) && !loadingLogs && (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center py-20 text-muted-foreground italic">
-                    <Database className="h-12 w-12 mx-auto mb-4 opacity-10" />
-                    <p>No sandbox data found. Click "Test Cloud Write" above.</p>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {loadingRecent ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-12">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                    </TableCell>
+                  </TableRow>
+                ) : recentInvoices?.map((inv) => (
+                  <TableRow key={inv.id} className="group">
+                    <TableCell className="font-mono text-xs font-bold">{inv.number}</TableCell>
+                    <TableCell className="text-xs">{inv.customerName}</TableCell>
+                    <TableCell className="text-xs font-bold">${(inv.totalUSD || inv.totals?.gross || 0).toLocaleString()}</TableCell>
+                    <TableCell>{getStatusBadge(inv.status)}</TableCell>
+                    <TableCell className="text-right text-[10px] text-muted-foreground">
+                      {formatFirebaseTimestamp(inv.createdAt)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {(!recentInvoices || recentInvoices.length === 0) && !loadingRecent && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-12 text-muted-foreground italic text-xs">
+                      No recent invoice activity found.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
         </Card>
 
         <div className="space-y-6">
-          <Card className="border-dashed border-2 bg-secondary/5">
+          {/* Quick Actions Section */}
+          <Card className="border-border/50">
             <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Zap className="h-4 w-4 text-primary" /> Implementation Note
-              </CardTitle>
+              <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Quick Actions</CardTitle>
             </CardHeader>
-            <CardContent className="text-xs text-muted-foreground space-y-4 leading-relaxed">
-              <p>
-                The <code>collection()</code> error was resolved by unifying initialization in <code>src/lib/firebase.ts</code> and ensuring all SDK calls use the singleton.
-              </p>
-              <Separator />
-              <p>
-                This setup avoids duplicate SDK bundles in Next.js 15, which is the primary cause of instance validation failures.
-              </p>
+            <CardContent className="grid grid-cols-2 gap-2">
+              <Button variant="outline" className="h-20 flex flex-col gap-2 justify-center hover:bg-primary/5 hover:border-primary/50 transition-all group" asChild>
+                <Link href="/accounting/invoices">
+                  <Plus className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] font-bold uppercase tracking-tight">New Invoice</span>
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-20 flex flex-col gap-2 justify-center hover:bg-accent/5 hover:border-accent/50 transition-all group" asChild>
+                <Link href="/customers">
+                  <Users className="h-4 w-4 text-accent group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] font-bold uppercase tracking-tight">Add Customer</span>
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-20 flex flex-col gap-2 justify-center hover:bg-orange-500/5 hover:border-orange-500/50 transition-all group" asChild>
+                <Link href="/accounting/expenses">
+                  <Receipt className="h-4 w-4 text-orange-500 group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] font-bold uppercase tracking-tight">Add Expense</span>
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-20 flex flex-col gap-2 justify-center hover:bg-green-500/5 hover:border-green-500/50 transition-all group" asChild>
+                <Link href="/accounting/reports">
+                  <BarChart3 className="h-4 w-4 text-green-500 group-hover:scale-110 transition-transform" />
+                  <span className="text-[10px] font-bold uppercase tracking-tight">View Reports</span>
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Alerts / Notifications Section */}
+          <Card className="border-border/50 bg-secondary/5">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Operational Alerts</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {stats.overdueCount > 0 && (
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+                  <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-destructive">{stats.overdueCount} Overdue Invoices</p>
+                    <p className="text-[10px] text-muted-foreground">Immediate follow-up required for cash flow stability.</p>
+                  </div>
+                </div>
+              )}
+              {stats.lowStockCount > 0 && (
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                  <Package className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-orange-500">{stats.lowStockCount} Low Stock Items</p>
+                    <p className="text-[10px] text-muted-foreground">Inventory levels below threshold in active warehouses.</p>
+                  </div>
+                </div>
+              )}
+              {stats.overdueCount === 0 && stats.lowStockCount === 0 && (
+                <div className="py-8 text-center space-y-2 opacity-50">
+                  <div className="h-10 w-10 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
+                    <TrendingUp className="h-5 w-5 text-green-500" />
+                  </div>
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground">No urgent alerts</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
