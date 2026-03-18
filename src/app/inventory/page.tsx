@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { MOCK_STOCKS, MOCK_PRODUCTS, MOCK_SUPPLIERS } from "@/lib/mock-data";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { stockService } from "@/services/stock-service";
 import {
   Dialog,
@@ -38,13 +39,12 @@ import {
 export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const db = useFirestore();
   const { user } = useUser();
 
-  // Memoize Firestore Collections
-  const productsCol = useMemoFirebase(() => user ? collection(db, "products") : null, [db, user]);
-  const stocksCol = useMemoFirebase(() => user ? collection(db, "stocks") : null, [db, user]);
-  const suppliersCol = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
+  // Fetch collections using singleton db directly
+  const productsCol = useMemoFirebase(() => collection(db, "products"), []);
+  const stocksCol = useMemoFirebase(() => collection(db, "stocks"), []);
+  const suppliersCol = useMemoFirebase(() => collection(db, "suppliers"), []);
 
   const { data: fbProducts, loading: loadingProducts } = useCollection(productsCol);
   const { data: fbStocks, loading: loadingStocks } = useCollection(stocksCol);

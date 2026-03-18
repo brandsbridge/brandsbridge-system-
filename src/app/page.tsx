@@ -22,55 +22,60 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCollection, useMemoFirebase, useUser, useFirestore } from "@/firebase";
+import { useCollection, useMemoFirebase, useUser } from "@/firebase";
 import { collection, query, orderBy, limit } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
 
 export default function AdminDashboard() {
   const { user, isUserLoading } = useUser();
-  const db = useFirestore();
 
-  // Fetch collections for real-time reporting
-  const invoicesQuery = useMemoFirebase(() => db ? collection(db, "invoices") : null, [db]);
-  const recentInvoicesQuery = useMemoFirebase(() => db ? query(collection(db, "invoices"), orderBy("createdAt", "desc"), limit(5)) : null, [db]);
-  const customersQuery = useMemoFirebase(() => db ? collection(db, "customers") : null, [db]);
-  const employeesQuery = useMemoFirebase(() => db ? collection(db, "employees") : null, [db]);
-  const stocksQuery = useMemoFirebase(() => db ? collection(db, "stocks") : null, [db]);
-  const tasksQuery = useMemoFirebase(() => db ? collection(db, "tasks") : null, [db]);
+  // Fetch collections for real-time reporting using singleton db directly
+  const invoicesQuery = useMemoFirebase(() => collection(db, "invoices"), []);
+  const recentInvoicesQuery = useMemoFirebase(() => query(collection(db, "invoices"), orderBy("createdAt", "desc"), limit(5)), []);
+  const customersQuery = useMemoFirebase(() => collection(db, "customers"), []);
+  const employeesQuery = useMemoFirebase(() => collection(db, "employees"), []);
+  const stocksQuery = useMemoFirebase(() => collection(db, "stocks"), []);
+  const tasksQuery = useMemoFirebase(() => collection(db, "tasks"), []);
 
-  const { data: invoices, isLoading: loadingInvoices } = useCollection(invoicesQuery);
+  const { data: invoicesData, isLoading: loadingInvoices } = useCollection(invoicesQuery);
   const { data: recentInvoices, isLoading: loadingRecent } = useCollection(recentInvoicesQuery);
-  const { data: customers, isLoading: loadingCustomers } = useCollection(customersQuery);
-  const { data: employees, isLoading: loadingEmployees } = useCollection(employeesQuery);
-  const { data: stocks } = useCollection(stocksQuery);
-  const { data: tasks } = useCollection(tasksQuery);
+  const { data: customersData, isLoading: loadingCustomers } = useCollection(customersQuery);
+  const { data: employeesData, isLoading: loadingEmployees } = useCollection(employeesQuery);
+  const { data: stocksData } = useCollection(stocksQuery);
+  const { data: tasksData } = useCollection(tasksQuery);
+
+  const invoices = invoicesData || [];
+  const customers = customersData || [];
+  const employees = employeesData || [];
+  const stocks = stocksData || [];
+  const tasks = tasksData || [];
 
   // KPI Calculations
   const stats = useMemo(() => {
-    const safeInvoices = invoices || [];
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
 
-    const monthlyRevenue = safeInvoices
+    const monthlyRevenue = invoices
       .filter(inv => {
         const date = inv.createdAt ? new Date(inv.createdAt) : new Date();
         return inv.status === 'paid' && date.getMonth() === currentMonth && date.getFullYear() === currentYear;
       })
       .reduce((sum, inv) => sum + (inv.totalUSD || inv.totals?.gross || 0), 0);
 
-    const pendingInvoices = safeInvoices.filter(inv => inv.status === 'pending' || inv.status === 'draft');
+    const pendingInvoices = invoices.filter(inv => inv.status === 'pending' || inv.status === 'draft');
     const pendingTotal = pendingInvoices.reduce((sum, inv) => sum + (inv.totalUSD || inv.totals?.gross || 0), 0);
     
-    const overdueCount = safeInvoices.filter(inv => inv.status === 'overdue').length;
-    const lowStockCount = stocks?.filter(s => s.quantity < 10).length || 0;
+    const overdueCount = invoices.filter(inv => inv.status === 'overdue').length;
+    const lowStockCount = stocks.filter(s => s.quantity < 10).length;
 
     return {
       revenue: monthlyRevenue,
-      customers: customers?.length || 0,
+      customers: customers.length,
       pendingCount: pendingInvoices.length,
       pendingTotal,
-      employees: employees?.length || 0,
+      employees: employees.length,
       overdueCount,
       lowStockCount
     };
@@ -78,12 +83,11 @@ export default function AdminDashboard() {
 
   // Task Breakdown logic
   const taskStats = useMemo(() => {
-    const safeTasks = tasks || [];
     return {
-      total: safeTasks.length,
-      todo: safeTasks.filter(t => t.status === 'To Do').length,
-      inProgress: safeTasks.filter(t => t.status === 'In Progress').length,
-      done: safeTasks.filter(t => t.status === 'Done').length,
+      total: tasks.length,
+      todo: tasks.filter(t => t.status === 'To Do').length,
+      inProgress: tasks.filter(t => t.status === 'In Progress').length,
+      done: tasks.filter(t => t.status === 'Done').length,
     };
   }, [tasks]);
 
@@ -284,7 +288,7 @@ export default function AdminDashboard() {
                 </Link>
               </Button>
               <Button variant="outline" className="h-20 flex flex-col gap-2 justify-center hover:bg-green-500/5 hover:border-green-500/50 transition-all group" asChild>
-                <Link href="/accounting/reports">
+                <Link href="/accounting">
                   <BarChart3 className="h-4 w-4 text-green-500 group-hover:scale-110 transition-transform" />
                   <span className="text-[10px] font-bold uppercase tracking-tight">View Reports</span>
                 </Link>

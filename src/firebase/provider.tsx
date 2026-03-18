@@ -4,7 +4,8 @@ import React, { DependencyList, createContext, useContext, ReactNode, useMemo, u
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
-import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
+import { db as singletonDb, auth as singletonAuth, app as singletonApp } from '@/lib/firebase';
 
 interface FirebaseProviderProps {
   children: ReactNode;
@@ -59,10 +60,10 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   });
 
   useEffect(() => {
-    if (!auth) return;
+    if (!singletonAuth) return;
 
     const unsubscribe = onAuthStateChanged(
-      auth,
+      singletonAuth,
       (firebaseUser) => {
         setUserAuthState({ user: firebaseUser, isUserLoading: false, userError: null });
       },
@@ -72,21 +73,20 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       }
     );
     return () => unsubscribe();
-  }, [auth]);
+  }, []);
 
   const contextValue = useMemo((): FirebaseContextState => {
-    // Strict validation: Ensure firestore is a valid object before declaring services available
-    const servicesAvailable = !!(firebaseApp && firestore && auth && typeof firestore === 'object');
+    const servicesAvailable = !!(singletonApp && singletonDb && singletonAuth);
     return {
       areServicesAvailable: servicesAvailable,
-      firebaseApp: servicesAvailable ? firebaseApp : null,
-      firestore: servicesAvailable ? firestore : null,
-      auth: servicesAvailable ? auth : null,
+      firebaseApp: singletonApp,
+      firestore: singletonDb,
+      auth: singletonAuth,
       user: userAuthState.user,
       isUserLoading: userAuthState.isUserLoading,
       userError: userAuthState.userError,
     };
-  }, [firebaseApp, firestore, auth, userAuthState]);
+  }, [userAuthState]);
 
   return (
     <FirebaseContext.Provider value={contextValue}>
@@ -103,25 +103,19 @@ export const useFirebase = (): FirebaseServicesAndUser => {
     throw new Error('useFirebase must be used within a FirebaseProvider.');
   }
 
-  // If services are not available yet, we throw to be caught by the parent's logic or handle gracefully.
-  // This ensures that the first argument to collection() is never undefined when retrieved via useFirestore().
-  if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth) {
-    throw new Error('Firebase core services not available. This usually happens if initialization is pending or failed.');
-  }
-
   return {
-    firebaseApp: context.firebaseApp,
-    firestore: context.firestore,
-    auth: context.auth,
+    firebaseApp: singletonApp,
+    firestore: singletonDb,
+    auth: singletonAuth,
     user: context.user,
     isUserLoading: context.isUserLoading,
     userError: context.userError,
   };
 };
 
-export const useAuth = (): Auth => useFirebase().auth;
-export const useFirestore = (): Firestore => useFirebase().firestore;
-export const useFirebaseApp = (): FirebaseApp => useFirebase().firebaseApp;
+export const useAuth = (): Auth => singletonAuth;
+export const useFirestore = (): Firestore => singletonDb;
+export const useFirebaseApp = (): FirebaseApp => singletonApp;
 
 type MemoFirebase <T> = T & {__memo?: boolean};
 

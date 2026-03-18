@@ -41,8 +41,9 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
+import { useCollection, useMemoFirebase, useUser } from "@/firebase";
 import { collection, query, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { accountingService } from "@/services/accounting-service";
 import { SUPPORTED_CURRENCIES } from "@/services/currency-service";
@@ -51,7 +52,6 @@ import { toast } from "@/hooks/use-toast";
 import Link from "next/link";
 
 export default function AccountingDashboard() {
-  const db = useFirestore();
   const { user } = useUser();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
@@ -61,42 +61,42 @@ export default function AccountingDashboard() {
     if (saved) setCurrentUser(JSON.parse(saved));
   }, []);
 
-  // Fetch Data for Overview
+  // Fetch Data for Overview using singleton db
   const invoicesQuery = useMemoFirebase(() => {
     if (!user || !currentUser) return null;
     const colRef = collection(db, "invoices");
     return currentUser.department === 'all' ? colRef : query(colRef, where("department", "==", currentUser.department));
-  }, [db, user, currentUser]);
+  }, [user, currentUser]);
 
   const paymentsQuery = useMemoFirebase(() => {
     if (!user || !currentUser) return null;
     const colRef = collection(db, "payments");
     return currentUser.department === 'all' ? colRef : query(colRef, where("department", "==", currentUser.department));
-  }, [db, user, currentUser]);
+  }, [user, currentUser]);
 
-  const advancesQuery = useMemoFirebase(() => user ? collection(db, "customer_advances") : null, [db, user]);
-  const creditsQuery = useMemoFirebase(() => user ? collection(db, "credit_notes") : null, [db, user]);
+  const advancesQuery = useMemoFirebase(() => collection(db, "customer_advances"), []);
+  const creditsQuery = useMemoFirebase(() => collection(db, "credit_notes"), []);
 
-  const { data: invoices, isLoading: loadingInvoices } = useCollection(invoicesQuery);
-  const { data: payments, isLoading: loadingPayments } = useCollection(paymentsQuery);
-  const { data: advances } = useCollection(advancesQuery);
-  const { data: credits, isLoading: loadingCredits } = useCollection(creditsQuery);
+  const { data: invoicesData, isLoading: loadingInvoices } = useCollection(invoicesQuery);
+  const { data: paymentsData, isLoading: loadingPayments } = useCollection(paymentsQuery);
+  const { data: advancesData } = useCollection(advancesQuery);
+  const { data: creditsData, isLoading: loadingCredits } = useCollection(creditsQuery);
+
+  const invoices = invoicesData || [];
+  const payments = paymentsData || [];
+  const advances = advancesData || [];
+  const credits = creditsData || [];
 
   const stats = useMemo(() => {
-    const safeInvoices = invoices || [];
-    const safePayments = payments || [];
-    const safeAdvances = advances || [];
-    const safeCredits = credits || [];
-
-    const totalRevenue = safeInvoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
-    const outstandingAR = safeInvoices.filter(i => i.status === 'pending' || i.status === 'overdue' || i.status === 'draft').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
-    const overdueAR = safeInvoices.filter(i => i.status === 'overdue').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
+    const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
+    const outstandingAR = invoices.filter(i => i.status === 'pending' || i.status === 'overdue' || i.status === 'draft').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
+    const overdueAR = invoices.filter(i => i.status === 'overdue').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
     
-    const cashIn = safePayments.filter(p => p.type === 'received').reduce((acc, p) => acc + (p.totalUSD || p.amount || 0), 0);
-    const cashOut = safePayments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.totalUSD || p.amount || 0), 0);
+    const cashIn = payments.filter(p => p.type === 'received').reduce((acc, p) => acc + (p.totalUSD || p.amount || 0), 0);
+    const cashOut = payments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.totalUSD || p.amount || 0), 0);
     
-    const totalAdvances = safeAdvances.reduce((acc, a) => acc + (a.remainingAmount || 0), 0);
-    const totalCredits = safeCredits.reduce((acc, c) => acc + (c.remainingAmount || 0), 0);
+    const totalAdvances = advances.reduce((acc, a) => acc + (a.remainingAmount || 0), 0);
+    const totalCredits = credits.reduce((acc, c) => acc + (c.remainingAmount || 0), 0);
 
     return {
       revenue: totalRevenue,
@@ -111,22 +111,19 @@ export default function AccountingDashboard() {
   }, [invoices, payments, advances, credits]);
 
   const reportData = useMemo(() => {
-    const safeInvoices = invoices || [];
-    const safePayments = payments || [];
-
     const revByDept = {
-      chocolate: safeInvoices.filter(i => i.status === 'paid' && i.department === 'chocolate').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0),
-      cosmetics: safeInvoices.filter(i => i.status === 'paid' && i.department === 'cosmetics').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0),
-      detergents: safeInvoices.filter(i => i.status === 'paid' && i.department === 'detergents').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0),
+      chocolate: invoices.filter(i => i.status === 'paid' && i.department === 'chocolate').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0),
+      cosmetics: invoices.filter(i => i.status === 'paid' && i.department === 'cosmetics').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0),
+      detergents: invoices.filter(i => i.status === 'paid' && i.department === 'detergents').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0),
     };
 
     const currencyBreakdown = SUPPORTED_CURRENCIES.reduce((acc, code) => {
-      acc[code] = safeInvoices.filter(i => i.currency === code).reduce((sum, i) => sum + (i.total || i.totals?.gross || 0), 0);
+      acc[code] = invoices.filter(i => i.currency === code).reduce((sum, i) => sum + (i.total || i.totals?.gross || 0), 0);
       return acc;
     }, {} as any);
 
     const totalRevUSD = Object.values(revByDept).reduce((a, b) => a + b, 0);
-    const totalExpUSD = safePayments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.totalUSD || p.amount || 0), 0);
+    const totalExpUSD = payments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.totalUSD || p.amount || 0), 0);
 
     return {
       revByDept,
@@ -154,8 +151,7 @@ export default function AccountingDashboard() {
   };
 
   const handleExportExcel = () => {
-    const safeInvoices = invoices || [];
-    const data = safeInvoices.map(i => ({
+    const data = invoices.map(i => ({
       Number: i.number,
       Customer: i.customerName,
       Amount: i.total || i.totals?.gross,
@@ -346,7 +342,7 @@ export default function AccountingDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(credits || []).map(c => (
+                  {credits.map(c => (
                     <TableRow key={c.id}>
                       <TableCell className="font-mono text-xs font-bold">{c.number}</TableCell>
                       <TableCell>
@@ -364,7 +360,7 @@ export default function AccountingDashboard() {
                       </TableCell>
                     </TableRow>
                   ))}
-                  {(!credits || credits.length === 0) && (
+                  {credits.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-12 text-muted-foreground italic">No credit notes found.</TableCell>
                     </TableRow>
