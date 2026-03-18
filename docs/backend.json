@@ -9,7 +9,6 @@
         "name": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "country": { "type": "string" },
-        "vatId": { "type": "string" },
         "natureOfBusiness": { "type": "string" },
         "recordStatus": { "type": "string" },
         "departments": { "type": "array", "items": { "type": "string" } },
@@ -60,24 +59,50 @@
         "status": { "type": "string" },
         "targetMarket": { "type": "string" }
       }
+    },
+    "PurchaseOrder": {
+      "title": "Purchase Order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "number": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "total": { "type": "number" },
+        "status": { "type": "string" }
+      }
+    },
+    "Payment": {
+      "title": "Settlement Record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "type": { "type": "string", "enum": ["received", "made"] }
+      }
+    },
+    "Task": {
+      "title": "Operational Task",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" }
+      }
     }
   },
   "auth": {
     "providers": ["password", "anonymous"]
   },
   "firestore": {
-    "structure": [
-      { "path": "/products/{id}", "definition": { "entityName": "Product", "description": "Global product catalog" } },
-      { "path": "/invoices/{id}", "definition": { "entityName": "Invoice", "description": "Sales and export invoices" } },
-      { "path": "/suppliers/{id}", "definition": { "entityName": "Supplier", "description": "Trading entities" } },
-      { "path": "/customers/{id}", "definition": { "entityName": "Customer", "description": "Buyers and recipients" } },
-      { "path": "/campaigns/{id}", "definition": { "entityName": "Campaign", "description": "Marketing outreach" } },
-      { "path": "/purchase_orders/{id}", "definition": { "entityName": "PurchaseOrder", "description": "Supplier procurement" } },
-      { "path": "/payments/{id}", "definition": { "entityName": "Payment", "description": "Financial settlements" } },
-      { "path": "/expenses/{id}", "definition": { "entityName": "Expense", "description": "Operating costs" } },
-      { "path": "/customer_advances/{id}", "definition": { "entityName": "CustomerAdvance", "description": "Pre-payments" } },
-      { "path": "/credit_notes/{id}", "definition": { "entityName": "CreditNote", "description": "Sales returns" } },
-      { "path": "/supplier_attachments/{id}", "definition": { "entityName": "Attachment", "description": "Partner docs" } }
-    ]
+    "/suppliers/{id}": { "schema": { "$ref": "#/entities/Supplier" }, "description": "Global trading partners" },
+    "/customers/{id}": { "schema": { "$ref": "#/entities/Customer" }, "description": "Corporate buyers" },
+    "/products/{id}": { "schema": { "$ref": "#/entities/Product" }, "description": "Global product catalog" },
+    "/invoices/{id}": { "schema": { "$ref": "#/entities/Invoice" }, "description": "Sales and export invoices" },
+    "/campaigns/{id}": { "schema": { "$ref": "#/entities/Campaign" }, "description": "Marketing outreach" },
+    "/purchase_orders/{id}": { "schema": { "$ref": "#/entities/PurchaseOrder" }, "description": "Supplier procurement" },
+    "/payments/{id}": { "schema": { "$ref": "#/entities/Payment" }, "description": "Financial settlements" },
+    "/tasks/{id}": { "schema": { "$ref": "#/entities/Task" }, "description": "Workflow management" }
   }
 }

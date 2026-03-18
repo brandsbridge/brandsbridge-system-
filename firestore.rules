@@ -3,8 +3,8 @@ service cloud.firestore {
   match /databases/{database}/documents {
     /**
      * 🔓 GLOBAL UNRESTRICTED ACCESS
-     * Deployment triggered to ensure all new collections (campaigns, payments, etc.) 
-     * are accessible across all market departments.
+     * Deployment refreshed to ensure all system collections (invoices, payments, tasks, etc.)
+     * are permitted for the current session.
      */
     match /{document=**} {
       allow read, write: if true;
