@@ -53,7 +53,7 @@ import { cn } from "@/lib/utils";
 export default function CampaignsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingCampaign, setEditingSupplier] = useState<any>(null);
+  const [editingCampaign, setEditingCampaign] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Firestore Data Fetching
@@ -108,7 +108,7 @@ export default function CampaignsPage() {
       await setDoc(campaignRef, data, { merge: true });
       toast({ title: editingCampaign ? "Campaign Updated" : "Campaign Created" });
       setIsModalOpen(false);
-      setEditingSupplier(null);
+      setEditingCampaign(null);
     } catch (err) {
       toast({ variant: "destructive", title: "Operation Failed", description: "Could not save campaign data." });
     } finally {
@@ -116,13 +116,28 @@ export default function CampaignsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (campaignId: string) => {
+    if (!campaignId) return;
+    
+    // Confirmation dialog before deletion
     if (!confirm("Are you sure you want to delete this campaign?")) return;
+
     try {
-      await deleteDoc(doc(db, "campaigns", id));
-      toast({ title: "Campaign Removed" });
+      // Correct Firestore deletion logic
+      await deleteDoc(doc(db, "campaigns", campaignId));
+      
+      // Success message
+      toast({ 
+        title: "Campaign deleted",
+        description: "The record has been permanently removed from the ledger."
+      });
     } catch (err) {
-      toast({ variant: "destructive", title: "Delete Failed" });
+      // Error handling
+      toast({ 
+        variant: "destructive", 
+        title: "Failed to delete", 
+        description: "An error occurred while communicating with Firestore. Please try again." 
+      });
     }
   };
 
@@ -145,7 +160,7 @@ export default function CampaignsPage() {
         
         <Dialog open={isModalOpen} onOpenChange={(open) => {
           setIsModalOpen(open);
-          if (!open) setEditingSupplier(null);
+          if (!open) setEditingCampaign(null);
         }}>
           <DialogTrigger asChild>
             <Button className="bg-primary">
@@ -333,12 +348,17 @@ export default function CampaignsPage() {
                         <Button variant="ghost" size="icon" className="h-8 w-8"><Eye className="h-4 w-4" /></Button>
                       </Link>
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                        setEditingSupplier(c);
+                        setEditingCampaign(c);
                         setIsModalOpen(true);
                       }}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(c.id)}>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-destructive" 
+                        onClick={() => handleDelete(c.id)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
