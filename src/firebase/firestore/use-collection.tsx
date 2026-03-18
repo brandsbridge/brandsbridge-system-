@@ -25,8 +25,10 @@ export interface UseCollectionResult<T> {
  */
 function getSafePath(ref: any): string {
   if (!ref) return "unknown";
-  // CollectionReference has a .path property. Query does not.
-  return ref.path || "queried-collection";
+  // CollectionReference has a .path property.
+  if (ref.path) return ref.path;
+  // For queries, we try to indicate it's a filtered set of documents
+  return "queried-collection";
 }
 
 export function useCollection<T = any>(
@@ -60,6 +62,7 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
+        // Create contextual error for the development overlay
         const contextualError = new FirestorePermissionError({
           operation: 'list',
           path: getSafePath(memoizedTargetRefOrQuery),
@@ -68,6 +71,8 @@ export function useCollection<T = any>(
         setError(contextualError)
         setData(null)
         setIsLoading(false)
+        
+        // Emit error to the global listener
         errorEmitter.emit('permission-error', contextualError);
       }
     );
