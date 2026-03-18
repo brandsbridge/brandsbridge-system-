@@ -63,8 +63,7 @@ export default function ProjectsPage() {
     <div className="space-y-8 h-[calc(100vh-120px)] flex flex-col">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight font-headline">Project Kanban</h1>
-          <p className="text-muted-foreground">Track task progress and team capacity in real-time.</p>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">Tasks</h1>
         </div>
         <div className="flex gap-2">
           {loading && <Loader2 className="h-4 w-4 animate-spin mt-3" />}

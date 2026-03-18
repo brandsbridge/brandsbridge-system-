@@ -14,7 +14,9 @@ import {
   Loader2,
   Package,
   Receipt,
-  BarChart3
+  BarChart3,
+  Kanban,
+  CheckCircle2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,12 +37,14 @@ export default function AdminDashboard() {
   const customersQuery = useMemoFirebase(() => db ? collection(db, "customers") : null, [db]);
   const employeesQuery = useMemoFirebase(() => db ? collection(db, "employees") : null, [db]);
   const stocksQuery = useMemoFirebase(() => db ? collection(db, "stocks") : null, [db]);
+  const tasksQuery = useMemoFirebase(() => db ? collection(db, "tasks") : null, [db]);
 
   const { data: invoices, isLoading: loadingInvoices } = useCollection(invoicesQuery);
   const { data: recentInvoices, isLoading: loadingRecent } = useCollection(recentInvoicesQuery);
   const { data: customers, isLoading: loadingCustomers } = useCollection(customersQuery);
   const { data: employees, isLoading: loadingEmployees } = useCollection(employeesQuery);
   const { data: stocks } = useCollection(stocksQuery);
+  const { data: tasks } = useCollection(tasksQuery);
 
   // KPI Calculations
   const stats = useMemo(() => {
@@ -71,6 +75,17 @@ export default function AdminDashboard() {
       lowStockCount
     };
   }, [invoices, customers, employees, stocks]);
+
+  // Task Breakdown logic
+  const taskStats = useMemo(() => {
+    const safeTasks = tasks || [];
+    return {
+      total: safeTasks.length,
+      todo: safeTasks.filter(t => t.status === 'To Do').length,
+      inProgress: safeTasks.filter(t => t.status === 'In Progress').length,
+      done: safeTasks.filter(t => t.status === 'Done').length,
+    };
+  }, [tasks]);
 
   const getStatusBadge = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -139,6 +154,53 @@ export default function AdminDashboard() {
           <CardContent>
             <div className="text-2xl font-bold">{stats.employees}</div>
             <p className="text-[10px] text-muted-foreground mt-1 font-medium">Across all departments</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Standalone Tasks Overview Section */}
+      <div className="grid gap-6">
+        <Card className="border-border/50">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Kanban className="h-5 w-5 text-primary" /> Tasks
+            </CardTitle>
+            <Link href="/projects">
+              <Button variant="ghost" size="sm" className="text-xs h-8">View All <ArrowRight className="ml-1 h-3 w-3" /></Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+              <div className="space-y-1">
+                <div className="text-3xl font-bold">{taskStats.total}</div>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total Assignments</p>
+              </div>
+              <div className="flex flex-wrap gap-8">
+                <div className="space-y-1">
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">To Do</p>
+                  <div className="flex items-center gap-2">
+                    <div className="text-xl font-bold">{taskStats.todo}</div>
+                    <Badge variant="outline" className="text-[8px] h-4">Awaiting</Badge>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-accent uppercase font-bold">In Progress</p>
+                  <div className="flex items-center gap-2">
+                    <div className="text-xl font-bold">{taskStats.inProgress}</div>
+                    <div className="h-1.5 w-16 rounded-full bg-accent/20 overflow-hidden hidden sm:block">
+                      <div className="h-full bg-accent" style={{ width: `${(taskStats.inProgress / (taskStats.total || 1)) * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-green-500 uppercase font-bold">Done</p>
+                  <div className="flex items-center gap-2">
+                    <div className="text-xl font-bold">{taskStats.done}</div>
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
