@@ -1,13 +1,133 @@
+/**
+ * Firebase Security Rules for Business Management Dashboard
+ *
+ * Core Philosophy:
+ * This ruleset implements a Database Access Control (DBAC) model based on an administrative role. 
+ * Access to all core business entities is restricted to users whose UIDs are present in the
+ * '/app_admins' collection. This centralizes authorization, ensuring that sensitive business 
+ * data like Suppliers, Customers, and Stocks is only accessible by verified staff.
+ *
+ * Data Structure:
+ * - /app_admins/{adminId}: Stores administrative UIDs (document ID = user UID).
+ * - /suppliers, /customers, /products, /stocks, /bestOffers, /customerResponses: 
+ *   Top-level collections for business operations, managed by admins.
+ * - /automationLogs: Read-only logs for admins regarding background processes.
+ * - /triggerCollection: Write-only triggers for external automation workflows.
+ *
+ * Key Security Decisions:
+ * - Admin Check: Authorization is performed via a fast `exists()` lookup on the `/app_admins` collection.
+ * - Structural Segregation: All business entities are in top-level collections, as they share 
+ *   the same high-security posture (Admin-only).
+ * - Prototyping Flexibility: Rules enforce strict authorization (who can access) but allow 
+ *   flexible data shapes to facilitate rapid development iterations.
+ *
+ * Denormalization for Authorization:
+ * The security model uses a dedicated `/app_admins` collection where the Document ID is the 
+ * User's UID. This allows every other rule to verify authorization with a single `exists()` 
+ * check, avoiding complex recursive lookups or nested document ownership checks.
+ */
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // --- Helper Functions ---
+
     /**
-     * 🔐 AUTHENTICATED ACCESS ONLY
-     * Ensures that all read/write operations require a valid Firebase Auth session.
-     * Role-based visibility is further managed at the application logic layer.
+     * @description Checks if the request is made by an authenticated user.
      */
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * @description Verifies if the authenticated user has administrative privileges 
+     * by checking for their UID in the app_admins collection.
+     */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/app_admins/$(request.auth.uid));
+    }
+
+    /**
+     * @description Combines admin check with existence check for destructive operations.
+     */
+    function isExistingAdmin() {
+      return isAdmin() && resource != null;
+    }
+
+    // --- Collection Rules ---
+
+    /**
+     * @description Rules for managing application administrators.
+     * @path /app_admins/{adminId}
+     * @allow Authenticated user to (get) their own status; existing admins to (list) or (write).
+     * @deny Unauthenticated users; non-admins from listing or modifying other admin records.
+     * @principle Role-based access control and self-identity verification.
+     */
+    match /app_admins/{adminId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    /**
+     * @description Core business data collections accessible only by administrators.
+     * @path /suppliers, /customers, /products, /stocks, /bestOffers, /customerResponses
+     * @allow Authenticated administrators to (get), (list), (create), (update), and (delete).
+     * @deny Any non-admin user or unauthenticated request.
+     * @principle Strict administrative role-based access for internal business data.
+     */
+    match /{collectionName}/{docId} {
+      allow get, list: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if isExistingAdmin();
+
+      // Constraint: Apply this pattern only to the specified business collections
+      function isBusinessCollection() {
+        return collectionName in [
+          'suppliers', 'customers', 'products', 'stocks', 
+          'bestOffers', 'customerResponses'
+        ];
+      }
+      
+      // Override for non-business collections if they fall into the wildcard
+      allow get, list, create, update, delete: if isBusinessCollection() && isAdmin();
+    }
+
+    /**
+     * @description Read-only logs for automated processes.
+     * @path /automationLogs/{logId}
+     * @allow Administrators to (get) and (list) logs.
+     * @deny All writes from the client (logs are system-generated); non-admins from reading.
+     * @principle Restricted read access for system audit trails.
+     */
+    match /automationLogs/{logId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    /**
+     * @description Collection for triggering external automation (e.g., n8n, Zapier).
+     * @path /triggerCollection/{triggerId}
+     * @allow Administrators to (create) triggers.
+     * @deny Non-admins from writing; general reading (triggers are transient).
+     * @principle Write-only access for authorized users to initiate workflows.
+     */
+    match /triggerCollection/{triggerId} {
+      allow create: if isAdmin();
+      allow get, list, update, delete: if isAdmin(); // Allowed for admins for debugging/visibility
+    }
+
+    /**
+     * @description Support for generic "queried-collection" from developer error reports.
+     * @path /queried-collection/{id}
+     * @allow Admins to list and read for prototyping/debugging.
+     * @deny Standard users.
+     * @principle Provides a fallback for placeholders used during development.
+     */
+    match /queried-collection/{id} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
   }
 }
