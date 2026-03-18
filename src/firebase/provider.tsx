@@ -6,6 +6,7 @@ import { Firestore } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 import { db as singletonDb, auth as singletonAuth, app as singletonApp } from '@/lib/firebase';
+import { Loader2 } from 'lucide-react';
 
 interface FirebaseProviderProps {
   children: ReactNode;
@@ -91,7 +92,16 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   return (
     <FirebaseContext.Provider value={contextValue}>
       <FirebaseErrorListener />
-      {children}
+      {userAuthState.isUserLoading ? (
+        <div className="flex items-center justify-center min-h-screen bg-background text-foreground">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground animate-pulse">Synchronizing Secure Session...</p>
+          </div>
+        </div>
+      ) : (
+        children
+      )}
     </FirebaseContext.Provider>
   );
 };

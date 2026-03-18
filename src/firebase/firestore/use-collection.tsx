@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useAuth } from '../provider';
 
 export type WithId<T> = T & { id: string };
 
@@ -37,10 +38,13 @@ export function useCollection<T = any>(
   const [data, setData] = useState<WithId<T>[] | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
+  const auth = useAuth();
 
   useEffect(() => {
-    // Safety check: skip if the ref/query is nullish
-    if (!memoizedTargetRefOrQuery) {
+    // CRITICAL: Prevent query firing if auth session is not confirmed.
+    // This is the primary defense against 'Missing or insufficient permissions' 
+    // errors during the initial hydration/auth handshake.
+    if (!auth?.currentUser || !memoizedTargetRefOrQuery) {
       setData(null);
       setIsLoading(false);
       setError(null);
@@ -78,7 +82,7 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
-  }, [memoizedTargetRefOrQuery]);
+  }, [memoizedTargetRefOrQuery, auth?.currentUser]);
 
   // Next.js 15 safety: warn if hooks are called with unmemoized volatile references
   if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {

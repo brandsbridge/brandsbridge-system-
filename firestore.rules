@@ -2,12 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     /**
-     * 🔓 GLOBAL UNRESTRICTED ACCESS
-     * Deployment refreshed to ensure all system collections (invoices, payments, tasks, etc.)
-     * are permitted for the current session.
+     * 🔐 AUTHENTICATED ACCESS ONLY
+     * Ensures that all read/write operations require a valid Firebase Auth session.
+     * Role-based visibility is further managed at the application logic layer.
      */
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if request.auth != null;
     }
   }
 }
