@@ -80,10 +80,15 @@ export default function ExpensesPage() {
     return collection(db, "recurring_invoices");
   }, [db, user]);
 
-  const { data: suppliers = [] } = useCollection(suppliersQuery);
-  const { data: customers = [] } = useCollection(customersQuery);
-  const { data: expenses = [], isLoading: loadingExpenses } = useCollection(expensesQuery);
-  const { data: templates = [], isLoading: loadingTemplates } = useCollection(recurringQuery);
+  const { data: suppliersData } = useCollection(suppliersQuery);
+  const { data: customersData } = useCollection(customersQuery);
+  const { data: expensesData, isLoading: loadingExpenses } = useCollection(expensesQuery);
+  const { data: templatesData, isLoading: loadingTemplates } = useCollection(recurringQuery);
+
+  const suppliers = suppliersData || [];
+  const customers = customersData || [];
+  const expenses = expensesData || [];
+  const templates = templatesData || [];
 
   const expenseAccounts = CHART_OF_ACCOUNTS.filter(a => a.group === 'Expenses');
 
