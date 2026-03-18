@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useMemo, useRef } from "react";
@@ -484,15 +483,13 @@ export default function SuppliersPage() {
               <TableHead>Products</TableHead>
               <TableHead>Price Tier</TableHead>
               <TableHead>Record Status</TableHead>
-              <TableHead className="w-[120px]">Completeness</TableHead>
-              <TableHead>Compliance</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12">
+                <TableCell colSpan={6} className="text-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">Loading suppliers...</p>
                 </TableCell>
@@ -542,25 +539,6 @@ export default function SuppliersPage() {
                   )}>
                     {supplier.recordStatus}
                   </Badge>
-                </TableCell>
-                <TableCell>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-[8px] font-bold">
-                      <span>{supplier.dataCompleteness}%</span>
-                    </div>
-                    <Progress 
-                      value={supplier.dataCompleteness} 
-                      className="h-1" 
-                      indicatorClassName={cn(
-                        supplier.dataCompleteness > 80 ? "bg-green-500" : supplier.dataCompleteness > 50 ? "bg-yellow-500" : "bg-destructive"
-                      )}
-                    />
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex gap-1">
-                    {supplier.certifications?.halal?.has && <Badge className="h-4 w-4 p-0 flex items-center justify-center bg-green-500 rounded-full" title="Halal"><CheckCircle2 className="h-2.5 w-2.5 text-white" /></Badge>}
-                  </div>
                 </TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
