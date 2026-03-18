@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { 
   ArrowLeft, Mail, MapPin, 
   Download, Send, 
@@ -127,6 +128,28 @@ export default function SupplierClient({ id }: { id: string }) {
   const handleUpdateNotes = async (notes: string) => {
     await updateDoc(supplierRef, { notes, updatedAt: serverTimestamp() });
     toast({ title: "Notes Saved" });
+  };
+
+  const handleUpdateSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const data = {
+      name: formData.get('name'),
+      country: formData.get('country'),
+      natureOfBusiness: formData.get('natureOfBusiness'),
+      pricing: {
+        ...supplier.pricing,
+        tier: formData.get('tier')
+      }
+    };
+
+    try {
+      await updateDoc(supplierRef, { ...data, updatedAt: serverTimestamp() });
+      setIsEditDialogOpen(false);
+      toast({ title: "Record Updated" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Update Failed" });
+    }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -384,7 +407,7 @@ export default function SupplierClient({ id }: { id: string }) {
           </div>
         </TabsContent>
 
-        {/* Tab 2: Catalog & Logistics (Kept as requested) */}
+        {/* Tab 2: Catalog & Logistics */}
         <TabsContent value="catalog" className="pt-6 space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
@@ -580,7 +603,7 @@ export default function SupplierClient({ id }: { id: string }) {
           <form onSubmit={handleUpdateSupplier}>
             <DialogHeader>
               <DialogTitle>Edit Partner Intelligence</DialogTitle>
-              <DialogDescription>Modify core supplier details. Current completeness: {supplier.dataCompleteness}%</DialogDescription>
+              <DialogDescription>Modify core supplier details.</DialogDescription>
             </DialogHeader>
             <div className="grid grid-cols-2 gap-4 py-4">
               <div className="space-y-2">
