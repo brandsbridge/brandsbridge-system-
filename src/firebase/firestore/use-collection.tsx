@@ -8,6 +8,7 @@ import {
   FirestoreError,
   QuerySnapshot,
   CollectionReference,
+  getFirestore,
 } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -72,6 +73,7 @@ export function useCollection<T = any>(
     }
 
     // 2. Guard against unauthenticated requests
+    // CRITICAL: Ensure we have a user session before attempting any query
     const auth = getAuth();
     if (!auth.currentUser) {
       setData(null);
