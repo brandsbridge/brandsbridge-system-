@@ -91,10 +91,15 @@ export default function ChocolateDepartmentPage() {
   const productsQuery = useMemoFirebase(() => query(collection(db, "products"), where("department", "==", departmentId)), [db, departmentId]);
   const stocksQuery = useMemoFirebase(() => query(collection(db, "stocks"), where("department", "==", departmentId)), [db, departmentId]);
 
-  const { data: suppliers = [], isLoading: loadingSuppliers } = useCollection(suppliersQuery);
-  const { data: buyers = [], isLoading: loadingBuyers } = useCollection(customersQuery);
-  const { data: products = [] } = useCollection(productsQuery);
-  const { data: stocks = [] } = useCollection(stocksQuery);
+  const { data: suppliersData, isLoading: loadingSuppliers } = useCollection(suppliersQuery);
+  const { data: buyersData, isLoading: loadingBuyers } = useCollection(customersQuery);
+  const { data: productsData } = useCollection(productsQuery);
+  const { data: stocksData } = useCollection(stocksQuery);
+
+  const suppliers = suppliersData || [];
+  const buyers = buyersData || [];
+  const products = productsData || [];
+  const stocks = stocksData || [];
 
   const priceIntellData = useMemo(() => {
     return products.map(p => {
