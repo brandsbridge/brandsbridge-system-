@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
@@ -7,7 +8,13 @@ import {
   Loader2, 
   MoreVertical,
   Banknote,
-  Download
+  Download,
+  Link as LinkIcon,
+  Unlink,
+  Search,
+  Filter,
+  FileSpreadsheet,
+  ArrowRight
 } from "lucide-react";
 import { 
   Table, 
@@ -34,49 +41,72 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where } from "firebase/firestore";
+import { collection, query, where, updateDoc, doc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { paymentService } from "@/services/payment-service";
 import { accountingService } from "@/services/accounting-service";
 import { currencyService, SUPPORTED_CURRENCIES, type CurrencyCode, type ExchangeRates } from "@/services/currency-service";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import Papa from "papaparse";
 
 export default function PaymentsPage() {
-  const db = useFirestore();
   const { user } = useUser();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkingModalOpen] = useState(false);
+  
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
   const [paymentCurrency, setPaymentCurrency] = useState<CurrencyCode>('USD');
   const [paymentAmount, setPaymentAmount] = useState<string>('0');
 
+  // Linking State
+  const [linkingAdvanceId, setLinkingAdvanceId] = useState<string | null>(null);
+  const [linkingCustomerName, setLinkingCustomerName] = useState<string | null>(null);
+
+  // Log Filter State
+  const [logTypeFilter, setLogTypeFilter] = useState("all");
+  const [logNameFilter, setLogNameFilter] = useState("all");
+  const [logStatusFilter, setLogStatusFilter] = useState("all");
+  const [logStartDate, setLogStartDate] = useState("");
+  const [logEndDate, setLogEndDate] = useState("");
+
   useEffect(() => {
     const saved = localStorage.getItem("demoUser");
     if (saved) setCurrentUser(JSON.parse(saved));
     currencyService.fetchLatestRates(db).then(setExchangeRates);
-  }, [db]);
+  }, []);
 
+  // --- Fetch Data ---
   const paymentsQuery = useMemoFirebase(() => {
     if (!user || !currentUser) return null;
     const colRef = collection(db, "payments");
     return currentUser.department === 'all' 
       ? colRef 
       : query(colRef, where("department", "==", currentUser.department));
-  }, [db, user, currentUser]);
+  }, [user, currentUser]);
 
-  const advancesQuery = useMemoFirebase(() => {
-    if (!user) return null;
-    return collection(db, "customer_advances");
-  }, [db, user]);
+  const advancesQuery = useMemoFirebase(() => user ? collection(db, "customer_advances") : null, [user]);
+  const invoicesQuery = useMemoFirebase(() => user ? collection(db, "invoices") : null, [user]);
+  const creditsQuery = useMemoFirebase(() => user ? collection(db, "credit_notes") : null, [user]);
+  const customersQuery = useMemoFirebase(() => user ? collection(db, "customers") : null, [user]);
+  const suppliersQuery = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [user]);
 
   const { data: paymentsData, isLoading: loadingPayments } = useCollection(paymentsQuery);
   const { data: advancesData, isLoading: loadingAdvances } = useCollection(advancesQuery);
+  const { data: invoicesData } = useCollection(invoicesQuery);
+  const { data: creditsData } = useCollection(creditsQuery);
+  const { data: customers } = useCollection(customersQuery);
+  const { data: suppliers } = useCollection(suppliersQuery);
 
   const payments = paymentsData || [];
   const advances = advancesData || [];
+  const invoices = invoicesData || [];
+  const credits = creditsData || [];
 
+  // --- Handlers ---
   const handleRecordPayment = (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
@@ -117,24 +147,136 @@ export default function PaymentsPage() {
     toast({ title: "Advance Recorded", description: `Pre-payment from ${data.customerName} saved.` });
   };
 
+  const handleLinkToInvoice = async (invoiceId: string) => {
+    if (!linkingAdvanceId) return;
+    try {
+      const docRef = doc(db, "customer_advances", linkingAdvanceId);
+      await updateDoc(docRef, { invoiceId });
+      setIsLinkingModalOpen(false);
+      setLinkingAdvanceId(null);
+      toast({ title: "Advance Linked", description: "Payment has been allocated to the invoice." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Linking Failed" });
+    }
+  };
+
+  const handleUnlink = async (advanceId: string) => {
+    try {
+      const docRef = doc(db, "customer_advances", advanceId);
+      await updateDoc(docRef, { invoiceId: null });
+      toast({ title: "Advance Unlinked", description: "Payment is now available for new allocation." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Unlinking Failed" });
+    }
+  };
+
+  const handleExportCSV = () => {
+    if (filteredLog.length === 0) {
+      toast({ variant: "destructive", title: "No data to export" });
+      return;
+    }
+    const data = filteredLog.map(l => ({
+      Date: new Date(l.date).toLocaleDateString(),
+      Party: l.name,
+      Type: l.type,
+      Amount: l.amount,
+      Currency: l.currency,
+      Status: l.status,
+      Reference: l.invoice || '-'
+    }));
+    const csv = Papa.unparse(data);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `payment_log_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast({ title: "Log Exported", description: "CSV file has been generated." });
+  };
+
+  // --- Filtered Data ---
   const usdPreview = useMemo(() => {
     if (!exchangeRates) return 0;
     return parseFloat(paymentAmount) / (exchangeRates.rates[paymentCurrency] || 1);
   }, [paymentAmount, paymentCurrency, exchangeRates]);
+
+  const availableInvoicesForLinking = useMemo(() => {
+    if (!linkingCustomerName) return [];
+    return invoices.filter(i => 
+      i.customerName === linkingCustomerName && 
+      i.status !== 'paid' &&
+      !advances.some(a => a.invoiceId === i.id)
+    );
+  }, [invoices, linkingCustomerName, advances]);
+
+  const combinedLog = useMemo(() => {
+    const p = payments.map(pay => ({
+      id: pay.id,
+      date: pay.date,
+      name: pay.partyName,
+      type: pay.type === 'received' ? 'Inward Payment' : 'Outward Settlement',
+      amount: pay.amount,
+      currency: pay.currency || 'USD',
+      status: 'Settled',
+      invoice: pay.reference,
+      category: pay.type === 'received' ? 'customer' : 'supplier'
+    }));
+
+    const a = advances.map(adv => ({
+      id: adv.id,
+      date: adv.date,
+      name: adv.customerName,
+      type: 'Customer Advance',
+      amount: adv.amount,
+      currency: 'USD',
+      status: adv.invoiceId ? 'Applied' : 'Available',
+      invoice: adv.invoiceId ? invoices.find(i => i.id === adv.invoiceId)?.number : '-',
+      category: 'customer'
+    }));
+
+    const c = credits.map(cred => ({
+      id: cred.id,
+      date: cred.date,
+      name: cred.customerName,
+      type: 'Credit Note',
+      amount: cred.amount,
+      currency: 'USD',
+      status: cred.status,
+      invoice: cred.invoiceId,
+      category: 'customer'
+    }));
+
+    return [...p, ...a, ...c].sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime());
+  }, [payments, advances, credits, invoices]);
+
+  const filteredLog = useMemo(() => {
+    return combinedLog.filter(l => {
+      const matchesType = logTypeFilter === 'all' || l.category === logTypeFilter;
+      const matchesName = logNameFilter === 'all' || l.name === logNameFilter;
+      const matchesStatus = logStatusFilter === 'all' || l.status.toLowerCase() === logStatusFilter.toLowerCase();
+      const itemDate = new Date(l.date);
+      const matchesStart = !logStartDate || itemDate >= new Date(logStartDate);
+      const matchesEnd = !logEndDate || itemDate <= new Date(logEndDate);
+      return matchesType && matchesName && matchesStatus && matchesStart && matchesEnd;
+    });
+  }, [combinedLog, logTypeFilter, logNameFilter, logStatusFilter, logStartDate, logEndDate]);
 
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-headline">Payments & Advances</h1>
-          <p className="text-muted-foreground">Manage multi-currency bank transfers and pre-payments.</p>
+          <p className="text-muted-foreground">Manage multi-currency bank transfers, pre-payments, and audit logs.</p>
         </div>
       </div>
 
       <Tabs defaultValue="ledger" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px] h-12">
+        <TabsList className="grid w-full grid-cols-3 lg:w-[600px] h-12">
           <TabsTrigger value="ledger">Settlement Ledger</TabsTrigger>
           <TabsTrigger value="advances">Customer Advances</TabsTrigger>
+          <TabsTrigger value="log">Audit Log</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ledger" className="space-y-6 pt-6">
@@ -271,7 +413,7 @@ export default function PaymentsPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-lg font-bold">Customer Advances</h3>
-              <p className="text-xs text-muted-foreground">Manage pre-payments and deposits from partners.</p>
+              <p className="text-xs text-muted-foreground">Manage and allocate pre-payments.</p>
             </div>
             <Dialog open={isAdvanceModalOpen} onOpenChange={setIsAdvanceModalOpen}>
               <DialogTrigger asChild>
@@ -326,38 +468,204 @@ export default function PaymentsPage() {
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Customer</TableHead>
-                    <TableHead>Reference</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Remaining Balance</TableHead>
-                    <TableHead className="text-right">Initial Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Linked Invoice</TableHead>
+                    <TableHead className="text-right">Balance</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {advances.map(a => (
-                    <TableRow key={a.id}>
-                      <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(a.date)}</TableCell>
-                      <TableCell className="font-medium">{a.customerName}</TableCell>
-                      <TableCell className="font-mono text-xs">{a.reference}</TableCell>
-                      <TableCell><Badge variant="outline">{a.paymentMethod}</Badge></TableCell>
-                      <TableCell className="font-bold text-green-500">${a.remainingAmount?.toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-medium">${a.amount?.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {advances.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground italic">No advances recorded.</TableCell>
-                    </TableRow>
-                  )}
+                  {advances.map(a => {
+                    const linkedInvoice = invoices.find(i => i.id === a.invoiceId);
+                    return (
+                      <TableRow key={a.id}>
+                        <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(a.date)}</TableCell>
+                        <TableCell className="font-medium">{a.customerName}</TableCell>
+                        <TableCell>
+                          <Badge variant={a.invoiceId ? "default" : "outline"} className={a.invoiceId ? "bg-green-500" : ""}>
+                            {a.invoiceId ? 'Allocated' : 'Available'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {linkedInvoice ? (
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold">{linkedInvoice.number}</p>
+                              <p className="text-[10px] text-muted-foreground">${linkedInvoice.totalUSD?.toLocaleString()} • {linkedInvoice.dateIssue}</p>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs italic">Unallocated</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-bold text-green-500 text-right">${a.remainingAmount?.toLocaleString()}</TableCell>
+                        <TableCell className="text-right">
+                          {a.invoiceId ? (
+                            <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleUnlink(a.id)}>
+                              <Unlink className="h-3 w-3 mr-1" /> Unlink
+                            </Button>
+                          ) : (
+                            <Button variant="outline" size="sm" onClick={() => {
+                              setLinkingAdvanceId(a.id);
+                              setLinkingCustomerName(a.customerName);
+                              setIsLinkingModalOpen(true);
+                            }}>
+                              <LinkIcon className="h-3 w-3 mr-1" /> Link
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             )}
           </Card>
         </TabsContent>
+
+        <TabsContent value="log" className="space-y-6 pt-6">
+          <Card className="bg-secondary/10 border-none shadow-none">
+            <CardContent className="p-4 grid gap-4 md:grid-cols-5">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Entity Type</Label>
+                <Select value={logTypeFilter} onValueChange={setLogTypeFilter}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Participants</SelectItem>
+                    <SelectItem value="customer">Customers Only</SelectItem>
+                    <SelectItem value="supplier">Suppliers Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Select Name</Label>
+                <Select value={logNameFilter} onValueChange={setLogNameFilter}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Names</SelectItem>
+                    {[...(customers || []), ...(suppliers || [])].map(e => (
+                      <SelectItem key={e.id} value={e.name}>{e.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Date Range</Label>
+                <div className="flex gap-2">
+                  <Input type="date" className="h-9 text-xs" value={logStartDate} onChange={e => setLogStartDate(e.target.value)} />
+                  <Input type="date" className="h-9 text-xs" value={logEndDate} onChange={e => setLogEndDate(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Status</Label>
+                <Select value={logStatusFilter} onValueChange={setLogStatusFilter}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    <SelectItem value="Settled">Settled</SelectItem>
+                    <SelectItem value="Available">Available</SelectItem>
+                    <SelectItem value="Applied">Applied</SelectItem>
+                    <SelectItem value="Open">Open Credit</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button variant="outline" className="w-full h-9" onClick={handleExportCSV}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Export CSV
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Transaction Type</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Reference</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredLog.map(l => (
+                  <TableRow key={l.id}>
+                    <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(l.date)}</TableCell>
+                    <TableCell className="font-medium">{l.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-[10px]">{l.type}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-bold">
+                      {l.currency} {l.amount?.toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={cn(
+                        "text-[9px]",
+                        l.status === 'Settled' && "bg-green-500",
+                        l.status === 'Applied' && "bg-primary",
+                        l.status === 'Available' && "bg-yellow-500",
+                        l.status === 'Open' && "bg-blue-500"
+                      )}>
+                        {l.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">{l.invoice}</TableCell>
+                  </TableRow>
+                ))}
+                {filteredLog.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-12 text-muted-foreground italic">No transactions found for the selected filters.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Linking Dialog */}
+      <Dialog open={isLinkModalOpen} onOpenChange={setIsLinkingModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Allocate Advance Payment</DialogTitle>
+            <DialogDescription>Link pre-payment from **{linkingCustomerName}** to an outstanding invoice.</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[400px] overflow-y-auto border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Invoice #</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Amount (USD)</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {availableInvoicesForLinking.map(inv => (
+                  <TableRow key={inv.id}>
+                    <TableCell className="font-mono text-xs font-bold">{inv.number}</TableCell>
+                    <TableCell className="text-xs">{inv.dateIssue}</TableCell>
+                    <TableCell className="text-right font-bold">${inv.totalUSD?.toLocaleString()}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" onClick={() => handleLinkToInvoice(inv.id)}>
+                        Allocate <ArrowRight className="ml-2 h-3 w-3" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {availableInvoicesForLinking.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic">No outstanding invoices found for this customer.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsLinkingModalOpen(false)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
