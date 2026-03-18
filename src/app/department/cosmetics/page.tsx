@@ -55,11 +55,12 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from "@/firebase";
 import { collection, query, where, doc, updateDoc, arrayUnion, arrayRemove, setDoc } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { app } from "@/lib/firebase";
 import { supplierService } from "@/services/supplier-service";
 import { customerService } from "@/services/customer-service";
 import { toast } from "@/hooks/use-toast";
+import { Progress } from "@/components/ui/progress";
 
 export default function CosmeticsDepartmentPage() {
   const departmentId = "cosmetics";
@@ -69,6 +70,7 @@ export default function CosmeticsDepartmentPage() {
   const [activeTab, setActiveTab] = useState("suppliers");
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const db = useFirestore();
 
   // Firestore Queries for this specific market
@@ -92,40 +94,78 @@ export default function CosmeticsDepartmentPage() {
   const { data: assetsDoc } = useDoc(assetsRef);
   const assets = assetsDoc?.files || [];
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validation: 20MB limit
+    if (file.size > 20 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "File Rejected", description: "Maximum upload size is 20MB." });
+      return;
+    }
+
     setIsUploading(true);
+    setUploadProgress(0);
     const storage = getStorage(app);
     const storagePath = `attachments/${departmentId}/${Date.now()}_${file.name}`;
     const fileRef = ref(storage, storagePath);
 
-    try {
-      await uploadBytes(fileRef, file);
-      const url = await getDownloadURL(fileRef);
-      
-      const newFile = {
-        name: file.name,
-        storagePath,
-        url,
-        type: file.type,
-        uploadedAt: new Date().toISOString(),
-        size: file.size
-      };
+    const uploadTask = uploadBytesResumable(fileRef, file);
 
-      await setDoc(assetsRef, {
-        files: arrayUnion(newFile)
-      }, { merge: true });
-      
-      toast({ title: "File Uploaded", description: `${file.name} is now available.` });
-    } catch (error) {
-      console.error(error);
-      toast({ variant: "destructive", title: "Upload Failed", description: "Could not save file to cloud." });
-    } finally {
+    // Timeout logic: 30 seconds
+    let timeoutId = setTimeout(() => {
+      uploadTask.cancel();
       setIsUploading(false);
-      if (e.target) e.target.value = '';
-    }
+      toast({ variant: "destructive", title: "Upload Failed", description: "Transmission timed out. Please check your connection." });
+    }, 30000);
+
+    uploadTask.on('state_changed', 
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setUploadProgress(progress);
+        
+        // Reset timeout on progress activity
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          uploadTask.cancel();
+          setIsUploading(false);
+          toast({ variant: "destructive", title: "Upload Stalled", description: "No progress detected. Upload cancelled." });
+        }, 30000);
+      }, 
+      (error) => {
+        clearTimeout(timeoutId);
+        setIsUploading(false);
+        if (error.code !== 'storage/canceled') {
+          toast({ variant: "destructive", title: "Upload Error", description: error.message });
+        }
+      }, 
+      async () => {
+        clearTimeout(timeoutId);
+        try {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          
+          const newFile = {
+            name: file.name,
+            storagePath,
+            url,
+            type: file.type,
+            uploadedAt: new Date().toISOString(),
+            size: file.size
+          };
+
+          await setDoc(assetsRef, {
+            files: arrayUnion(newFile)
+          }, { merge: true });
+          
+          toast({ title: "Upload Complete", description: `${file.name} is now available in the catalog.` });
+        } catch (error: any) {
+          toast({ variant: "destructive", title: "Sync Failed", description: "File uploaded but record could not be saved." });
+        } finally {
+          setIsUploading(false);
+          if (e.target) e.target.value = '';
+        }
+      }
+    );
   };
 
   const handleFileDelete = async (fileObj: any) => {
@@ -476,6 +516,15 @@ export default function CosmeticsDepartmentPage() {
                   </Button>
                 </div>
               </div>
+              {isUploading && (
+                <div className="mt-4 space-y-2 animate-in fade-in slide-in-from-top-1">
+                  <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground">
+                    <span>Transmission Progress</span>
+                    <span>{Math.round(uploadProgress)}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="h-1.5" indicatorClassName="bg-primary" />
+                </div>
+              )}
             </CardHeader>
             <CardContent>
               <Table>
