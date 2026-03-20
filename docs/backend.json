@@ -90,6 +90,36 @@
         "status": { "type": "string" },
         "targetMarket": { "type": "string" }
       }
+    },
+    "Employee": {
+      "title": "Employee",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string" },
+        "department": { "type": "string" }
+      }
+    },
+    "Expense": {
+      "title": "Expense",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "amount": { "type": "number" },
+        "vendorName": { "type": "string" },
+        "accountName": { "type": "string" }
+      }
+    },
+    "Journal": {
+      "title": "Journal",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reference": { "type": "string" },
+        "description": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -127,6 +157,38 @@
     "/campaigns": {
       "schema": { "$ref": "#/backend/entities/Campaign" },
       "description": "Marketing campaigns"
+    },
+    "/employees": {
+      "schema": { "$ref": "#/backend/entities/Employee" },
+      "description": "Internal team directory"
+    },
+    "/expenses": {
+      "schema": { "$ref": "#/backend/entities/Expense" },
+      "description": "Business expenditure log"
+    },
+    "/journals": {
+      "schema": { "$ref": "#/backend/entities/Journal" },
+      "description": "General ledger entries"
+    },
+    "/customer_advances": {
+      "schema": { "type": "object" },
+      "description": "Pre-payments from customers"
+    },
+    "/credit_notes": {
+      "schema": { "type": "object" },
+      "description": "Issued credit memos"
+    },
+    "/recurring_invoices": {
+      "schema": { "type": "object" },
+      "description": "Billing automation templates"
+    },
+    "/stocks": {
+      "schema": { "type": "object" },
+      "description": "Inventory stock levels"
+    },
+    "/leads": {
+      "schema": { "type": "object" },
+      "description": "CRM prospective leads"
     }
   }
 }

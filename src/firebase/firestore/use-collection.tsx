@@ -8,9 +8,8 @@ import {
   FirestoreError,
   QuerySnapshot,
   CollectionReference,
-  getFirestore,
 } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { useAuth } from '../provider';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -62,6 +61,9 @@ export function useCollection<T = any>(
   const [data, setData] = useState<StateDataType>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
+  
+  // Use the shared auth instance from the context
+  const auth = useAuth();
 
   useEffect(() => {
     // 1. Guard against null refs
@@ -75,8 +77,7 @@ export function useCollection<T = any>(
     // 2. Guard against unauthenticated requests
     // CRITICAL: Ensure we have a user session before attempting any query
     // This prevents permission errors that occur when listeners fire before auth is ready.
-    const auth = getAuth();
-    if (!auth.currentUser) {
+    if (!auth || !auth.currentUser) {
       setData(null);
       setIsLoading(false);
       setError(null);
@@ -114,7 +115,7 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
-  }, [memoizedTargetRefOrQuery]); // Re-run if the target query/reference changes.
+  }, [memoizedTargetRefOrQuery, auth]); // Re-run if the target query/reference or auth instance changes.
 
   if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
     throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');
