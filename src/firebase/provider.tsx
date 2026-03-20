@@ -55,6 +55,7 @@ export const FirebaseContext = createContext<FirebaseContextState | undefined>(u
 
 /**
  * FirebaseProvider manages and provides Firebase services and user authentication state.
+ * It ensures that children are only rendered after the initial authentication state is determined.
  */
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   children,
@@ -108,6 +109,11 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   return (
     <FirebaseContext.Provider value={contextValue}>
       <FirebaseErrorListener />
+      {/* 
+        CRITICAL: Do not render children until initial auth loading is complete.
+        This prevents downstream components and Firestore hooks from firing requests
+        before a valid authentication token is available in the session.
+      */}
       {userAuthState.isUserLoading ? (
         <div className="flex h-screen w-screen items-center justify-center bg-background">
           <div className="flex flex-col items-center gap-2">

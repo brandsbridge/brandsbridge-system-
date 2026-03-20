@@ -1,10 +1,9 @@
 {
   "entities": {
     "Supplier": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Supplier",
-      "type": "object",
       "description": "Represents a business supplier providing products.",
+      "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
@@ -97,72 +96,37 @@
     "providers": ["password", "anonymous"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/suppliers",
-        "definition": {
-          "entityName": "Supplier",
-          "schema": { "$ref": "#/backend/entities/Supplier" },
-          "description": "Global suppliers collection"
-        }
-      },
-      {
-        "path": "/customers",
-        "definition": {
-          "entityName": "Customer",
-          "schema": { "$ref": "#/backend/entities/Customer" },
-          "description": "Global customers collection"
-        }
-      },
-      {
-        "path": "/products",
-        "definition": {
-          "entityName": "Product",
-          "schema": { "$ref": "#/backend/entities/Product" },
-          "description": "Product catalog"
-        }
-      },
-      {
-        "path": "/invoices",
-        "definition": {
-          "entityName": "Invoice",
-          "schema": { "$ref": "#/backend/entities/Invoice" },
-          "description": "Sales invoices ledger"
-        }
-      },
-      {
-        "path": "/payments",
-        "definition": {
-          "entityName": "Payment",
-          "schema": { "$ref": "#/backend/entities/Payment" },
-          "description": "Financial settlements ledger"
-        }
-      },
-      {
-        "path": "/purchase_orders",
-        "definition": {
-          "entityName": "PurchaseOrder",
-          "schema": { "$ref": "#/backend/entities/PurchaseOrder" },
-          "description": "Procurement orders"
-        }
-      },
-      {
-        "path": "/tasks",
-        "definition": {
-          "entityName": "Task",
-          "schema": { "$ref": "#/backend/entities/Task" },
-          "description": "Project management tasks"
-        }
-      },
-      {
-        "path": "/campaigns",
-        "definition": {
-          "entityName": "Campaign",
-          "schema": { "$ref": "#/backend/entities/Campaign" },
-          "description": "Marketing campaigns"
-        }
-      }
-    ],
-    "reasoning": "The Firestore structure is standardized to allow authenticated access across all core business modules. Unified security rules enable cross-department collaboration while maintaining data integrity through frontend logic."
+    "/suppliers": {
+      "schema": { "$ref": "#/backend/entities/Supplier" },
+      "description": "Global suppliers collection"
+    },
+    "/customers": {
+      "schema": { "$ref": "#/backend/entities/Customer" },
+      "description": "Global customers collection"
+    },
+    "/products": {
+      "schema": { "$ref": "#/backend/entities/Product" },
+      "description": "Product catalog"
+    },
+    "/invoices": {
+      "schema": { "$ref": "#/backend/entities/Invoice" },
+      "description": "Sales invoices ledger"
+    },
+    "/payments": {
+      "schema": { "$ref": "#/backend/entities/Payment" },
+      "description": "Financial settlements ledger"
+    },
+    "/purchase_orders": {
+      "schema": { "$ref": "#/backend/entities/PurchaseOrder" },
+      "description": "Procurement orders"
+    },
+    "/tasks": {
+      "schema": { "$ref": "#/backend/entities/Task" },
+      "description": "Project management tasks"
+    },
+    "/campaigns": {
+      "schema": { "$ref": "#/backend/entities/Campaign" },
+      "description": "Marketing campaigns"
+    }
   }
 }

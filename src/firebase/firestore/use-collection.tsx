@@ -74,6 +74,7 @@ export function useCollection<T = any>(
 
     // 2. Guard against unauthenticated requests
     // CRITICAL: Ensure we have a user session before attempting any query
+    // This prevents permission errors that occur when listeners fire before auth is ready.
     const auth = getAuth();
     if (!auth.currentUser) {
       setData(null);
