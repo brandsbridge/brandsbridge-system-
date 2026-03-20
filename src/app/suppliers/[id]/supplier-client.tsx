@@ -96,18 +96,23 @@ export default function SupplierClient({ id }: { id: string }) {
     orderBy("uploadedAt", "desc")
   ), [id]);
 
-  const { data: purchaseOrders = [] } = useCollection(poQuery);
-  const { data: invoices = [] } = useCollection(invoiceQuery);
-  const { data: payments = [] } = useCollection(paymentQuery);
-  const { data: attachments = [] } = useCollection(attachmentQuery);
+  const { data: purchaseOrdersData } = useCollection(poQuery);
+  const { data: invoicesData } = useCollection(invoiceQuery);
+  const { data: paymentsData } = useCollection(paymentQuery);
+  const { data: attachmentsData } = useCollection(attachmentQuery);
+
+  const purchaseOrders = purchaseOrdersData || [];
+  const invoices = invoicesData || [];
+  const payments = paymentsData || [];
+  const attachments = attachmentsData || [];
 
   // --- Calculations ---
   const stats = useMemo(() => {
-    const totalInvoicesValue = (invoices || []).reduce((sum, inv) => sum + (inv.totalUSD || inv.totals?.gross || 0), 0);
+    const totalInvoicesValue = invoices.reduce((sum, inv) => sum + (inv.totalUSD || inv.totals?.gross || 0), 0);
     const lastOrder = purchaseOrders?.[0]?.date || null;
     return {
       totalInvoicesValue,
-      totalOrders: purchaseOrders?.length || 0,
+      totalOrders: purchaseOrders.length,
       lastOrderDate: lastOrder,
     };
   }, [invoices, purchaseOrders]);
@@ -234,7 +239,7 @@ export default function SupplierClient({ id }: { id: string }) {
         to: targetEmail,
         toName: supplier.name,
         subject: emailSubject,
-        body: emailBody,
+        body: emailSubject,
         senderName: user.displayName || "Manager",
         senderId: user.uid,
         entityId: id,
