@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Deployment Timestamp: 2024-05-23T15:00:00Z
+    // Deployment Timestamp: 2025-02-18T11:00:00Z
     // Optimized for BizFlow: Permissive Read/Create for Authenticated users, Restricted Update/Delete.
 
     /**
