@@ -10,7 +10,7 @@ import {
   QuerySnapshot,
   CollectionReference,
 } from 'firebase/firestore';
-import { useAuth } from '../provider';
+import { useAuth, useUser } from '../provider';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -62,20 +62,13 @@ export function useCollection<T = any>(
   
   // Use the shared auth instance from the context to ensure consistent session state
   const auth = useAuth();
+  const { user } = useUser();
 
   useEffect(() => {
-    // 1. Guard against null refs
-    if (!memoizedTargetRefOrQuery) {
-      setData(null);
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
-
-    // 2. Guard against unauthenticated requests
+    // 1. Guard against null refs or unauthenticated state
     // CRITICAL: Ensure we have a user session before attempting any query.
     // This prevents permission errors that occur when listeners fire before auth is ready.
-    if (!auth || !auth.currentUser) {
+    if (!memoizedTargetRefOrQuery || !user) {
       setData(null);
       setIsLoading(false);
       setError(null);
@@ -113,7 +106,7 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
-  }, [memoizedTargetRefOrQuery, auth, auth?.currentUser]); // Re-run if query or auth session changes
+  }, [memoizedTargetRefOrQuery, user, auth]); // Re-run if query or auth session changes
 
   if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
     throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');
