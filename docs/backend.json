@@ -131,6 +131,66 @@
         "startDate": { "type": "string" },
         "endDate": { "type": "string" }
       }
+    },
+    "Product": {
+      "title": "Product",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "gtin": { "type": "string" },
+        "brand": { "type": "string" },
+        "category": { "type": "string" },
+        "packing": { "type": "number" },
+        "department": { "type": "string" }
+      }
+    },
+    "Stock": {
+      "title": "Stock",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "price": { "type": "number" },
+        "leadTime": { "type": "number" },
+        "department": { "type": "string" }
+      }
+    },
+    "Expense": {
+      "title": "Expense",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "amount": { "type": "number" },
+        "vendorName": { "type": "string" },
+        "accountName": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "department": { "type": "string" }
+      }
+    },
+    "Journal": {
+      "title": "Journal",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reference": { "type": "string" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "type": { "type": "string" }
+      }
+    },
+    "Lead": {
+      "title": "Lead",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "company": { "type": "string" },
+        "value": { "type": "number" },
+        "stage": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -168,6 +228,26 @@
     "/campaigns": {
       "schema": { "$ref": "#/backend/entities/Campaign" },
       "description": "Marketing initiatives"
+    },
+    "/products": {
+      "schema": { "$ref": "#/backend/entities/Product" },
+      "description": "Product catalog"
+    },
+    "/stocks": {
+      "schema": { "$ref": "#/backend/entities/Stock" },
+      "description": "Inventory stock levels"
+    },
+    "/expenses": {
+      "schema": { "$ref": "#/backend/entities/Expense" },
+      "description": "Operational expenses"
+    },
+    "/journals": {
+      "schema": { "$ref": "#/backend/entities/Journal" },
+      "description": "General ledger journal entries"
+    },
+    "/leads": {
+      "schema": { "$ref": "#/backend/entities/Lead" },
+      "description": "Sales CRM leads"
     }
   }
 }
