@@ -29,7 +29,7 @@
     },
     "SupplierAttachment": {
       "title": "Supplier Attachment",
-      "description": "Metadata for a file uploaded for a supplier",
+      "description": "Metadata for a file uploaded for a supplier, restricted by ownership.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -39,9 +39,10 @@
         "storagePath": { "type": "string" },
         "uploadedAt": { "type": "string", "format": "date-time" },
         "uploadedBy": { "type": "string" },
+        "userId": { "type": "string", "description": "Owner UID for security rules" },
         "supplierId": { "type": "string" }
       },
-      "required": ["fileName", "fileUrl", "supplierId"]
+      "required": ["fileName", "fileUrl", "supplierId", "userId"]
     },
     "Customer": {
       "title": "Customer",

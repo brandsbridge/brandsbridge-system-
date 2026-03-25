@@ -90,11 +90,16 @@ export default function SupplierClient({ id }: { id: string }) {
     orderBy("date", "desc")
   ), [id]);
 
-  const attachmentQuery = useMemoFirebase(() => query(
-    collection(db, "supplier_attachments"),
-    where("supplierId", "==", id),
-    orderBy("uploadedAt", "desc")
-  ), [id]);
+  // Ownership-based query for attachments to satisfy security rules
+  const attachmentQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(
+      collection(db, "supplier_attachments"),
+      where("supplierId", "==", id),
+      where("userId", "==", user.uid),
+      orderBy("uploadedAt", "desc")
+    );
+  }, [id, user]);
 
   const { data: purchaseOrdersData } = useCollection(poQuery);
   const { data: invoicesData } = useCollection(invoiceQuery);
@@ -159,7 +164,7 @@ export default function SupplierClient({ id }: { id: string }) {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !user) return;
 
     if (file.size > 20 * 1024 * 1024) {
       toast({ variant: "destructive", title: "File too large", description: "Maximum size is 20MB." });
@@ -187,7 +192,8 @@ export default function SupplierClient({ id }: { id: string }) {
           fileType: file.type,
           storagePath,
           uploadedAt: new Date().toISOString(),
-          uploadedBy: user?.displayName || "System",
+          uploadedBy: user.displayName || "System",
+          userId: user.uid, // Required for security rules ownership check
           supplierId: id
         };
         const newDocRef = doc(collection(db, "supplier_attachments"));
@@ -264,7 +270,7 @@ export default function SupplierClient({ id }: { id: string }) {
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()} className="print:hidden">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="print-hidden">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -553,7 +559,7 @@ export default function SupplierClient({ id }: { id: string }) {
             <div className="relative">
               <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
               <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-                {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                {isUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="mr-2 h-4 w-4" />}
                 Upload Document
               </Button>
             </div>

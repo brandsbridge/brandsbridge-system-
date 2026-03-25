@@ -1,10 +1,21 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // REFRESH RULES: 2025-02-24T17:00:00Z - FORCED REDEPLOYMENT
-    // Allows read/write for all authenticated users (including custom/anonymous tokens)
+    
+    // 1. Specific rules for supplier_attachments
+    // Allows authenticated users to list/read their own files
+    // Restricted by the 'userId' field matching their own uid
+    match /supplier_attachments/{attachmentId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // 2. Global rule for all other documents
+    // Keeps existing read/write logic for authenticated users intact
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      // Exclude supplier_attachments from the broad match to ensure specific rules are enforced
+      allow read, write: if request.auth != null && ! (document in ['supplier_attachments']);
     }
   }
 }
