@@ -1,8 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // REFRESH RULES: 2025-02-24T16:00:00Z
-    // Allows read/write for all authenticated users (including custom/anonymous)
+    // REFRESH RULES: 2025-02-24T17:00:00Z - FORCED REDEPLOYMENT
+    // Allows read/write for all authenticated users (including custom/anonymous tokens)
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
