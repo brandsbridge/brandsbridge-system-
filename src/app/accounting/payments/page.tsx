@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useMemo, useState, useEffect } from "react";
@@ -114,6 +113,7 @@ export default function PaymentsPage() {
     const rate = exchangeRates?.rates[paymentCurrency] || 1;
     
     const data = {
+      userId: user?.uid,
       partyName: formData.get('partyName'),
       amount: amount,
       currency: paymentCurrency,
@@ -135,6 +135,7 @@ export default function PaymentsPage() {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const data = {
+      userId: user?.uid,
       customerName: formData.get('customerName'),
       amount: parseFloat(formData.get('amount') as string),
       reference: formData.get('reference'),
@@ -151,7 +152,7 @@ export default function PaymentsPage() {
     if (!linkingAdvanceId) return;
     try {
       const docRef = doc(db, "customer_advances", linkingAdvanceId);
-      await updateDoc(docRef, { invoiceId });
+      await updateDoc(docRef, { invoiceId, updatedAt: new Date().toISOString() });
       setIsLinkingModalOpen(false);
       setLinkingAdvanceId(null);
       toast({ title: "Advance Linked", description: "Payment has been allocated to the invoice." });
@@ -163,7 +164,7 @@ export default function PaymentsPage() {
   const handleUnlink = async (advanceId: string) => {
     try {
       const docRef = doc(db, "customer_advances", advanceId);
-      await updateDoc(docRef, { invoiceId: null });
+      await updateDoc(docRef, { invoiceId: null, updatedAt: new Date().toISOString() });
       toast({ title: "Advance Unlinked", description: "Payment is now available for new allocation." });
     } catch (e) {
       toast({ variant: "destructive", title: "Unlinking Failed" });
