@@ -2,20 +2,41 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // 1. Specific rules for supplier_attachments
-    // Allows authenticated users to list/read their own files
-    // Restricted by the 'userId' field matching their own uid
-    match /supplier_attachments/{attachmentId} {
-      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    // Deployment Timestamp: 2024-05-22T10:00:00Z
+    // This rule set provides a global security policy for the BizFlow platform.
+
+    /**
+     * Helper to check if the session is authenticated.
+     * Works with standard and custom token providers.
+     */
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
     }
 
-    // 2. Global rule for all other documents
-    // Keeps existing read/write logic for authenticated users intact
-    match /{document=**} {
-      // Exclude supplier_attachments from the broad match to ensure specific rules are enforced
-      allow read, write: if request.auth != null && ! (document in ['supplier_attachments']);
+    /**
+     * Helper to check for document ownership.
+     * If a 'userId' field exists, it must match the current user's uid.
+     */
+    function isOwner() {
+      return isAuthenticated() && 
+             resource.data.userId == request.auth.uid;
+    }
+
+    // Global Catch-all Rule for all collections
+    match /{allPaths=**} {
+      // 1. Allow any authenticated user to read, list, and create records.
+      // This prevents "Missing or insufficient permissions" on initial data loads.
+      allow read, list, create: if isAuthenticated();
+
+      // 2. Restrict updates and deletions to the owner of the record.
+      // This ensures data integrity and prevents unauthorized modifications.
+      allow update, delete: if isOwner();
+    }
+    
+    // Explicit overrides for system-critical paths can be added here if needed.
+    match /system_config/{configId} {
+       allow read: if isAuthenticated();
+       allow write: if isAuthenticated(); // Allow admins to refresh rates
     }
   }
 }

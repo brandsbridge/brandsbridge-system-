@@ -2,7 +2,7 @@
   "entities": {
     "Supplier": {
       "title": "Supplier",
-      "description": "Represents a business supplier providing products.",
+      "description": "Manufacturing or trading partner.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -10,52 +10,32 @@
         "email": { "type": "string", "format": "email" },
         "country": { "type": "string" },
         "natureOfBusiness": { "type": "string" },
-        "recordStatus": { "type": "string" },
         "departments": { "type": "array", "items": { "type": "string" } },
-        "specializedProducts": { "type": "array", "items": { "type": "string" } },
-        "pricing": {
-          "type": "object",
-          "properties": {
-            "tier": { "type": "string" },
-            "leadTime": { "type": "number" },
-            "moq": { "type": "string" },
-            "mov": { "type": "number" }
-          }
-        },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["id", "name", "email", "country", "createdAt"]
+        "userId": { "type": "string", "description": "Owner UID" }
+      }
     },
     "SupplierAttachment": {
       "title": "Supplier Attachment",
-      "description": "Metadata for a file uploaded for a supplier, restricted by ownership.",
+      "description": "Files uploaded for a supplier.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "fileName": { "type": "string" },
         "fileUrl": { "type": "string" },
-        "fileType": { "type": "string" },
-        "storagePath": { "type": "string" },
-        "uploadedAt": { "type": "string", "format": "date-time" },
-        "uploadedBy": { "type": "string" },
-        "userId": { "type": "string", "description": "Owner UID for security rules" },
+        "userId": { "type": "string" },
         "supplierId": { "type": "string" }
-      },
-      "required": ["fileName", "fileUrl", "supplierId", "userId"]
+      }
     },
     "Customer": {
       "title": "Customer",
+      "description": "B2B Buyer.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
+        "email": { "type": "string" },
         "accountStatus": { "type": "string" },
-        "accountHealth": { "type": "string" },
-        "totalRevenue": { "type": "number" },
-        "departments": { "type": "array", "items": { "type": "string" } },
-        "assignedManager": { "type": "string" }
+        "userId": { "type": "string" }
       }
     },
     "Invoice": {
@@ -64,17 +44,9 @@
       "properties": {
         "id": { "type": "string" },
         "number": { "type": "string" },
-        "customerName": { "type": "string" },
-        "customerId": { "type": "string" },
-        "sellerId": { "type": "string" },
         "totalUSD": { "type": "number" },
-        "currency": { "type": "string" },
         "status": { "type": "string" },
-        "dateIssue": { "type": "string" },
-        "department": { "type": "string" },
-        "lineItems": { "type": "array", "items": { "type": "object" } },
-        "totals": { "type": "object" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "userId": { "type": "string" }
       }
     },
     "Payment": {
@@ -82,29 +54,19 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "partyName": { "type": "string" },
-        "vendorId": { "type": "string" },
         "amount": { "type": "number" },
-        "totalUSD": { "type": "number" },
         "currency": { "type": "string" },
-        "type": { "type": "string" },
-        "method": { "type": "string" },
-        "reference": { "type": "string" },
-        "date": { "type": "string", "format": "date-time" }
+        "userId": { "type": "string" }
       }
     },
     "PurchaseOrder": {
-      "title": "PurchaseOrder",
+      "title": "Purchase Order",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "number": { "type": "string" },
-        "supplierId": { "type": "string" },
-        "supplierName": { "type": "string" },
         "total": { "type": "number" },
-        "status": { "type": "string" },
-        "date": { "type": "string" },
-        "department": { "type": "string" }
+        "userId": { "type": "string" }
       }
     },
     "Task": {
@@ -114,43 +76,65 @@
         "id": { "type": "string" },
         "title": { "type": "string" },
         "status": { "type": "string" },
-        "priority": { "type": "string" },
-        "assignee": { "type": "string" },
-        "dueDate": { "type": "string" }
+        "userId": { "type": "string" }
+      }
+    },
+    "Expense": {
+      "title": "Expense",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "amount": { "type": "number" },
+        "category": { "type": "string" },
+        "userId": { "type": "string" }
+      }
+    },
+    "Lead": {
+      "title": "Lead",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "value": { "type": "number" },
+        "userId": { "type": "string" }
+      }
+    },
+    "Campaign": {
+      "title": "Campaign",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string" },
+        "userId": { "type": "string" }
       }
     }
   },
   "auth": {
-    "providers": ["password", "anonymous"]
+    "providers": ["password", "anonymous", "custom"]
   },
   "firestore": {
-    "suppliers": {
-      "schema": { "$ref": "#/backend/entities/Supplier" },
-      "description": "Global suppliers directory"
-    },
-    "supplier_attachments": {
-      "schema": { "$ref": "#/backend/entities/SupplierAttachment" },
-      "description": "Metadata for files stored in Firebase Storage"
-    },
-    "customers": {
-      "schema": { "$ref": "#/backend/entities/Customer" },
-      "description": "B2B customers registry"
-    },
-    "invoices": {
-      "schema": { "$ref": "#/backend/entities/Invoice" },
-      "description": "Sales invoices ledger"
-    },
-    "payments": {
-      "schema": { "$ref": "#/backend/entities/Payment" },
-      "description": "Settlement records"
-    },
-    "purchase_orders": {
-      "schema": { "$ref": "#/backend/entities/PurchaseOrder" },
-      "description": "Procurement orders"
-    },
-    "tasks": {
-      "schema": { "$ref": "#/backend/entities/Task" },
-      "description": "Workflow tasks"
-    }
+    "/suppliers": { "schema": { "$ref": "#/backend/entities/Supplier" }, "description": "Supplier directory" },
+    "/supplier_attachments": { "schema": { "$ref": "#/backend/entities/SupplierAttachment" }, "description": "File metadata" },
+    "/customers": { "schema": { "$ref": "#/backend/entities/Customer" }, "description": "Customer registry" },
+    "/invoices": { "schema": { "$ref": "#/backend/entities/Invoice" }, "description": "Sales ledger" },
+    "/payments": { "schema": { "$ref": "#/backend/entities/Payment" }, "description": "Transaction logs" },
+    "/purchase_orders": { "schema": { "$ref": "#/backend/entities/PurchaseOrder" }, "description": "Procurement" },
+    "/tasks": { "schema": { "$ref": "#/backend/entities/Task" }, "description": "Workflow" },
+    "/expenses": { "schema": { "$ref": "#/backend/entities/Expense" }, "description": "Operational spending" },
+    "/recurring_invoices": { "schema": "object", "description": "Billing templates" },
+    "/credit_notes": { "schema": "object", "description": "Sales returns" },
+    "/customer_advances": { "schema": "object", "description": "Pre-payments" },
+    "/vendor_credits": { "schema": "object", "description": "Supplier credits" },
+    "/journals": { "schema": "object", "description": "General ledger" },
+    "/leads": { "schema": { "$ref": "#/backend/entities/Lead" }, "description": "CRM leads" },
+    "/campaigns": { "schema": { "$ref": "#/backend/entities/Campaign" }, "description": "Marketing" },
+    "/market_assets": { "schema": "object", "description": "Department files" },
+    "/products": { "schema": "object", "description": "Catalog" },
+    "/stocks": { "schema": "object", "description": "Inventory levels" },
+    "/communication_logs": { "schema": "object", "description": "Email tracking" },
+    "/exchangeRatesHistory": { "schema": "object", "description": "FX logs" },
+    "/system_config": { "schema": "object", "description": "App settings" },
+    "/app_roles_admin": { "schema": "object", "description": "RBAC management" }
   }
 }
