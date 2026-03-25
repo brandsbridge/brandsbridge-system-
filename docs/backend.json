@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Supplier": {
@@ -26,6 +27,22 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "email", "country", "createdAt"]
+    },
+    "SupplierAttachment": {
+      "title": "Supplier Attachment",
+      "description": "Metadata for a file uploaded for a supplier",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "fileType": { "type": "string" },
+        "storagePath": { "type": "string" },
+        "uploadedAt": { "type": "string", "format": "date-time" },
+        "uploadedBy": { "type": "string" },
+        "supplierId": { "type": "string" }
+      },
+      "required": ["fileName", "fileUrl", "supplierId"]
     },
     "Customer": {
       "title": "Customer",
@@ -124,6 +141,10 @@
       "schema": { "$ref": "#/backend/entities/Supplier" },
       "description": "Global suppliers directory"
     },
+    "/supplier_attachments": {
+      "schema": { "$ref": "#/backend/entities/SupplierAttachment" },
+      "description": "Metadata for files stored in Firebase Storage"
+    },
     "/customers": {
       "schema": { "$ref": "#/backend/entities/Customer" },
       "description": "B2B customers registry"
@@ -147,26 +168,6 @@
     "/campaigns": {
       "schema": { "$ref": "#/backend/entities/Campaign" },
       "description": "Marketing initiatives"
-    },
-    "/expenses": {
-      "schema": { "type": "object" },
-      "description": "Business expenses"
-    },
-    "/journals": {
-      "schema": { "type": "object" },
-      "description": "General ledger entries"
-    },
-    "/recurring_invoices": {
-      "schema": { "type": "object" },
-      "description": "Billing templates"
-    },
-    "/stocks": {
-      "schema": { "type": "object" },
-      "description": "Inventory levels"
-    },
-    "/supplier_attachments": {
-      "schema": { "type": "object" },
-      "description": "Metadata for files stored in Firebase Storage"
     }
   }
 }
