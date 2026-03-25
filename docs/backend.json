@@ -46,7 +46,9 @@
         "number": { "type": "string" },
         "totalUSD": { "type": "number" },
         "status": { "type": "string" },
-        "userId": { "type": "string" }
+        "userId": { "type": "string" },
+        "currency": { "type": "string" },
+        "customerName": { "type": "string" }
       }
     },
     "Payment": {
@@ -56,7 +58,9 @@
         "id": { "type": "string" },
         "amount": { "type": "number" },
         "currency": { "type": "string" },
-        "userId": { "type": "string" }
+        "userId": { "type": "string" },
+        "partyName": { "type": "string" },
+        "type": { "type": "string" }
       }
     },
     "PurchaseOrder": {
@@ -66,7 +70,9 @@
         "id": { "type": "string" },
         "number": { "type": "string" },
         "total": { "type": "number" },
-        "userId": { "type": "string" }
+        "userId": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "status": { "type": "string" }
       }
     },
     "Task": {
@@ -89,24 +95,14 @@
         "userId": { "type": "string" }
       }
     },
-    "Lead": {
-      "title": "Lead",
+    "Product": {
+      "title": "Product",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "value": { "type": "number" },
-        "userId": { "type": "string" }
-      }
-    },
-    "Campaign": {
-      "title": "Campaign",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "status": { "type": "string" },
-        "userId": { "type": "string" }
+        "gtin": { "type": "string" },
+        "department": { "type": "string" }
       }
     },
     "Stock": {
@@ -121,34 +117,24 @@
         "userId": { "type": "string" }
       }
     },
-    "Product": {
-      "title": "Product",
+    "Campaign": {
+      "title": "Campaign",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string" },
-        "gtin": { "type": "string" },
-        "department": { "type": "string" }
-      }
-    },
-    "Journal": {
-      "title": "Journal",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "reference": { "type": "string" },
-        "date": { "type": "string" },
+        "status": { "type": "string" },
         "userId": { "type": "string" }
       }
     },
-    "CommunicationLog": {
-      "title": "Communication Log",
+    "Employee": {
+      "title": "Employee",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "subject": { "type": "string" },
-        "to": { "type": "string" },
-        "userId": { "type": "string" }
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" }
       }
     }
   },
@@ -164,21 +150,21 @@
     "/purchase_orders": { "schema": { "$ref": "#/backend/entities/PurchaseOrder" }, "description": "Procurement" },
     "/tasks": { "schema": { "$ref": "#/backend/entities/Task" }, "description": "Workflow" },
     "/expenses": { "schema": { "$ref": "#/backend/entities/Expense" }, "description": "Operational spending" },
+    "/products": { "schema": { "$ref": "#/backend/entities/Product" }, "description": "Catalog" },
+    "/stocks": { "schema": { "$ref": "#/backend/entities/Stock" }, "description": "Inventory levels" },
+    "/campaigns": { "schema": { "$ref": "#/backend/entities/Campaign" }, "description": "Marketing" },
+    "/employees": { "schema": { "$ref": "#/backend/entities/Employee" }, "description": "Internal team" },
     "/recurring_invoices": { "schema": "object", "description": "Billing templates" },
     "/credit_notes": { "schema": "object", "description": "Sales returns" },
     "/customer_advances": { "schema": "object", "description": "Pre-payments" },
     "/vendor_credits": { "schema": "object", "description": "Supplier credits" },
-    "/journals": { "schema": { "$ref": "#/backend/entities/Journal" }, "description": "General ledger" },
-    "/leads": { "schema": { "$ref": "#/backend/entities/Lead" }, "description": "CRM leads" },
-    "/campaigns": { "schema": { "$ref": "#/backend/entities/Campaign" }, "description": "Marketing" },
+    "/journals": { "schema": "object", "description": "General ledger" },
+    "/leads": { "schema": "object", "description": "CRM leads" },
+    "/communication_logs": { "schema": "object", "description": "Email tracking" },
     "/market_assets": { "schema": "object", "description": "Department files" },
-    "/products": { "schema": { "$ref": "#/backend/entities/Product" }, "description": "Catalog" },
-    "/stocks": { "schema": { "$ref": "#/backend/entities/Stock" }, "description": "Inventory levels" },
-    "/communication_logs": { "schema": { "$ref": "#/backend/entities/CommunicationLog" }, "description": "Email tracking" },
-    "/exchangeRatesHistory": { "schema": "object", "description": "FX logs" },
     "/system_config": { "schema": "object", "description": "App settings" },
     "/app_roles_admin": { "schema": "object", "description": "RBAC management" },
     "/invoice_scans": { "schema": "object", "description": "AI Scan Results" },
-    "/employees": { "schema": "object", "description": "Internal team directory" }
+    "/exchangeRatesHistory": { "schema": "object", "description": "FX logs" }
   }
 }

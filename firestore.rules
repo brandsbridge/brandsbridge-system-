@@ -2,8 +2,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Deployment Timestamp: 2025-02-18T11:00:00Z
-    // Optimized for BizFlow: Permissive Read/Create for Authenticated users, Restricted Update/Delete.
+    // Deployment Timestamp: 2025-02-18T12:30:00Z
+    // Optimized for BizFlow: Global authenticated access for team collaboration.
 
     /**
      * Helper to check if the session is authenticated.
@@ -24,24 +24,24 @@ service cloud.firestore {
     }
 
     // Global Catch-all Rule for all collections
+    // This handles: invoices, payments, suppliers, customers, purchase_orders, tasks, expenses, etc.
     match /{allPaths=**} {
       // 1. Allow any authenticated user to read, list, and create records.
-      // This ensures all modules (Finance, CRM, Ops) function for legitimate users.
+      // This ensures all modules function correctly for team-wide visibility.
       allow read, list, create: if isAuthenticated();
 
       // 2. Restrict updates and deletions to the owner of the record.
-      // This protects data integrity while allowing collaborative viewing.
+      // This protects data integrity while allowing global reading.
       allow update, delete: if isOwner();
     }
     
-    // Explicit overrides for system-critical paths
+    // Explicit overrides for system-critical paths if needed in the future
     match /system_config/{configId} {
-       allow read: if isAuthenticated();
-       allow write: if isAuthenticated(); // Broad access for prototype settings
+       allow read, write: if isAuthenticated();
     }
 
     match /app_roles_admin/{userId} {
-       allow read, write: if isAuthenticated(); // Broad access for prototype admin activation
+       allow read, write: if isAuthenticated();
     }
   }
 }
