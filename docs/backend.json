@@ -108,6 +108,48 @@
         "status": { "type": "string" },
         "userId": { "type": "string" }
       }
+    },
+    "Stock": {
+      "title": "Stock",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "quantity": { "type": "number" },
+        "price": { "type": "number" },
+        "userId": { "type": "string" }
+      }
+    },
+    "Product": {
+      "title": "Product",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "gtin": { "type": "string" },
+        "department": { "type": "string" }
+      }
+    },
+    "Journal": {
+      "title": "Journal",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reference": { "type": "string" },
+        "date": { "type": "string" },
+        "userId": { "type": "string" }
+      }
+    },
+    "CommunicationLog": {
+      "title": "Communication Log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "subject": { "type": "string" },
+        "to": { "type": "string" },
+        "userId": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -126,15 +168,17 @@
     "/credit_notes": { "schema": "object", "description": "Sales returns" },
     "/customer_advances": { "schema": "object", "description": "Pre-payments" },
     "/vendor_credits": { "schema": "object", "description": "Supplier credits" },
-    "/journals": { "schema": "object", "description": "General ledger" },
+    "/journals": { "schema": { "$ref": "#/backend/entities/Journal" }, "description": "General ledger" },
     "/leads": { "schema": { "$ref": "#/backend/entities/Lead" }, "description": "CRM leads" },
     "/campaigns": { "schema": { "$ref": "#/backend/entities/Campaign" }, "description": "Marketing" },
     "/market_assets": { "schema": "object", "description": "Department files" },
-    "/products": { "schema": "object", "description": "Catalog" },
-    "/stocks": { "schema": "object", "description": "Inventory levels" },
-    "/communication_logs": { "schema": "object", "description": "Email tracking" },
+    "/products": { "schema": { "$ref": "#/backend/entities/Product" }, "description": "Catalog" },
+    "/stocks": { "schema": { "$ref": "#/backend/entities/Stock" }, "description": "Inventory levels" },
+    "/communication_logs": { "schema": { "$ref": "#/backend/entities/CommunicationLog" }, "description": "Email tracking" },
     "/exchangeRatesHistory": { "schema": "object", "description": "FX logs" },
     "/system_config": { "schema": "object", "description": "App settings" },
-    "/app_roles_admin": { "schema": "object", "description": "RBAC management" }
+    "/app_roles_admin": { "schema": "object", "description": "RBAC management" },
+    "/invoice_scans": { "schema": "object", "description": "AI Scan Results" },
+    "/employees": { "schema": "object", "description": "Internal team directory" }
   }
 }
