@@ -2,7 +2,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // FORCE REDEPLOY: 2024-05-24T16:00:00Z
+    // FORCE REDEPLOY: 2024-05-24T17:30:00Z
     // This rule allows any user with a valid Firebase Auth token (including anonymous)
     // to perform read and write operations on any document in the database.
     match /{allPaths=**} {
