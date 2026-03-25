@@ -63,9 +63,8 @@ export function useCollection<T = any>(
   const { user } = useUser();
 
   useEffect(() => {
-    // 1. Guard against null refs or unauthenticated state
-    // CRITICAL: Ensure we have a user session before attempting any query.
-    // This prevents permission errors that occur when listeners fire before auth is ready.
+    // CRITICAL GUARD: Ensure we have a confirmed user session before starting any query.
+    // This prevents race conditions where the hook fires before the Auth SDK has tokenized the session.
     if (!memoizedTargetRefOrQuery || !user || !auth.currentUser) {
       setData(null);
       setIsLoading(false);
