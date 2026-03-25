@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "Supplier": {
@@ -124,31 +123,31 @@
     "providers": ["password", "anonymous"]
   },
   "firestore": {
-    "/suppliers": {
+    "suppliers": {
       "schema": { "$ref": "#/backend/entities/Supplier" },
       "description": "Global suppliers directory"
     },
-    "/supplier_attachments": {
+    "supplier_attachments": {
       "schema": { "$ref": "#/backend/entities/SupplierAttachment" },
       "description": "Metadata for files stored in Firebase Storage"
     },
-    "/customers": {
+    "customers": {
       "schema": { "$ref": "#/backend/entities/Customer" },
       "description": "B2B customers registry"
     },
-    "/invoices": {
+    "invoices": {
       "schema": { "$ref": "#/backend/entities/Invoice" },
       "description": "Sales invoices ledger"
     },
-    "/payments": {
+    "payments": {
       "schema": { "$ref": "#/backend/entities/Payment" },
       "description": "Settlement records"
     },
-    "/purchase_orders": {
+    "purchase_orders": {
       "schema": { "$ref": "#/backend/entities/PurchaseOrder" },
       "description": "Procurement orders"
     },
-    "/tasks": {
+    "tasks": {
       "schema": { "$ref": "#/backend/entities/Task" },
       "description": "Workflow tasks"
     }
