@@ -1,9 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // SECURITY UPDATE: Triggered deployment to refresh permissions for all collections.
-    // Explicitly allow any authenticated user to perform read and write operations.
-    // This provides universal access for valid sessions while blocking public traffic.
+    // SECURITY UPDATE: Triggered deployment to ensure universal access for authenticated sessions.
+    // This rule allows any user with a valid Firebase Auth token (including anonymous)
+    // to perform read and write operations on any document in the database.
     match /{allPaths=**} {
       allow read, write: if request.auth != null;
     }

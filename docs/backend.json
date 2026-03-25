@@ -10,7 +10,20 @@
         "email": { "type": "string", "format": "email" },
         "country": { "type": "string" },
         "natureOfBusiness": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "recordStatus": { "type": "string" },
+        "departments": { "type": "array", "items": { "type": "string" } },
+        "specializedProducts": { "type": "array", "items": { "type": "string" } },
+        "pricing": {
+          "type": "object",
+          "properties": {
+            "tier": { "type": "string" },
+            "leadTime": { "type": "number" },
+            "moq": { "type": "string" },
+            "mov": { "type": "number" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "email", "country", "createdAt"]
     },
@@ -22,17 +35,10 @@
         "name": { "type": "string" },
         "email": { "type": "string", "format": "email" },
         "accountStatus": { "type": "string" },
-        "totalRevenue": { "type": "number" }
-      }
-    },
-    "Product": {
-      "title": "Product",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "category": { "type": "string" },
-        "department": { "type": "string" }
+        "accountHealth": { "type": "string" },
+        "totalRevenue": { "type": "number" },
+        "departments": { "type": "array", "items": { "type": "string" } },
+        "assignedManager": { "type": "string" }
       }
     },
     "Invoice": {
@@ -42,8 +48,15 @@
         "id": { "type": "string" },
         "number": { "type": "string" },
         "customerName": { "type": "string" },
+        "customerId": { "type": "string" },
+        "sellerId": { "type": "string" },
         "totalUSD": { "type": "number" },
+        "currency": { "type": "string" },
         "status": { "type": "string" },
+        "dateIssue": { "type": "string" },
+        "department": { "type": "string" },
+        "lineItems": { "type": "array", "items": { "type": "object" } },
+        "totals": { "type": "object" },
         "createdAt": { "type": "string", "format": "date-time" }
       }
     },
@@ -53,9 +66,13 @@
       "properties": {
         "id": { "type": "string" },
         "partyName": { "type": "string" },
+        "vendorId": { "type": "string" },
         "amount": { "type": "number" },
+        "totalUSD": { "type": "number" },
         "currency": { "type": "string" },
         "type": { "type": "string" },
+        "method": { "type": "string" },
+        "reference": { "type": "string" },
         "date": { "type": "string", "format": "date-time" }
       }
     },
@@ -65,9 +82,12 @@
       "properties": {
         "id": { "type": "string" },
         "number": { "type": "string" },
+        "supplierId": { "type": "string" },
         "supplierName": { "type": "string" },
         "total": { "type": "number" },
-        "status": { "type": "string" }
+        "status": { "type": "string" },
+        "date": { "type": "string" },
+        "department": { "type": "string" }
       }
     },
     "Task": {
@@ -78,7 +98,8 @@
         "title": { "type": "string" },
         "status": { "type": "string" },
         "priority": { "type": "string" },
-        "assignee": { "type": "string" }
+        "assignee": { "type": "string" },
+        "dueDate": { "type": "string" }
       }
     },
     "Campaign": {
@@ -88,37 +109,10 @@
         "id": { "type": "string" },
         "name": { "type": "string" },
         "status": { "type": "string" },
-        "targetMarket": { "type": "string" }
-      }
-    },
-    "Employee": {
-      "title": "Employee",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string", "format": "email" },
-        "role": { "type": "string" },
-        "department": { "type": "string" }
-      }
-    },
-    "Expense": {
-      "title": "Expense",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "amount": { "type": "number" },
-        "vendorName": { "type": "string" },
-        "accountName": { "type": "string" }
-      }
-    },
-    "Journal": {
-      "title": "Journal",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "reference": { "type": "string" },
-        "description": { "type": "string" }
+        "targetMarket": { "type": "string" },
+        "type": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" }
       }
     }
   },
@@ -128,15 +122,11 @@
   "firestore": {
     "/suppliers": {
       "schema": { "$ref": "#/backend/entities/Supplier" },
-      "description": "Global suppliers collection"
+      "description": "Global suppliers directory"
     },
     "/customers": {
       "schema": { "$ref": "#/backend/entities/Customer" },
-      "description": "Global customers collection"
-    },
-    "/products": {
-      "schema": { "$ref": "#/backend/entities/Product" },
-      "description": "Product catalog"
+      "description": "B2B customers registry"
     },
     "/invoices": {
       "schema": { "$ref": "#/backend/entities/Invoice" },
@@ -144,7 +134,7 @@
     },
     "/payments": {
       "schema": { "$ref": "#/backend/entities/Payment" },
-      "description": "Financial settlements ledger"
+      "description": "Settlement records"
     },
     "/purchase_orders": {
       "schema": { "$ref": "#/backend/entities/PurchaseOrder" },
@@ -152,43 +142,31 @@
     },
     "/tasks": {
       "schema": { "$ref": "#/backend/entities/Task" },
-      "description": "Project management tasks"
+      "description": "Workflow tasks"
     },
     "/campaigns": {
       "schema": { "$ref": "#/backend/entities/Campaign" },
-      "description": "Marketing campaigns"
-    },
-    "/employees": {
-      "schema": { "$ref": "#/backend/entities/Employee" },
-      "description": "Internal team directory"
+      "description": "Marketing initiatives"
     },
     "/expenses": {
-      "schema": { "$ref": "#/backend/entities/Expense" },
-      "description": "Business expenditure log"
+      "schema": { "type": "object" },
+      "description": "Business expenses"
     },
     "/journals": {
-      "schema": { "$ref": "#/backend/entities/Journal" },
+      "schema": { "type": "object" },
       "description": "General ledger entries"
-    },
-    "/customer_advances": {
-      "schema": { "type": "object" },
-      "description": "Pre-payments from customers"
-    },
-    "/credit_notes": {
-      "schema": { "type": "object" },
-      "description": "Issued credit memos"
     },
     "/recurring_invoices": {
       "schema": { "type": "object" },
-      "description": "Billing automation templates"
+      "description": "Billing templates"
     },
     "/stocks": {
       "schema": { "type": "object" },
-      "description": "Inventory stock levels"
+      "description": "Inventory levels"
     },
-    "/leads": {
+    "/supplier_attachments": {
       "schema": { "type": "object" },
-      "description": "CRM prospective leads"
+      "description": "Metadata for files stored in Firebase Storage"
     }
   }
 }

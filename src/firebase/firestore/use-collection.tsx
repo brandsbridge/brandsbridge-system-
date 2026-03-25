@@ -62,7 +62,7 @@ export function useCollection<T = any>(
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<FirestoreError | Error | null>(null);
   
-  // Use the shared auth instance from the context
+  // Use the shared auth instance from the context to ensure consistent session state
   const auth = useAuth();
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export function useCollection<T = any>(
     }
 
     // 2. Guard against unauthenticated requests
-    // CRITICAL: Ensure we have a user session before attempting any query
+    // CRITICAL: Ensure we have a user session before attempting any query.
     // This prevents permission errors that occur when listeners fire before auth is ready.
     if (!auth || !auth.currentUser) {
       setData(null);
@@ -103,11 +103,11 @@ export function useCollection<T = any>(
         const contextualError = new FirestorePermissionError({
           operation: 'list',
           path: getSafePath(memoizedTargetRefOrQuery),
-        })
+        });
 
-        setError(contextualError)
-        setData(null)
-        setIsLoading(false)
+        setError(contextualError);
+        setData(null);
+        setIsLoading(false);
 
         // trigger global error propagation
         errorEmitter.emit('permission-error', contextualError);
@@ -115,7 +115,7 @@ export function useCollection<T = any>(
     );
 
     return () => unsubscribe();
-  }, [memoizedTargetRefOrQuery, auth]); // Re-run if the target query/reference or auth instance changes.
+  }, [memoizedTargetRefOrQuery, auth, auth?.currentUser]); // Re-run if query or auth session changes
 
   if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
     throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');
