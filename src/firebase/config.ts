@@ -1,9 +1,9 @@
 export const firebaseConfig = {
-  "projectId": "brands-bridge",
-  "appId": "1:479315293752:web:1e173bd184af1edba9d8cd",
-  "apiKey": "AIzaSyCiDUpRZunrmRGFujXRfkvroHdxjJQAXyw",
-  "authDomain": "brands-bridge.firebaseapp.com",
-  "measurementId": "",
-  "messagingSenderId": "479315293752",
-  "storageBucket": "brands-bridge.appspot.com"
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  measurementId: "",
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
 };
