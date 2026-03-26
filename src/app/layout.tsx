@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+
+export const dynamic = 'force-dynamic';
+
 import './globals.css';
 import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
