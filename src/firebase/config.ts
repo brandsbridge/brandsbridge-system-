@@ -4,5 +4,6 @@ export const firebaseConfig = {
   "apiKey": "AIzaSyCiDUpRZunrmRGFujXRfkvroHdxjJQAXyw",
   "authDomain": "brands-bridge.firebaseapp.com",
   "measurementId": "",
-  "messagingSenderId": "479315293752"
+  "messagingSenderId": "479315293752",
+  "storageBucket": "brands-bridge.appspot.com"
 };

@@ -62,7 +62,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { MOCK_SUPPLIERS, MOCK_CUSTOMERS, MOCK_PRODUCTS, MOCK_STOCKS } from "@/lib/mock-data";
-import { useFirestore } from "@/firebase";
+import { useFirestore, useUser, useCollection, useMemoFirebase } from "@/firebase";
+import { collection, query, where } from "firebase/firestore";
 import { supplierService } from "@/services/supplier-service";
 import { customerService } from "@/services/customer-service";
 import { toast } from "@/hooks/use-toast";
@@ -85,9 +86,22 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
   const [activeTab, setActiveTab] = useState("suppliers");
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const db = useFirestore();
+  const { user } = useUser();
 
-  const suppliers = useMemo(() => MOCK_SUPPLIERS.filter(s => s.departments.includes(departmentId)), [departmentId]);
-  const buyers = useMemo(() => MOCK_CUSTOMERS.filter(c => c.departments.includes(departmentId)), [departmentId]);
+  const suppliersQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(collection(db, "suppliers"), where("markets", "array-contains", departmentId));
+  }, [db, user, departmentId]);
+  const { data: firestoreSuppliers = [] } = useCollection(suppliersQuery);
+
+  const buyersQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(collection(db, "customers"), where("markets", "array-contains", departmentId));
+  }, [db, user, departmentId]);
+  const { data: firestoreBuyers = [] } = useCollection(buyersQuery);
+
+  const suppliers = firestoreSuppliers as any[];
+  const buyers = firestoreBuyers as any[];
   const products = useMemo(() => MOCK_PRODUCTS.filter(p => p.department === departmentId), [departmentId]);
   const stocks = useMemo(() => MOCK_STOCKS.filter(s => s.department === departmentId), [departmentId]);
 
@@ -137,7 +151,8 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
       name: formData.get('companyName'),
       email: formData.get('email'),
       country: formData.get('country'),
-      departments: [departmentId],
+      markets: [departmentId],
+      departments: [departmentId.split('_')[0]],
       createdAt: new Date().toISOString()
     };
 
@@ -398,7 +413,7 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
                     <div>
                       <CardTitle className="text-sm">{p.name}</CardTitle>
                     </div>
-                    {p.isFeatured && <Badge className="bg-purple-500 animate-pulse">Best Deal</Badge>}
+                    {p.isFeatured && <Badge className="bg-primary animate-pulse">Best Deal</Badge>}
                   </div>
                 </CardHeader>
                 <CardContent className="p-4">

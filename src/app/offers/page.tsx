@@ -50,7 +50,7 @@ export default function OffersPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" disabled={true}>
-            <Sparkles className="mr-2 h-4 w-4 text-purple-500" /> AI Strategy (Static)
+            <Sparkles className="mr-2 h-4 w-4 text-primary" /> AI Strategy (Static)
           </Button>
           <Button variant="outline">
             <RefreshCw className="mr-2 h-4 w-4" /> Trigger Recalculation

@@ -110,7 +110,7 @@ export default function SystemManagementPage() {
 
   const stats = [
     { label: "Suppliers", count: suppliers?.length || 0, icon: Factory, color: "text-blue-500" },
-    { label: "Customers", count: customers?.length || 0, icon: Users, color: "text-purple-500" },
+    { label: "Customers", count: customers?.length || 0, icon: Users, color: "text-primary" },
     { label: "Products", count: products?.length || 0, icon: Package, color: "text-orange-500" },
     { label: "Leads", count: leads?.length || 0, icon: DatabaseZap, color: "text-accent" },
     { label: "Campaigns", count: campaigns?.length || 0, icon: Code2, color: "text-green-500" },

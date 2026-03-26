@@ -6,7 +6,7 @@ import {
   Plus, Search, Trash2, Edit, ExternalLink, 
   Download, Star, HeartPulse, 
   FileText, Upload, CheckCircle2, Loader2, FileSpreadsheet,
-  FileDown, AlertTriangle, Mail, X, FileX
+  FileDown, AlertTriangle, Mail, X, FileX, Tags
 } from "lucide-react";
 import { 
   Table, 
@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, writeBatch, doc } from "firebase/firestore";
+import { collection, writeBatch, doc, updateDoc, setDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { MOCK_CUSTOMERS } from "@/lib/mock-data";
@@ -74,6 +74,51 @@ export default function CustomersPage() {
   const [healthFilter, setHealthFilter] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [marketAssignTarget, setMarketAssignTarget] = useState<any>(null);
+
+  const handleCreateCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const assignedMarkets = formData.getAll('markets') as string[];
+    const newDoc = doc(collection(db, "customers"));
+    try {
+      await setDoc(newDoc, {
+        name: formData.get('name') as string,
+        companyType: formData.get('companyType') as string,
+        country: formData.get('country') as string,
+        accountStatus: formData.get('status') as string || 'prospect',
+        markets: assignedMarkets,
+        departments: assignedMarkets.map(m => m.split('_')[0]), 
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      setIsAddModalOpen(false);
+      toast({ title: "Customer Registered", description: "Successfully added." });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to add" });
+    }
+  };
+
+  const handleAssignMarkets = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!marketAssignTarget?.id) return;
+    const formData = new FormData(e.target as HTMLFormElement);
+    const assignedMarkets = formData.getAll('markets') as string[];
+    try {
+      const docRef = doc(db, "customers", marketAssignTarget.id);
+      // use setDoc+merge so it works whether doc exists in Firestore or not (e.g. mock data)
+      await setDoc(docRef, {
+        markets: assignedMarkets,
+        departments: assignedMarkets.map((m: string) => m.split('_')[0]),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      setMarketAssignTarget(null);
+      toast({ title: "Markets Assigned", description: "Updated successfully." });
+    } catch (err: any) {
+      console.error("Market assign error:", err);
+      toast({ variant: "destructive", title: "Error", description: "Failed to assign. Ensure Firestore rules are deployed." });
+    }
+  };
   
   // Import State
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -89,7 +134,7 @@ export default function CustomersPage() {
   const db = useFirestore();
   const { user } = useUser();
   const customersQuery = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
-  const { data: firestoreCustomers, loading } = useCollection(customersQuery);
+  const { data: firestoreCustomers, isLoading: loading } = useCollection(customersQuery);
 
   const customers = useMemo(() => {
     if (firestoreCustomers && firestoreCustomers.length > 0) return firestoreCustomers;
@@ -549,49 +594,63 @@ export default function CustomersPage() {
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Register New B2B Customer</DialogTitle>
-              </DialogHeader>
-              <div className="grid grid-cols-2 gap-4 pt-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-muted-foreground">Company Name</label>
-                  <Input placeholder="e.g. Arab Food Logistics" />
+              <form onSubmit={handleCreateCustomer}>
+                <DialogHeader>
+                  <DialogTitle>Register New B2B Customer</DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-2 gap-4 pt-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Company Name</label>
+                    <Input name="name" required placeholder="e.g. Arab Food Logistics" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Company Type</label>
+                    <Select name="companyType">
+                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="retailer">Retailer</SelectItem>
+                        <SelectItem value="distributor">Distributor</SelectItem>
+                        <SelectItem value="wholesaler">Wholesaler</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Country</label>
+                    <Select name="country">
+                      <SelectTrigger><SelectValue placeholder="Select country" /></SelectTrigger>
+                      <SelectContent>
+                        {countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        <SelectItem value="UAE">UAE</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Status</label>
+                    <Select name="status">
+                      <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="prospect">Prospect</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2 space-y-2 pt-2 border-t mt-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Assign Markets</label>
+                    <div className="flex gap-4">
+                      {['chocolate_market', 'cosmetics_market', 'detergents_market'].map(m => (
+                        <label key={m} className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" name="markets" value={m} className="h-4 w-4 rounded border-primary/20 text-primary focus:ring-primary" />
+                          <span className="text-sm capitalize">{m.replace('_', ' ')}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-muted-foreground">Company Type</label>
-                  <Select>
-                    <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="retailer">Retailer</SelectItem>
-                      <SelectItem value="distributor">Distributor</SelectItem>
-                      <SelectItem value="wholesaler">Wholesaler</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-muted-foreground">Country</label>
-                  <Select>
-                    <SelectTrigger><SelectValue placeholder="Select country" /></SelectTrigger>
-                    <SelectContent>
-                      {countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase text-muted-foreground">Status</label>
-                  <Select>
-                    <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="prospect">Prospect</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
-                <Button onClick={() => setIsAddModalOpen(false)}>Create Account</Button>
-              </DialogFooter>
+                <DialogFooter className="mt-6">
+                  <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
+                  <Button type="submit">Create Account</Button>
+                </DialogFooter>
+              </form>
             </DialogContent>
           </Dialog>
         </div>
@@ -641,6 +700,7 @@ export default function CustomersPage() {
               <TableHead>Company Name</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Markets</TableHead>
               <TableHead>Interests</TableHead>
               <TableHead>Health</TableHead>
               <TableHead>Rating</TableHead>
@@ -691,7 +751,25 @@ export default function CustomersPage() {
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1 max-w-[150px]">
-                    {Array.isArray(customer.interests?.products) && customer.interests.products.slice(0, 2).map(p => (
+                    {Array.isArray(customer.markets) && customer.markets.map((m: string) => (
+                      <Badge 
+                        key={m} 
+                        variant="outline" 
+                        className="text-[8px] h-4 capitalize"
+                        style={{
+                          color: m === 'chocolate_market' ? '#7B3F00' : m === 'cosmetics_market' ? '#C2185B' : m === 'detergents_market' ? '#0B5E75' : 'inherit',
+                          backgroundColor: m === 'chocolate_market' ? '#7B3F0015' : m === 'cosmetics_market' ? '#C2185B15' : m === 'detergents_market' ? '#0B5E7515' : 'transparent',
+                          borderColor: m === 'chocolate_market' ? '#7B3F0040' : m === 'cosmetics_market' ? '#C2185B40' : m === 'detergents_market' ? '#0B5E7540' : 'inherit'
+                        }}
+                      >
+                        {m.replace('_', ' ')}
+                      </Badge>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1 max-w-[150px]">
+                    {Array.isArray(customer.interests?.products) && customer.interests.products.slice(0, 2).map((p: string) => (
                       <Badge key={p} variant="secondary" className="text-[8px] h-4">{p}</Badge>
                     ))}
                   </div>
@@ -716,6 +794,9 @@ export default function CustomersPage() {
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => setMarketAssignTarget(customer)} title="Assign Market">
+                      <Tags className="h-4 w-4" />
+                    </Button>
                     <Link href={`/customers/${customer.id}`}>
                       <Button variant="ghost" size="icon" className="h-8 w-8"><ExternalLink className="h-4 w-4" /></Button>
                     </Link>
@@ -734,6 +815,38 @@ export default function CustomersPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <Dialog open={!!marketAssignTarget} onOpenChange={(open) => !open && setMarketAssignTarget(null)}>
+        <DialogContent>
+          <form onSubmit={handleAssignMarkets}>
+            <DialogHeader>
+              <DialogTitle>Assign Markets</DialogTitle>
+              <DialogDescription>Select the target markets for {marketAssignTarget?.name}</DialogDescription>
+            </DialogHeader>
+            <div className="py-6 space-y-4">
+              {['chocolate_market', 'cosmetics_market', 'detergents_market'].map(m => (
+                <label key={m} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    name="markets" 
+                    value={m} 
+                    defaultChecked={marketAssignTarget?.markets?.includes(m)}
+                    className="h-5 w-5 rounded border-primary/20 text-primary" 
+                  />
+                  <div className="flex flex-col">
+                    <span className="font-bold capitalize">{m.replace('_', ' ')}</span>
+                    <span className="text-xs text-muted-foreground">Enable access to this segment</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setMarketAssignTarget(null)}>Cancel</Button>
+              <Button type="submit">Save Assignments</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

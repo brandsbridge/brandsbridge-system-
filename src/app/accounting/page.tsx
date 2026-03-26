@@ -163,7 +163,7 @@ export default function AccountingDashboard() {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Finances");
-    XLSX.writeFile(workbook, "BizFlow_Financial_Report.xlsx");
+    XLSX.writeFile(workbook, "BrandsBridge_Financial_Report.xlsx");
     toast({ title: "Export Complete", description: "Excel file downloaded." });
   };
 

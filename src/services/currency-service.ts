@@ -36,7 +36,7 @@ export const currencyService = {
       // 1. Try Primary API
       const data = await fetchWithTimeout(PRIMARY_API);
       if (data.result === 'success' && data.rates) {
-        return currencyService.saveRates(db, data.rates, 'primary');
+        return currencyService.saveRates(data.rates, 'primary', db);
       }
       throw new Error('Primary API failed');
     } catch (e) {
@@ -45,7 +45,7 @@ export const currencyService = {
         // 2. Try Fallback API
         const data = await fetchWithTimeout(FALLBACK_API);
         if (data.rates) {
-          return currencyService.saveRates(db, data.rates, 'fallback');
+          return currencyService.saveRates(data.rates, 'fallback', db);
         }
         throw new Error('Fallback API failed');
       } catch (e2) {

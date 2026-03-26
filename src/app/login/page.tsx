@@ -63,7 +63,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center text-primary-foreground font-bold text-2xl shadow-lg shadow-primary/20">B</div>
-          <h1 className="text-3xl font-bold font-headline">BizFlow</h1>
+          <h1 className="text-3xl font-bold font-headline">BrandsBridge</h1>
           <p className="text-muted-foreground">Smart Business Management Solutions</p>
         </div>
 

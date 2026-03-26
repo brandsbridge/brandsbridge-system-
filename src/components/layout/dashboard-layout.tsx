@@ -122,7 +122,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { name: "Purchase History", href: "/purchases", icon: CreditCard },
     { name: "Bulk Uploads", href: "/uploads", icon: Upload },
     { type: 'separator', label: 'Admin' },
-    { name: "Currency Control", href: "/admin/system/currency", icon: Globe },
     { name: "Shared Clients", href: "/admin/shared-clients", icon: ShieldCheck },
     { name: "Permissions", href: "/admin/permissions", icon: ShieldAlert },
     { name: "Employees", href: "/employees", icon: Briefcase },
@@ -135,19 +134,19 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground dark">
-      <aside className="fixed left-0 top-0 hidden h-full w-64 border-r bg-card md:block">
+      <aside className="fixed left-0 top-0 hidden h-full w-64 border-r-0 md:block bg-gradient-to-b from-[#073D4E] to-[#0B5E75] text-white shadow-xl">
         <div className="flex h-16 items-center border-b px-6">
           <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">B</div>
-            <span className="text-xl font-bold tracking-tight font-headline">BizFlow</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#12A0C3] text-white font-bold">B</div>
+            <span className="text-xl font-bold tracking-tight font-headline">BrandsBridge</span>
           </Link>
         </div>
         <nav className="space-y-1 p-4 overflow-y-auto h-[calc(100vh-64px)] custom-scrollbar">
           {navigation.map((item, idx) => (
             item.type === 'separator' ? (
               <div key={idx} className="mt-6 mb-2">
-                <span className="px-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">{item.label}</span>
-                <div className="mt-2 h-px bg-border/50" />
+                <span className="px-3 text-[10px] font-bold uppercase tracking-widest text-[#12A0C3]/70">{item.label}</span>
+                <div className="mt-2 h-px bg-[#12A0C3]/20" />
               </div>
             ) : (
               <Link
@@ -155,9 +154,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 href={item.href!}
                 className={cn(
                   "group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                  pathname === item.href
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  pathname === item.href ? "bg-[#0E7A96]/80 text-white border-l-4 border-[#12A0C3]" : "text-white/70 hover:bg-[#0E7A96]/40 hover:text-white",
                   item.dept && currentUser?.department !== 'all' && currentUser?.department !== item.dept && "opacity-30 pointer-events-none"
                 )}
               >

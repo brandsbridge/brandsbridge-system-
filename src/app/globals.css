@@ -5,47 +5,47 @@
 @layer base {
   :root {
     --background: 247 20% 98%;
-    --foreground: 247 25% 10%;
+    --foreground: 194 83% 17%;
     --card: 0 0% 100%;
-    --card-foreground: 247 25% 10%;
+    --card-foreground: 194 83% 17%;
     --popover: 0 0% 100%;
-    --popover-foreground: 247 25% 10%;
-    --primary: 251 68% 62%;
+    --popover-foreground: 194 83% 17%;
+    --primary: 193 83% 25%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 247 15% 94%;
-    --secondary-foreground: 247 25% 15%;
-    --muted: 247 15% 94%;
-    --muted-foreground: 247 10% 45%;
-    --accent: 219 72% 60%;
+    --secondary: 192 83% 94%;
+    --secondary-foreground: 194 83% 17%;
+    --muted: 192 83% 94%;
+    --muted-foreground: 194 83% 40%;
+    --accent: 192 83% 42%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 247 15% 90%;
-    --input: 247 15% 90%;
-    --ring: 251 68% 62%;
+    --border: 193 83% 80%; /* Light variant of primary for borders */
+    --input: 193 83% 80%;
+    --ring: 192 83% 42%;
     --radius: 0.75rem;
   }
 
   .dark {
-    --background: 247 20% 12%;
-    --foreground: 247 10% 95%;
-    --card: 247 20% 15%;
-    --card-foreground: 247 10% 95%;
-    --popover: 247 20% 15%;
-    --popover-foreground: 247 10% 95%;
-    --primary: 251 68% 62%;
+    --background: 193 64% 4%;
+    --foreground: 0 0% 98%;
+    --card: 199 64% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 199 64% 8%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 193 83% 25%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 247 15% 20%;
-    --secondary-foreground: 247 10% 95%;
-    --muted: 247 15% 20%;
-    --muted-foreground: 247 10% 65%;
-    --accent: 219 72% 60%;
+    --secondary: 194 83% 17%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 194 83% 17%;
+    --muted-foreground: 193 83% 65%;
+    --accent: 192 83% 42%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 98%;
-    --border: 247 15% 22%;
-    --input: 247 15% 22%;
-    --ring: 251 68% 62%;
+    --border: 193 83% 25%; /* Primary color as border */
+    --input: 193 83% 25%;
+    --ring: 192 83% 42%;
   }
 }
 
@@ -55,5 +55,12 @@
   }
   body {
     @apply bg-background text-foreground font-body antialiased;
+  }
+  /* Specific override for card borders as requested */
+  .card, .border {
+    border-color: hsla(193, 83%, 25%, 0.2);
+  }
+  .dark .card, .dark .border {
+    border-color: hsla(193, 83%, 25%, 0.3);
   }
 }

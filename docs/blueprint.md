@@ -1,4 +1,4 @@
-# **App Name**: BizFlow
+# **App Name**: BrandsBridge
 
 ## Core Features:
 

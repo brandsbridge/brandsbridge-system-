@@ -7,7 +7,7 @@ import {
   Download, CheckCircle2, 
   ShieldCheck, Info, Star, MoreVertical, Upload,
   FileSpreadsheet, Loader2, X, AlertTriangle,
-  Mail, FileX, FileText, FileDown
+  Mail, FileX, FileText, FileDown, Tags
 } from "lucide-react";
 import { 
   Table, 
@@ -46,7 +46,7 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, doc, writeBatch } from "firebase/firestore";
+import { collection, doc, writeBatch, setDoc, updateDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { supplierService } from "@/services/supplier-service";
@@ -84,6 +84,52 @@ export default function SuppliersPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
+  const [marketAssignTarget, setMarketAssignTarget] = useState<any>(null);
+
+  const handleCreateSupplier = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const assignedMarkets = formData.getAll('markets') as string[];
+    const newDoc = doc(collection(db, "suppliers"));
+    try {
+      await setDoc(newDoc, {
+        name: formData.get('name') as string,
+        country: formData.get('country') as string,
+        natureOfBusiness: formData.get('natureOfBusiness') as string,
+        pricing: { tier: formData.get('tier') as string },
+        markets: assignedMarkets,
+        departments: assignedMarkets.map(m => m.split('_')[0]),
+        recordStatus: 'Active - Verified',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      setIsAddModalOpen(false);
+      toast({ title: "Supplier Added", description: "Successfully created." });
+    } catch {
+      toast({ variant: "destructive", title: "Error", description: "Failed to add" });
+    }
+  };
+
+  const handleAssignMarkets = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!marketAssignTarget?.id) return;
+    const formData = new FormData(e.target as HTMLFormElement);
+    const assignedMarkets = formData.getAll('markets') as string[];
+    try {
+      const docRef = doc(db, "suppliers", marketAssignTarget.id);
+      // use setDoc+merge so it works whether the doc exists in Firestore or not
+      await setDoc(docRef, {
+        markets: assignedMarkets,
+        departments: assignedMarkets.map((m: string) => m.split('_')[0]),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      setMarketAssignTarget(null);
+      toast({ title: "Markets Assigned", description: "Updated successfully." });
+    } catch (err: any) {
+      console.error("Market assign error:", err);
+      toast({ variant: "destructive", title: "Error", description: "Failed to assign. Ensure Firestore rules are deployed." });
+    }
+  };
 
   // Import State
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -287,10 +333,13 @@ export default function SuppliersPage() {
     if (!editingSupplier) return;
 
     const formData = new FormData(e.target as HTMLFormElement);
+    const assignedMarkets = formData.getAll('markets') as string[];
     const data = {
       name: formData.get('name'),
       country: formData.get('country'),
       natureOfBusiness: formData.get('natureOfBusiness'),
+      markets: assignedMarkets,
+      departments: assignedMarkets.map(m => m.split('_')[0]),
       pricing: {
         ...editingSupplier.pricing,
         tier: formData.get('tier')
@@ -429,6 +478,66 @@ export default function SuppliersPage() {
           <Button size="sm" className="bg-primary" onClick={() => setIsAddModalOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> Add Supplier
           </Button>
+
+          <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+            <DialogContent className="max-w-2xl">
+              <form onSubmit={handleCreateSupplier}>
+                <DialogHeader>
+                  <DialogTitle>Register New Supplier</DialogTitle>
+                </DialogHeader>
+                <div className="grid grid-cols-2 gap-4 pt-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Company Name</label>
+                    <Input name="name" required placeholder="e.g. Global Trade LLC" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Nature of Business</label>
+                    <Select name="natureOfBusiness" defaultValue="Manufacturer">
+                      <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Manufacturer">Manufacturer</SelectItem>
+                        <SelectItem value="Trader">Trading Company</SelectItem>
+                        <SelectItem value="Distributor">Distributor</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Country</label>
+                    <Select name="country">
+                      <SelectTrigger><SelectValue placeholder="Select country" /></SelectTrigger>
+                      <SelectContent>
+                        {countries.length > 0 ? countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>) : <SelectItem value="Global">Global</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Price Tier</label>
+                    <Select name="tier" defaultValue="Mid-Range">
+                      <SelectTrigger><SelectValue placeholder="Select tier" /></SelectTrigger>
+                      <SelectContent>
+                        {tiers.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2 space-y-2 pt-2 border-t mt-2">
+                    <label className="text-xs font-bold uppercase text-muted-foreground">Assign Markets</label>
+                    <div className="flex gap-4">
+                      {['chocolate_market', 'cosmetics_market', 'detergents_market'].map(m => (
+                        <label key={m} className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" name="markets" value={m} className="h-4 w-4 rounded border-primary/20 text-primary focus:ring-primary" />
+                          <span className="text-sm capitalize">{m.replace('_', ' ')}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter className="mt-6">
+                  <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
+                  <Button type="submit">Create Supplier</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -480,6 +589,7 @@ export default function SuppliersPage() {
             <TableRow>
               <TableHead className="w-[250px]">Company Name</TableHead>
               <TableHead>Nature</TableHead>
+              <TableHead>Markets</TableHead>
               <TableHead>Products</TableHead>
               <TableHead>Price Tier</TableHead>
               <TableHead>Record Status</TableHead>
@@ -514,6 +624,24 @@ export default function SuppliersPage() {
                   <span className="text-xs">{supplier.natureOfBusiness}</span>
                 </TableCell>
                 <TableCell>
+                  <div className="flex flex-wrap gap-1 max-w-[150px]">
+                    {Array.isArray(supplier.markets) && supplier.markets.map((m: string) => (
+                      <Badge 
+                        key={m} 
+                        variant="outline" 
+                        className="text-[8px] h-4 capitalize"
+                        style={{
+                          color: m === 'chocolate_market' ? '#7B3F00' : m === 'cosmetics_market' ? '#C2185B' : m === 'detergents_market' ? '#0B5E75' : 'inherit',
+                          backgroundColor: m === 'chocolate_market' ? '#7B3F0015' : m === 'cosmetics_market' ? '#C2185B15' : m === 'detergents_market' ? '#0B5E7515' : 'transparent',
+                          borderColor: m === 'chocolate_market' ? '#7B3F0040' : m === 'cosmetics_market' ? '#C2185B40' : m === 'detergents_market' ? '#0B5E7540' : 'inherit'
+                        }}
+                      >
+                        {m.replace('_', ' ')}
+                      </Badge>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell>
                   <div className="flex flex-wrap gap-1 max-w-[200px]">
                     {Array.isArray(supplier.specializedProducts) && supplier.specializedProducts.slice(0, 2).map((p: string) => (
                       <Badge key={p} variant="secondary" className="text-[8px] h-4">{p}</Badge>
@@ -523,7 +651,7 @@ export default function SuppliersPage() {
                 <TableCell>
                   <Badge variant="outline" className={cn(
                     "text-[9px] font-bold",
-                    supplier.pricing?.tier === 'Luxury' && "border-purple-500 text-purple-500",
+                    supplier.pricing?.tier === 'Luxury' && "border-primary text-primary",
                     supplier.pricing?.tier === 'Premium' && "border-blue-500 text-blue-500",
                     supplier.pricing?.tier === 'Mid-Range' && "border-green-500 text-green-500"
                   )}>
@@ -541,10 +669,14 @@ export default function SuppliersPage() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
-                    </DropdownMenuTrigger>
+                  <div className="flex justify-end items-center gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => setMarketAssignTarget(supplier)} title="Assign Market">
+                      <Tags className="h-4 w-4" />
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
+                      </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem asChild>
                         <Link href={`/suppliers/${supplier.id}`}><ExternalLink className="mr-2 h-4 w-4" /> Full Profile</Link>
@@ -558,6 +690,7 @@ export default function SuppliersPage() {
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -602,10 +735,53 @@ export default function SuppliersPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="col-span-2 space-y-2 pt-2 border-t mt-2">
+                <label className="text-xs font-bold uppercase text-muted-foreground">Assign Markets</label>
+                <div className="flex gap-4">
+                  {['chocolate_market', 'cosmetics_market', 'detergents_market'].map(m => (
+                    <label key={m} className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" name="markets" value={m} defaultChecked={editingSupplier?.markets?.includes(m)} className="h-4 w-4 rounded border-primary/20 text-primary focus:ring-primary" />
+                      <span className="text-sm capitalize">{m.replace('_', ' ')}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditingSupplier(null)}>Cancel</Button>
               <Button type="submit">Save Changes</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!marketAssignTarget} onOpenChange={(open) => !open && setMarketAssignTarget(null)}>
+        <DialogContent>
+          <form onSubmit={handleAssignMarkets}>
+            <DialogHeader>
+              <DialogTitle>Assign Markets</DialogTitle>
+              <DialogDescription>Select the target markets for {marketAssignTarget?.name}</DialogDescription>
+            </DialogHeader>
+            <div className="py-6 space-y-4">
+              {['chocolate_market', 'cosmetics_market', 'detergents_market'].map(m => (
+                <label key={m} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    name="markets" 
+                    value={m} 
+                    defaultChecked={marketAssignTarget?.markets?.includes(m)}
+                    className="h-5 w-5 rounded border-primary/20 text-primary" 
+                  />
+                  <div className="flex flex-col">
+                    <span className="font-bold capitalize">{m.replace('_', ' ')}</span>
+                    <span className="text-xs text-muted-foreground">Enable access to this segment</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setMarketAssignTarget(null)}>Cancel</Button>
+              <Button type="submit">Save Assignments</Button>
             </DialogFooter>
           </form>
         </DialogContent>

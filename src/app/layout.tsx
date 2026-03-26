@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/layout/dashboard-layout';
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
-  title: 'BizFlow - Smart Business Management',
+  title: 'BrandsBridge - Smart Business Management',
   description: 'Real-time business management dashboard',
 };
 

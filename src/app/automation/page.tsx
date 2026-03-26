@@ -68,7 +68,7 @@ export default function AutomationPage() {
         body: JSON.stringify({
           event: "test_connection",
           timestamp: new Date().toISOString(),
-          system: "BizFlow-CRM",
+          system: "BrandsBridge-CRM",
           data: { message: "Connectivity test successful" }
         })
       });

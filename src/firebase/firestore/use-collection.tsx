@@ -87,11 +87,17 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       async (err: FirestoreError) => {
+        console.error("[useCollection Error] Original FirestoreError:", err);
         // Create contextual error for the development overlay
         const contextualError = new FirestorePermissionError({
           operation: 'list',
           path: getSafePath(memoizedTargetRefOrQuery),
         });
+        
+        // Attach the original error message if it contains an index creation link
+        if (err.message.includes('https://console.firebase.google.com')) {
+           console.error("MISSING INDEX LINK:", err.message);
+        }
 
         setError(contextualError);
         setData(null);

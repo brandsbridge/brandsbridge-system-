@@ -89,7 +89,7 @@ export default function InvoiceClient({ id }: { id: string }) {
             <div className="flex justify-between items-start mb-12">
               <div className="space-y-4">
                 <div className="h-12 w-48 bg-black flex items-center justify-center rounded">
-                  <span className="text-white font-black text-lg italic">BIZFLOW GLOBAL</span>
+                  <span className="text-white font-black text-lg italic">BRANDSBRIDGE GLOBAL</span>
                 </div>
                 <div className="text-[10px] leading-tight text-gray-600 font-medium uppercase">
                   <p className="font-black text-black">Brands Bridge General Trading LLC</p>

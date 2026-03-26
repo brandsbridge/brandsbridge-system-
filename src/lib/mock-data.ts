@@ -12,10 +12,10 @@ export interface Employee {
 }
 
 export const DEMO_USERS: Employee[] = [
-  { id: 'u-admin', name: 'Super Admin', email: 'admin@bizflow.com', role: 'admin', department: 'all', status: 'active', joinDate: '2022-01-15', lastLogin: new Date().toISOString() },
-  { id: 'u-choc-mgr', name: 'DIA Manager', email: 'dia@bizflow.com', role: 'manager', department: 'chocolate', status: 'active', joinDate: '2022-03-10' },
-  { id: 'u-cosm-mgr', name: 'Musaed Manager', email: 'musaed@bizflow.com', role: 'manager', department: 'cosmetics', status: 'active', joinDate: '2022-05-20' },
-  { id: 'u-det-mgr', name: 'Saddam Manager', email: 'saddam@bizflow.com', role: 'manager', department: 'detergents', status: 'active', joinDate: '2022-08-12' }
+  { id: 'u-admin', name: 'Super Admin', email: 'admin@brandsbridge.com', role: 'admin', department: 'all', status: 'active', joinDate: '2022-01-15', lastLogin: new Date().toISOString() },
+  { id: 'u-choc-mgr', name: 'DIA Manager', email: 'dia@brandsbridge.com', role: 'manager', department: 'chocolate', status: 'active', joinDate: '2022-03-10' },
+  { id: 'u-cosm-mgr', name: 'Musaed Manager', email: 'musaed@brandsbridge.com', role: 'manager', department: 'cosmetics', status: 'active', joinDate: '2022-05-20' },
+  { id: 'u-det-mgr', name: 'Saddam Manager', email: 'saddam@brandsbridge.com', role: 'manager', department: 'detergents', status: 'active', joinDate: '2022-08-12' }
 ];
 
 export const MOCK_EMPLOYEES: Employee[] = DEMO_USERS;
