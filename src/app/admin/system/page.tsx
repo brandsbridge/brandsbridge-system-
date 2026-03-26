@@ -1,6 +1,8 @@
 
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import React, { useMemo, useState, useRef } from "react";
 import { 
   Database, 
