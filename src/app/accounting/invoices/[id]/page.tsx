@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 
 import InvoiceClient from "./invoice-client";
 

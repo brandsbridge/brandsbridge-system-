@@ -201,7 +201,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       <div className="fixed bottom-4 right-4 z-50">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="accent" className="shadow-lg rounded-full h-10 px-4">
+            <Button size="sm" variant="secondary" className="shadow-lg rounded-full h-10 px-4">
               <UsersIcon className="mr-2 h-4 w-4" /> Role Switcher <ChevronDown className="ml-2 h-3 w-3" />
             </Button>
           </DropdownMenuTrigger>

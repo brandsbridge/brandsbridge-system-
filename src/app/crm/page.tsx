@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import React, { useMemo } from "react";
 import { Target, TrendingUp, Users, ArrowRight, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +27,7 @@ export default function CRMPage() {
   const db = useFirestore();
   const { user } = useUser();
   const leadsCol = useMemoFirebase(() => user ? collection(db, "leads") : null, [db, user]);
-  const { data: fbLeads, loading } = useCollection(leadsCol);
+  const { data: fbLeads, isLoading } = useCollection(leadsCol);
 
   const leads = (fbLeads && fbLeads.length > 0) ? fbLeads : MOCK_LEADS;
 
@@ -52,7 +54,7 @@ export default function CRMPage() {
             <TrendingUp className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            {loading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <div className="text-2xl font-bold">${leads.reduce((sum: number, l: any) => sum + (l.value || 0), 0).toLocaleString()}</div>}
+            {isLoading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : <div className="text-2xl font-bold">${leads.reduce((sum: number, l: any) => sum + (l.value || 0), 0).toLocaleString()}</div>}
           </CardContent>
         </Card>
         <Card>

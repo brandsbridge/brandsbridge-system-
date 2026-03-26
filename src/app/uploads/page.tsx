@@ -1,6 +1,8 @@
 
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState } from "react";
 import { 
   Upload, 
@@ -92,7 +94,7 @@ export default function BulkUploadPage() {
                   <Button variant="outline" size="sm">
                     <Download className="mr-2 h-4 w-4" /> Template
                   </Button>
-                  <Button size="sm" variant="accent" onClick={simulateUpload} disabled={isUploading}>
+                  <Button size="sm" variant="secondary" onClick={simulateUpload} disabled={isUploading}>
                     {isUploading ? "Validating..." : "Choose File"}
                   </Button>
                 </div>

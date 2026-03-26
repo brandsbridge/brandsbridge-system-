@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import CampaignClient from "./campaign-client";
 
 export default async function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {

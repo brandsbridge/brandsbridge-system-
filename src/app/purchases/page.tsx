@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import React, { useMemo } from "react";
 import { 
   CreditCard, 
@@ -38,7 +40,7 @@ export default function PurchasesPage() {
   
   // Memoize Firestore Collection
   const purchasesCol = useMemoFirebase(() => user ? collection(db, "purchases") : null, [db, user]);
-  const { data: fbPurchases, loading } = useCollection(purchasesCol);
+  const { data: fbPurchases, isLoading } = useCollection(purchasesCol);
 
   const purchases = useMemo(() => (fbPurchases && fbPurchases.length > 0) ? fbPurchases : MOCK_PURCHASES, [fbPurchases]);
 
@@ -74,7 +76,7 @@ export default function PurchasesPage() {
           <h1 className="text-3xl font-bold tracking-tight font-headline">Fulfillment & Purchases</h1>
           <p className="text-muted-foreground">Global transactional overview synchronized with Firestore.</p>
         </div>
-        {loading && <Loader2 className="h-6 w-6 animate-spin text-primary" />}
+        {isLoading && <Loader2 className="h-6 w-6 animate-spin text-primary" />}
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">

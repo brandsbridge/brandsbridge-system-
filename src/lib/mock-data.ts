@@ -20,7 +20,19 @@ export const DEMO_USERS: Employee[] = [
 
 export const MOCK_EMPLOYEES: Employee[] = DEMO_USERS;
 
-export const MOCK_PRODUCTS = [
+export interface Product {
+  id: string;
+  gtin: string;
+  name: string;
+  brand: string;
+  category: string;
+  packing: number;
+  weightNet: number;
+  weightGross: number;
+  department: string;
+}
+
+export const MOCK_PRODUCTS: Product[] = [
   { id: 'p1', gtin: '4008400401021', name: 'Kinder Bueno 43g', brand: 'Kinder', category: 'Chocolate', packing: 30, weightNet: 1.29, weightGross: 1.5, department: 'chocolate' },
   { id: 'p2', gtin: '7622300440121', name: 'Milka Alpine Milk 100g', brand: 'Milka', category: 'Chocolate', packing: 20, weightNet: 2.0, weightGross: 2.3, department: 'chocolate' },
   { id: 'p3', gtin: '3017620422003', name: 'Nutella 400g Glass', brand: 'Nutella', category: 'Spreads', packing: 15, weightNet: 6.0, weightGross: 9.5, department: 'chocolate' },
@@ -28,12 +40,12 @@ export const MOCK_PRODUCTS = [
   { id: 'p5', gtin: '8000500003781', name: 'Ferrero Rocher T16 200g', brand: 'Ferrero', category: 'Chocolate', packing: 5, weightNet: 1.0, weightGross: 1.8, department: 'chocolate' }
 ];
 
-export const MOCK_INVOICES = [];
-export const MOCK_SUPPLIERS = [];
-export const MOCK_CUSTOMERS = [];
-export const MOCK_STOCKS = [];
-export const MOCK_OFFERS = [];
-export const MOCK_RESPONSES = [];
+export const MOCK_INVOICES: any[] = [];
+export const MOCK_SUPPLIERS: any[] = [];
+export const MOCK_CUSTOMERS: any[] = [];
+export const MOCK_STOCKS: any[] = [];
+export const MOCK_OFFERS: any[] = [];
+export const MOCK_RESPONSES: any[] = [];
 export const CHART_OF_ACCOUNTS = [
   { code: '1000', name: 'Cash', group: 'Assets' },
   { code: '1100', name: 'Accounts Receivable', group: 'Assets' },
@@ -45,15 +57,15 @@ export const CHART_OF_ACCOUNTS = [
   { code: '6100', name: 'Rent Expense', group: 'Expenses' }
 ];
 
-export const MOCK_EMAILS = [];
-export const MOCK_PURCHASES = [];
-export const MOCK_UPLOAD_LOGS = [];
-export const MOCK_LOGS = [];
-export const MOCK_TASKS = [];
-export const MOCK_LEADS = [];
-export const MOCK_CAMPAIGNS = [];
-export const MOCK_OFFERS_TRACKING = [];
-export const MOCK_PAYMENTS = [];
-export const MOCK_JOURNALS = [];
-export const MOCK_EXPENSES = [];
-export const MOCK_PURCHASE_ORDERS = [];
+export const MOCK_EMAILS: any[] = [];
+export const MOCK_PURCHASES: any[] = [];
+export const MOCK_UPLOAD_LOGS: any[] = [];
+export const MOCK_LOGS: any[] = [];
+export const MOCK_TASKS: any[] = [];
+export const MOCK_LEADS: any[] = [];
+export const MOCK_CAMPAIGNS: any[] = [];
+export const MOCK_OFFERS_TRACKING: any[] = [];
+export const MOCK_PAYMENTS: any[] = [];
+export const MOCK_JOURNALS: any[] = [];
+export const MOCK_EXPENSES: any[] = [];
+export const MOCK_PURCHASE_ORDERS: any[] = [];

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import CustomerClient from "./customer-client";
 
 export default async function CustomerProfilePage({ params }: { params: Promise<{ id: string }> }) {

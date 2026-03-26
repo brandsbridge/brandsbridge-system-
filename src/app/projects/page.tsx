@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = 'force-dynamic';
+
 import React, { useMemo, useState } from "react";
 import { Kanban as KanbanIcon, Plus, MoreHorizontal, Clock, User, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +21,7 @@ export default function ProjectsPage() {
   
   // Memoize Firestore Collection
   const tasksCol = useMemoFirebase(() => user ? collection(db, "tasks") : null, [db, user]);
-  const { data: fbTasks, loading } = useCollection(tasksCol);
+  const { data: fbTasks, isLoading } = useCollection(tasksCol);
 
   const tasks = useMemo(() => (fbTasks && fbTasks.length > 0) ? fbTasks : MOCK_TASKS, [fbTasks]);
 
@@ -66,7 +68,7 @@ export default function ProjectsPage() {
           <h1 className="text-3xl font-bold tracking-tight font-headline">Tasks</h1>
         </div>
         <div className="flex gap-2">
-          {loading && <Loader2 className="h-4 w-4 animate-spin mt-3" />}
+          {isLoading && <Loader2 className="h-4 w-4 animate-spin mt-3" />}
           <Button onClick={handleCreateTask}>
             <Plus className="mr-2 h-4 w-4" /> New Task
           </Button>
