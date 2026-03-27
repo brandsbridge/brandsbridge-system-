@@ -103,11 +103,18 @@ export default function CustomersPage() {
 
   const handleAssignMarkets = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!marketAssignTarget?.id) return;
+    if (!marketAssignTarget?.id) {
+      toast({ variant: "destructive", title: "Error", description: "Invalid customer ID" });
+      return;
+    }
+    
+    const customerId = marketAssignTarget.id;
+    console.log("customerId:", customerId);
+    
     const formData = new FormData(e.target as HTMLFormElement);
     const assignedMarkets = formData.getAll('markets') as string[];
     try {
-      const docRef = doc(db, "customers", marketAssignTarget.id);
+      const docRef = doc(db, "customers", customerId);
       // use setDoc+merge so it works whether doc exists in Firestore or not (e.g. mock data)
       await setDoc(docRef, {
         markets: assignedMarkets,
@@ -117,8 +124,8 @@ export default function CustomersPage() {
       setMarketAssignTarget(null);
       toast({ title: "Markets Assigned", description: "Updated successfully." });
     } catch (err: any) {
-      console.error("Market assign error:", err);
-      toast({ variant: "destructive", title: "Error", description: "Failed to assign. Ensure Firestore rules are deployed." });
+      console.error("Assign error:", err);
+      toast({ variant: "destructive", title: "Error", description: err.message || "Failed to assign. Ensure Firestore rules are deployed." });
     }
   };
   
