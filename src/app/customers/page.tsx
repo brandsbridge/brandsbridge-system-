@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, writeBatch, doc, updateDoc, setDoc } from "firebase/firestore";
+import { collection, writeBatch, doc, updateDoc, setDoc, query, where } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { MOCK_CUSTOMERS } from "@/lib/mock-data";
@@ -142,7 +142,19 @@ export default function CustomersPage() {
 
   const db = useFirestore();
   const { user } = useUser();
-  const customersQuery = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
+  const customersQuery = useMemoFirebase(() => {
+    if (!user || !user.profile) return null;
+    const { role, assignedMarket } = user.profile;
+    
+    if (role === 'super_admin') return collection(db, "customers");
+    
+    if (assignedMarket) {
+      return query(collection(db, "customers"), where("markets", "array-contains", assignedMarket));
+    }
+    
+    return null;
+  }, [db, user]);
+  
   const { data: firestoreCustomers, isLoading: loading } = useCollection(customersQuery);
 
   const customers = useMemo(() => {

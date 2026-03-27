@@ -30,7 +30,7 @@ import { MOCK_PURCHASES } from "@/lib/mock-data";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { collection, query, where } from "firebase/firestore";
 
 const COLORS = ['#755EDE', '#5182E0', '#F59E0B'];
 
@@ -39,7 +39,18 @@ export default function PurchasesPage() {
   const { user } = useUser();
   
   // Memoize Firestore Collection
-  const purchasesCol = useMemoFirebase(() => user ? collection(db, "purchases") : null, [db, user]);
+  const purchasesCol = useMemoFirebase(() => {
+    if (!user || !user.profile) return null;
+    const { role, assignedMarket } = user.profile;
+
+    if (role === 'super_admin') return collection(db, "purchase_history");
+
+    if (assignedMarket) {
+      return query(collection(db, "purchase_history"), where("markets", "array-contains", assignedMarket));
+    }
+
+    return null;
+  }, [db, user]);
   const { data: fbPurchases, isLoading } = useCollection(purchasesCol);
 
   const purchases = useMemo(() => (fbPurchases && fbPurchases.length > 0) ? fbPurchases : MOCK_PURCHASES, [fbPurchases]);

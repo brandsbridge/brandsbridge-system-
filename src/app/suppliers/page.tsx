@@ -48,7 +48,7 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, doc, writeBatch, setDoc, updateDoc } from "firebase/firestore";
+import { collection, doc, writeBatch, setDoc, updateDoc, query, where } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { supplierService } from "@/services/supplier-service";
@@ -146,7 +146,18 @@ export default function SuppliersPage() {
 
   const db = useFirestore();
   const { user } = useUser();
-  const suppliersQuery = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
+  const suppliersQuery = useMemoFirebase(() => {
+    if (!user || !user.profile) return null;
+    const { role, assignedMarket } = user.profile;
+
+    if (role === 'super_admin') return collection(db, "suppliers");
+
+    if (assignedMarket) {
+      return query(collection(db, "suppliers"), where("markets", "array-contains", assignedMarket));
+    }
+
+    return null;
+  }, [db, user]);
   const { data: suppliers = [], isLoading: loading } = useCollection(suppliersQuery);
 
   const filteredSuppliers = useMemo(() => {

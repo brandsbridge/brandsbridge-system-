@@ -7,7 +7,7 @@ import { Plus, MoreHorizontal, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCollection, useFirestore, useUser, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy } from "firebase/firestore";
+import { collection, query, orderBy, where } from "firebase/firestore";
 import { taskService, Task } from "@/services/task-service";
 import { DragDropContext, Droppable, DropResult } from "@hello-pangea/dnd";
 
@@ -30,7 +30,18 @@ export default function ProjectsPage() {
 
   useEffect(() => { setIsMounted(true); }, []);
   
-  const tasksCol = useMemoFirebase(() => user ? collection(db, "tasks") : null, [db, user]);
+  const tasksCol = useMemoFirebase(() => {
+    if (!user || !user.profile) return null;
+    const { role, assignedMarket } = user.profile;
+
+    if (role === 'super_admin') return collection(db, "tasks");
+
+    if (assignedMarket) {
+      return query(collection(db, "tasks"), where("department", "==", assignedMarket));
+    }
+
+    return null;
+  }, [db, user]);
   const employeesCol = useMemoFirebase(() => user ? collection(db, "employees") : null, [db, user]);
   
   const { data: fbTasks, isLoading: isTasksLoading } = useCollection(tasksCol);
