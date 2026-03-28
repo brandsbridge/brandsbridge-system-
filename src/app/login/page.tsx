@@ -9,10 +9,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { DEMO_USERS } from "@/lib/mock-data";
 import { toast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
-import { signInAnonymously } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
+
+const DEMO_ACCOUNTS = [
+  { label: "Super Admin (SA)", email: "admin@brandsbridge.com", pass: "Admin@1234" },
+  { label: "Chocolate Manager (CM)", email: "chocolate@brandsbridge.com", pass: "Choco@1234" },
+  { label: "Cosmetics Manager (COM)", email: "cosmetics@brandsbridge.com", pass: "Cosmo@1234" },
+  { label: "Detergents Manager (DM)", email: "detergents@brandsbridge.com", pass: "Deterg@1234" },
+  { label: "Finance Manager (FM)", email: "finance@brandsbridge.com", pass: "Finance@1234" },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,39 +32,25 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Real Firebase Authentication session
-      await signInAnonymously(auth);
-
-      const user = DEMO_USERS.find(u => u.email === email);
-      
-      if (user) {
-        localStorage.setItem("demoUser", JSON.stringify(user));
-        toast({
-          title: "Login Successful",
-          description: `Welcome back, ${user.name}! Please remember to activate admin status in System Hub.`,
-        });
-        
-        if (user.department !== 'all') {
-          router.push(`/department/${user.department}`);
-        } else {
-          router.push("/");
-        }
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Authentication Failed",
-          description: "Invalid email or password. Please try again or use the switcher.",
-        });
-        setIsLoading(false);
-      }
+      await signInWithEmailAndPassword(auth, email, password);
+      toast({
+        title: "Login Successful",
+        description: "Welcome back!",
+      });
+      router.push("/");
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Connection Error",
-        description: error.message || "Could not connect to Firebase Auth.",
+        title: "Authentication Failed",
+        description: error.message || "Invalid email or password.",
       });
       setIsLoading(false);
     }
+  };
+
+  const setDemoCreds = (e: string, p: string) => {
+    setEmail(e);
+    setPassword(p);
   };
 
   return (
@@ -72,7 +65,7 @@ export default function LoginPage() {
         <Card className="border-border/40 shadow-xl backdrop-blur-sm bg-card/50">
           <CardHeader>
             <CardTitle>Sign In</CardTitle>
-            <CardDescription>Enter your credentials to access your department.</CardDescription>
+            <CardDescription>Enter your credentials to access your dashboard.</CardDescription>
           </CardHeader>
           <form onSubmit={handleLogin}>
             <CardContent className="space-y-4">
@@ -94,7 +87,7 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password">Password</Label>
-                  <Button variant="link" className="px-0 font-normal text-xs h-auto">Forgot password?</Button>
+                  <Button variant="link" className="px-0 font-normal text-xs h-auto" type="button">Forgot password?</Button>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -113,11 +106,6 @@ export default function LoginPage() {
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <><ArrowRight className="mr-2 h-4 w-4" /> Sign In</>}
               </Button>
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground">
-                  Don't have an account? <span className="text-primary font-bold cursor-pointer">Request Access</span>
-                </p>
-              </div>
             </CardFooter>
           </form>
         </Card>
@@ -125,15 +113,15 @@ export default function LoginPage() {
         <div className="grid grid-cols-1 gap-2 p-4 rounded-lg bg-secondary/30 border border-border/50">
            <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-center">Quick Demo Access</h4>
            <div className="flex flex-wrap gap-2 justify-center">
-              {DEMO_USERS.filter(u => u.role === 'admin' || u.role === 'manager').slice(0, 4).map(u => (
+              {DEMO_ACCOUNTS.map((acc, i) => (
                 <Button 
-                  key={u.id} 
+                  key={i} 
                   variant="outline" 
                   size="sm" 
                   className="text-[10px] h-7"
-                  onClick={() => { setEmail(u.email); setPassword('password'); }}
+                  onClick={() => setDemoCreds(acc.email, acc.pass)}
                 >
-                  {u.name.split(' ')[0]} ({u.department[0].toUpperCase()})
+                  {acc.label}
                 </Button>
               ))}
            </div>

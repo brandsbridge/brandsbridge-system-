@@ -1,47 +1,17 @@
 rules_version = '2';
-// Forced redeploy
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Deployment Timestamp: 2025-02-18T15:00:00Z
-    // Optimized access policy for BrandsBridge: Global collaborative read/create with ownership-based mutations.
-
-    /**
-     * Helper to check if the session is authenticated.
-     * Supports standard providers and custom token authentication.
-     */
-    function isAuthenticated() {
-      return request.auth != null && request.auth.uid != null;
+    match /users/{uid} {
+      allow read, write: if request.auth != null;
     }
-
-    /**
-     * Helper to check for document ownership.
-     * Compares the 'userId' field in the document to the current requester's uid.
-     */
-    function isOwner() {
-      return isAuthenticated() && 
-             resource != null && 
-             resource.data.userId == request.auth.uid;
-    }
-
-    // Catch-all rule for all collections ensures no module is accidentally blocked.
-    match /{allPaths=**} {
-      // Allow all authenticated team members to read, write.
-      allow read, write: if isAuthenticated();
-    }
-    
-    // Explicit access for market directories
     match /customers/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if request.auth != null;
     }
-    
     match /suppliers/{docId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if request.auth != null;
     }
-    
-    // Explicit overrides for system-level configuration if required.
-    match /system_config/{configId} {
-       allow read, write: if isAuthenticated();
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
