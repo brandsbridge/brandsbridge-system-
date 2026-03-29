@@ -66,18 +66,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
 
-  // Skip all redirect logic for login page
-  if (pathname === "/login") return <>{children}</>;
-
-  // Redirect to login only if user is NOT authenticated AND loading is complete
+  // Redirect to login only if user is NOT authenticated AND loading is complete AND not already on login
   useEffect(() => {
-    if (!isUserLoading && !user) {
+    if (!isUserLoading && !user && pathname !== "/login") {
       console.log("No authenticated user found, redirecting to login");
-      startTransition(() => {
-        router.push("/login");
-      });
+      window.location.href = "/login";
     }
-  }, [user, isUserLoading, router]);
+  }, [user, isUserLoading, pathname]);
 
   // Load demo user from localStorage if available
   useEffect(() => {
@@ -153,6 +148,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   ];
 
   const navigation = allNavigation.filter(n => n.show);
+
+  // Skip all layout/redirect logic for login page
+  if (pathname === "/login") return <>{children}</>;
 
   // Show loading state while checking auth
   if (isUserLoading) {
