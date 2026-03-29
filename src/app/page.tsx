@@ -6,9 +6,6 @@ import React, { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { useUser } from "@/firebase";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
-import { SuperAdminDashboard } from "@/components/dashboards/super-admin-dashboard";
-import { MarketDashboard } from "@/components/dashboards/market-dashboard";
-import { FinanceDashboard } from "@/components/dashboards/finance-dashboard";
 
 export default function DashboardRouter() {
   const { user, isUserLoading } = useUser();
@@ -29,12 +26,10 @@ export default function DashboardRouter() {
           const data = userDoc.data();
           setUserRole(data.role || "super_admin");
         } else {
-          // Default to super_admin if no profile found
           setUserRole("super_admin");
         }
       } catch (error) {
         console.error("Role fetch error:", error);
-        // Default to super_admin on error
         setUserRole("super_admin");
       } finally {
         setRoleLoading(false);
@@ -44,26 +39,49 @@ export default function DashboardRouter() {
     fetchRole();
   }, [user]);
 
-  if (isUserLoading || roleLoading) return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-    </div>
-  );
+  if (isUserLoading || roleLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   const role = userRole;
   const assignedMarket = user?.profile?.assignedMarket;
 
   if (role === 'super_admin') {
-    return <SuperAdminDashboard />;
+    const SuperAdminDashboardLazy = React.lazy(() => 
+      import("@/components/dashboards/super-admin-dashboard").then(m => ({ default: m.SuperAdminDashboard }))
+    );
+    return (
+      <React.Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+        <SuperAdminDashboardLazy />
+      </React.Suspense>
+    );
   }
 
   if (role === 'finance_manager') {
-    return <FinanceDashboard />;
+    const FinanceDashboardLazy = React.lazy(() => 
+      import("@/components/dashboards/finance-dashboard").then(m => ({ default: m.FinanceDashboard }))
+    );
+    return (
+      <React.Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+        <FinanceDashboardLazy />
+      </React.Suspense>
+    );
   }
 
   if (role === 'chocolate_manager' || role === 'cosmetics_manager' || role === 'detergents_manager') {
     if (assignedMarket) {
-      return <MarketDashboard assignedMarket={assignedMarket} />;
+      const MarketDashboardLazy = React.lazy(() => 
+        import("@/components/dashboards/market-dashboard").then(m => ({ default: m.MarketDashboard }))
+      );
+      return (
+        <React.Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+          <MarketDashboardLazy assignedMarket={assignedMarket} />
+        </React.Suspense>
+      );
     }
   }
 
