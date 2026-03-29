@@ -32,13 +32,25 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      console.log("Attempting login with email:", email);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      console.log("Login successful! User UID:", userCredential.user.uid);
+      
       toast({
         title: "Login Successful",
         description: "Welcome back!",
       });
-      router.push("/");
+      
+      console.log("Redirecting to dashboard...");
+      // Add a small delay to ensure auth state is updated
+      setTimeout(() => {
+        router.push("/");
+      }, 500);
     } catch (error: any) {
+      console.error("Login error:", error);
+      console.error("Error code:", error.code);
+      console.error("Error message:", error.message);
+      
       toast({
         variant: "destructive",
         title: "Authentication Failed",

@@ -65,15 +65,26 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
 
+  // Skip all redirect logic for login page
+  if (pathname === "/login") return <>{children}</>;
+
+  // Redirect to login only if user is NOT authenticated AND loading is complete
+  useEffect(() => {
+    if (!isUserLoading && !user) {
+      console.log("No authenticated user found, redirecting to login");
+      router.push("/login");
+    }
+  }, [user, isUserLoading, router]);
+
+  // Load demo user from localStorage if available
   useEffect(() => {
     const savedUser = localStorage.getItem("demoUser");
     if (savedUser) {
       setCurrentUser(JSON.parse(savedUser));
-    } else if (pathname !== "/login") {
-      router.push("/login");
     }
-  }, [pathname, router]);
+  }, []);
 
+  // Auto sign-in if authenticated but not auto-signed in
   useEffect(() => {
     const savedUser = localStorage.getItem("demoUser");
     if (savedUser && !user && !isUserLoading) {
@@ -138,7 +149,17 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   const navigation = allNavigation.filter(n => n.show);
 
-  if (pathname === "/login") return <>{children}</>;
+  // Show loading state while checking auth
+  if (isUserLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Verifying credentials...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground dark">
