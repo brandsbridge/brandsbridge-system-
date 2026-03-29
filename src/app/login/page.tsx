@@ -3,7 +3,6 @@
 export const dynamic = 'force-dynamic';
 
 import React, { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Lock, Mail, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,8 +21,7 @@ const DEMO_ACCOUNTS = [
 ];
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
+const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -42,10 +40,7 @@ export default function LoginPage() {
       });
       
       console.log("Redirecting to dashboard...");
-      // Add a small delay to ensure auth state is updated
-      setTimeout(() => {
-        router.push("/");
-      }, 500);
+      window.location.href = "/";
     } catch (error: any) {
       console.error("Login error:", error);
       console.error("Error code:", error.code);
