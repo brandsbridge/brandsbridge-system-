@@ -12,16 +12,8 @@ import { toast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
 
-const DEMO_ACCOUNTS = [
-  { label: "Super Admin (SA)", email: "admin@brandsbridge.com", pass: "Admin@1234" },
-  { label: "Chocolate Manager (CM)", email: "chocolate@brandsbridge.com", pass: "Choco@1234" },
-  { label: "Cosmetics Manager (COM)", email: "cosmetics@brandsbridge.com", pass: "Cosmo@1234" },
-  { label: "Detergents Manager (DM)", email: "detergents@brandsbridge.com", pass: "Deterg@1234" },
-  { label: "Finance Manager (FM)", email: "finance@brandsbridge.com", pass: "Finance@1234" },
-];
-
 export default function LoginPage() {
-const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -53,11 +45,6 @@ const [email, setEmail] = useState("");
       });
       setIsLoading(false);
     }
-  };
-
-  const setDemoCreds = (e: string, p: string) => {
-    setEmail(e);
-    setPassword(p);
   };
 
   return (
@@ -116,23 +103,6 @@ const [email, setEmail] = useState("");
             </CardFooter>
           </form>
         </Card>
-
-        <div className="grid grid-cols-1 gap-2 p-4 rounded-lg bg-secondary/30 border border-border/50">
-           <h4 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-center">Quick Demo Access</h4>
-           <div className="flex flex-wrap gap-2 justify-center">
-              {DEMO_ACCOUNTS.map((acc, i) => (
-                <Button 
-                  key={i} 
-                  variant="outline" 
-                  size="sm" 
-                  className="text-[10px] h-7"
-                  onClick={() => setDemoCreds(acc.email, acc.pass)}
-                >
-                  {acc.label}
-                </Button>
-              ))}
-           </div>
-        </div>
       </div>
     </div>
   );
