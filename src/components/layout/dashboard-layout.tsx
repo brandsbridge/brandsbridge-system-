@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import Link from "next/link";
-import { useRouter, usePathname } from "next/navigation";
-import { 
-  LayoutDashboard, 
-  Factory, 
-  Users, 
-  Menu,
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  Factory,
+  Users,
   FileText,
   Briefcase,
   Kanban,
@@ -17,10 +16,6 @@ import {
   Droplets,
   Upload,
   ShieldCheck,
-  User,
-  LogOut,
-  Users as UsersIcon,
-  ChevronDown,
   ShieldAlert,
   Mail,
   BarChart3,
@@ -28,18 +23,11 @@ import {
   Send,
   Calculator,
   Receipt,
-  Wallet,
-  History,
-  FileBarChart,
   Search,
   Terminal,
   Settings,
-  Repeat,
-  FileMinus,
-  Banknote,
   Loader2,
   CreditCard as CreditCardIcon,
-  Globe
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -50,21 +38,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import { DEMO_USERS, Employee } from "@/lib/mock-data";
-import { Badge } from "@/components/ui/badge";
 import { auth } from "@/lib/firebase";
-import { signInAnonymously } from "firebase/auth";
 import { useUser } from "@/firebase";
-import { startTransition } from 'react';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { user, isUserLoading } = useUser();
-  const [currentUser, setCurrentUser] = useState<Employee | null>(null);
 
   // Redirect to login only if user is NOT authenticated AND loading is complete AND not already on login
   useEffect(() => {
@@ -74,40 +54,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
   }, [user, isUserLoading, pathname]);
 
-  // Load demo user from localStorage if available
-  useEffect(() => {
-    const savedUser = localStorage.getItem("demoUser");
-    if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
-    }
-  }, []);
-
-  // Auto sign-in if authenticated but not auto-signed in
-  useEffect(() => {
-    const savedUser = localStorage.getItem("demoUser");
-    if (savedUser && !user && !isUserLoading) {
-      signInAnonymously(auth).catch(err => console.error("Auto-auth failed:", err));
-    }
-  }, [user, isUserLoading]);
-
   const handleLogout = () => {
-    localStorage.removeItem("demoUser");
-    setCurrentUser(null);
     auth.signOut();
-    router.push("/login");
-  };
-
-  const switchUser = async (user: Employee) => {
-    try {
-      await signInAnonymously(auth);
-      localStorage.setItem("demoUser", JSON.stringify(user));
-      setCurrentUser(user);
-      startTransition(() => {
-        router.push(user.department !== 'all' ? `/department/${user.department}` : "/");
-      });
-    } catch (err) {
-      console.error("Switcher auth failed:", err);
-    }
+    window.location.href = "/login";
   };
 
   const navigation = [
@@ -199,51 +148,41 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            {currentUser && (
-              <div className="flex items-center gap-4">
-                <div className="hidden lg:flex flex-col items-end">
-                  <span className="text-sm font-bold">{currentUser.name}</span>
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{currentUser.role} • {currentUser.department}</span>
+            {user?.profile && (() => {
+              const profile = user.profile!;
+              const roleBadge: Record<string, string> = {
+                super_admin: "SUPER ADMIN",
+                chocolate_manager: "MANAGER • CHOCOLATE",
+                cosmetics_manager: "MANAGER • COSMETICS",
+                detergents_manager: "MANAGER • DETERGENTS",
+                finance_manager: "FINANCE MANAGER",
+              };
+              const badge = roleBadge[profile.role] || profile.role.toUpperCase();
+              const initials = profile.name.split(' ').map(n => n[0]).join('');
+              return (
+                <div className="flex items-center gap-4">
+                  <div className="hidden lg:flex flex-col items-end">
+                    <span className="text-sm font-bold">{profile.name}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">{badge}</span>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="h-8 w-8 rounded-full bg-primary/20 p-0 border border-primary/30">
+                        <span className="text-xs font-bold">{initials}</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem onClick={handleLogout} className="text-destructive">Logout</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 rounded-full bg-primary/20 p-0 border border-primary/30">
-                      <span className="text-xs font-bold">{currentUser.name.split(' ').map(n => n[0]).join('')}</span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onClick={handleLogout} className="text-destructive">Logout</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </header>
         <main className="p-4 md:p-8">{children}</main>
       </div>
       
-      <div className="fixed bottom-4 right-4 z-50">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="secondary" className="shadow-lg rounded-full h-10 px-4">
-              <UsersIcon className="mr-2 h-4 w-4" /> Role Switcher <ChevronDown className="ml-2 h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-h-[400px] overflow-y-auto w-64">
-             {DEMO_USERS.map(user => (
-                <DropdownMenuItem key={user.id} onClick={() => switchUser(user)}>
-                   <div className="flex flex-col w-full">
-                      <div className="flex items-center justify-between">
-                         <span className="font-bold text-xs">{user.name}</span>
-                         <Badge variant="outline" className="text-[8px] h-4">{user.role}</Badge>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground capitalize">{user.department}</span>
-                   </div>
-                </DropdownMenuItem>
-             ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
       <Toaster />
     </div>
   );
