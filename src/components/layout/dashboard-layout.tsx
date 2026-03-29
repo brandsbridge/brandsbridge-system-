@@ -110,44 +110,36 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const role = user?.profile?.role;
-  const isSA = role === 'super_admin';
-  const isFinance = role === 'finance_manager';
-  const isMarketManager = role === 'chocolate_manager' || role === 'cosmetics_manager' || role === 'detergents_manager';
-  const assigned = user?.profile?.assignedMarket;
-
-  const allNavigation = [
-    { name: "Dashboard", href: "/", icon: LayoutDashboard, show: true },
-    { type: 'separator', label: 'Market Segments', show: isSA || isMarketManager },
-    { name: "Chocolate Market", href: "/department/chocolate", icon: Cookie, dept: 'chocolate', show: isSA || assigned === 'chocolate' },
-    { name: "Cosmetics Market", href: "/department/cosmetics", icon: Sparkles, dept: 'cosmetics', show: isSA || assigned === 'cosmetics' },
-    { name: "Detergents Market", href: "/department/detergents", icon: Droplets, dept: 'detergents', show: isSA || assigned === 'detergents' },
-    { type: 'separator', label: 'Finance', show: isSA || isFinance },
-    { name: "Accounting Hub", href: "/accounting", icon: Calculator, show: isSA || isFinance },
-    { name: "Expenses", href: "/accounting/expenses", icon: Receipt, show: isSA || isFinance },
-    { name: "Invoices", href: "/accounting/invoices", icon: FileText, show: isSA || isFinance },
-    { name: "Payments", href: "/accounting/payments", icon: CreditCardIcon, show: isSA || isFinance },
-    { name: "Purchase Orders", href: "/accounting/purchase-orders", icon: FileText, show: isSA || isFinance },
-    { type: 'separator', label: 'Marketing', show: isSA },
-    { name: "Campaigns", href: "/campaigns", icon: Send, show: isSA },
-    { name: "Email Analytics", href: "/email-analytics", icon: Mail, show: isSA },
-    { name: "Performance", href: "/performance", icon: BarChart3, show: isSA || isFinance },
-    { type: 'separator', label: 'Sales & Ops', show: isSA || isMarketManager },
-    { name: "Suppliers", href: "/suppliers", icon: Factory, show: isSA || isMarketManager },
-    { name: "Customers", href: "/customers", icon: Users, show: isSA || isMarketManager },
-    { name: "Offers Tracking", href: "/offers-tracking", icon: Target, show: isSA || isMarketManager },
-    { name: "Purchase History", href: "/purchases", icon: CreditCard, show: isSA || isMarketManager },
-    { name: "Bulk Uploads", href: "/uploads", icon: Upload, show: isSA },
-    { type: 'separator', label: 'Admin', show: isSA || isMarketManager },
-    { name: "Shared Clients", href: "/admin/shared-clients", icon: ShieldCheck, show: isSA },
-    { name: "Permissions", href: "/admin/permissions", icon: ShieldAlert, show: isSA },
-    { name: "Employees", href: "/employees", icon: Briefcase, show: isSA },
-    { name: "Projects (Tasks)", href: "/projects", icon: Kanban, show: isSA || isMarketManager },
-    { name: "System Hub", href: "/admin/system", icon: Settings, show: isSA },
-    { name: "Automation", href: "/automation", icon: Terminal, show: isSA },
+  const navigation = [
+    { name: "Dashboard", href: "/", icon: LayoutDashboard },
+    { type: 'separator', label: 'Market Segments' },
+    { name: "Chocolate Market", href: "/department/chocolate", icon: Cookie },
+    { name: "Cosmetics Market", href: "/department/cosmetics", icon: Sparkles },
+    { name: "Detergents Market", href: "/department/detergents", icon: Droplets },
+    { type: 'separator', label: 'Finance' },
+    { name: "Accounting Hub", href: "/accounting", icon: Calculator },
+    { name: "Expenses", href: "/accounting/expenses", icon: Receipt },
+    { name: "Invoices", href: "/accounting/invoices", icon: FileText },
+    { name: "Payments", href: "/accounting/payments", icon: CreditCardIcon },
+    { name: "Purchase Orders", href: "/accounting/purchase-orders", icon: FileText },
+    { type: 'separator', label: 'Marketing' },
+    { name: "Campaigns", href: "/campaigns", icon: Send },
+    { name: "Email Analytics", href: "/email-analytics", icon: Mail },
+    { name: "Performance", href: "/performance", icon: BarChart3 },
+    { type: 'separator', label: 'Sales & Ops' },
+    { name: "Suppliers", href: "/suppliers", icon: Factory },
+    { name: "Customers", href: "/customers", icon: Users },
+    { name: "Offers Tracking", href: "/offers-tracking", icon: Target },
+    { name: "Purchase History", href: "/purchases", icon: CreditCard },
+    { name: "Bulk Uploads", href: "/uploads", icon: Upload },
+    { type: 'separator', label: 'Admin' },
+    { name: "Shared Clients", href: "/admin/shared-clients", icon: ShieldCheck },
+    { name: "Permissions", href: "/admin/permissions", icon: ShieldAlert },
+    { name: "Employees", href: "/employees", icon: Briefcase },
+    { name: "Projects (Tasks)", href: "/projects", icon: Kanban },
+    { name: "System Hub", href: "/admin/system", icon: Settings },
+    { name: "Automation", href: "/automation", icon: Terminal },
   ];
-
-  const navigation = allNavigation.filter(n => n.show);
 
   // Skip all layout/redirect logic for login page
   if (pathname === "/login") return <>{children}</>;
@@ -187,10 +179,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 className={cn(
                   "group flex items-center rounded-md px-3 py-2 text-sm font-medium transition-colors",
                   pathname === item.href ? "bg-[#0E7A96]/80 text-white border-l-4 border-[#12A0C3]" : "text-white/70 hover:bg-[#0E7A96]/40 hover:text-white",
-                  item.dept && currentUser?.department !== 'all' && currentUser?.department !== item.dept && "opacity-30 pointer-events-none"
+                  ""
                 )}
               >
-                <item.icon className={cn("mr-3 h-5 w-5 shrink-0", pathname === item.href ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+                {item.icon && <item.icon className={cn("mr-3 h-5 w-5 shrink-0", pathname === item.href ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />}
                 {item.name}
               </Link>
             )

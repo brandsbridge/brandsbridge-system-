@@ -143,16 +143,8 @@ export default function CustomersPage() {
   const db = useFirestore();
   const { user } = useUser();
   const customersQuery = useMemoFirebase(() => {
-    if (!user || !user.profile) return null;
-    const { role, assignedMarket } = user.profile;
-    
-    if (role === 'super_admin') return collection(db, "customers");
-    
-    if (assignedMarket) {
-      return query(collection(db, "customers"), where("markets", "array-contains", assignedMarket));
-    }
-    
-    return null;
+    if (!user) return null;
+    return collection(db, "customers");
   }, [db, user]);
   
   const { data: firestoreCustomers, isLoading: loading } = useCollection(customersQuery);

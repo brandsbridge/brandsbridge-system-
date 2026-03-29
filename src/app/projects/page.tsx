@@ -31,16 +31,8 @@ export default function ProjectsPage() {
   useEffect(() => { setIsMounted(true); }, []);
   
   const tasksCol = useMemoFirebase(() => {
-    if (!user || !user.profile) return null;
-    const { role, assignedMarket } = user.profile;
-
-    if (role === 'super_admin') return collection(db, "tasks");
-
-    if (assignedMarket) {
-      return query(collection(db, "tasks"), where("department", "==", assignedMarket));
-    }
-
-    return null;
+    if (!user) return null;
+    return collection(db, "tasks");
   }, [db, user]);
   const employeesCol = useMemoFirebase(() => user ? collection(db, "employees") : null, [db, user]);
   

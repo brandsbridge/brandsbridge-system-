@@ -38,18 +38,9 @@ export default function PurchasesPage() {
   const db = useFirestore();
   const { user } = useUser();
   
-  // Memoize Firestore Collection
   const purchasesCol = useMemoFirebase(() => {
-    if (!user || !user.profile) return null;
-    const { role, assignedMarket } = user.profile;
-
-    if (role === 'super_admin') return collection(db, "purchase_history");
-
-    if (assignedMarket) {
-      return query(collection(db, "purchase_history"), where("markets", "array-contains", assignedMarket));
-    }
-
-    return null;
+    if (!user) return null;
+    return collection(db, "purchase_history");
   }, [db, user]);
   const { data: fbPurchases, isLoading } = useCollection(purchasesCol);
 

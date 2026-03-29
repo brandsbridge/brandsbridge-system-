@@ -147,16 +147,8 @@ export default function SuppliersPage() {
   const db = useFirestore();
   const { user } = useUser();
   const suppliersQuery = useMemoFirebase(() => {
-    if (!user || !user.profile) return null;
-    const { role, assignedMarket } = user.profile;
-
-    if (role === 'super_admin') return collection(db, "suppliers");
-
-    if (assignedMarket) {
-      return query(collection(db, "suppliers"), where("markets", "array-contains", assignedMarket));
-    }
-
-    return null;
+    if (!user) return null;
+    return collection(db, "suppliers");
   }, [db, user]);
   const { data: suppliers = [], isLoading: loading } = useCollection(suppliersQuery);
 
