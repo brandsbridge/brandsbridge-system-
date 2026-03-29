@@ -58,6 +58,7 @@ import { Badge } from "@/components/ui/badge";
 import { auth } from "@/lib/firebase";
 import { signInAnonymously } from "firebase/auth";
 import { useUser } from "@/firebase";
+import { startTransition } from 'react';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -72,7 +73,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isUserLoading && !user) {
       console.log("No authenticated user found, redirecting to login");
-      router.push("/login");
+      startTransition(() => {
+        router.push("/login");
+      });
     }
   }, [user, isUserLoading, router]);
 
@@ -104,7 +107,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       await signInAnonymously(auth);
       localStorage.setItem("demoUser", JSON.stringify(user));
       setCurrentUser(user);
-      router.push(user.department !== 'all' ? `/department/${user.department}` : "/");
+      startTransition(() => {
+        router.push(user.department !== 'all' ? `/department/${user.department}` : "/");
+      });
     } catch (err) {
       console.error("Switcher auth failed:", err);
     }

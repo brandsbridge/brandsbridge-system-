@@ -1,3 +1,4 @@
+// Ensure no setState is called during render
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
@@ -102,21 +103,21 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
               }
               const profile = docSnap.exists() ? (docSnap.data() as UserProfile) : null;
               const appUser = Object.assign(firebaseUser, { profile });
-              setUserAuthState({ user: appUser, isUserLoading: false, userError: null });
+              setUserAuthState((prevState) => ({ ...prevState, user: appUser, isUserLoading: false, userError: null }));
             });
           } catch (err) {
             console.error("Profile sync error:", err);
             const appUser = Object.assign(firebaseUser, { profile: null });
-            setUserAuthState({ user: appUser, isUserLoading: false, userError: err });
+            setUserAuthState((prevState) => ({ ...prevState, user: appUser, isUserLoading: false, userError: err }));
           }
         } else {
           if (unsubscribeProfile) unsubscribeProfile();
-          setUserAuthState({ user: null, isUserLoading: false, userError: null });
+          setUserAuthState((prevState) => ({ ...prevState, user: null, isUserLoading: false, userError: null }));
         }
       },
       (error) => {
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
-        setUserAuthState({ user: null, isUserLoading: false, userError: error });
+        setUserAuthState((prevState) => ({ ...prevState, user: null, isUserLoading: false, userError: error }));
       }
     );
     
