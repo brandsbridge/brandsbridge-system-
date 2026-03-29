@@ -2,9 +2,9 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, onSnapshot } from 'firebase/firestore';
+import { Firestore, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
-import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 import { Loader2 } from 'lucide-react';
 
 export type UserRole = "super_admin" | "chocolate_manager" | "cosmetics_manager" | "detergents_manager" | "finance_manager";
@@ -85,25 +85,36 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     const unsubscribeAuth = onAuthStateChanged(
       auth,
-      (firebaseUser) => { 
+      async (firebaseUser) => {
         if (firebaseUser) {
           const userDocRef = doc(firestore, "users", firebaseUser.uid);
-          unsubscribeProfile = onSnapshot(userDocRef, (docSnap) => {
-            const profile = docSnap.exists() ? (docSnap.data() as UserProfile) : null;
-            const appUser = Object.assign(firebaseUser, { profile });
-            setUserAuthState({ user: appUser, isUserLoading: false, userError: null });
-          }, (err) => {
+          try {
+            unsubscribeProfile = onSnapshot(userDocRef, async (docSnap) => {
+              if (!docSnap.exists()) {
+                // Create default user profile if it doesn't exist
+                await setDoc(userDocRef, {
+                  uid: firebaseUser.uid,
+                  email: firebaseUser.email,
+                  name: firebaseUser.displayName || "Anonymous",
+                  role: "super_admin",
+                  assignedMarket: null,
+                });
+              }
+              const profile = docSnap.exists() ? (docSnap.data() as UserProfile) : null;
+              const appUser = Object.assign(firebaseUser, { profile });
+              setUserAuthState({ user: appUser, isUserLoading: false, userError: null });
+            });
+          } catch (err) {
             console.error("Profile sync error:", err);
-            // If profile fails, still log them in but without profile (or log them out, depending on security needs)
             const appUser = Object.assign(firebaseUser, { profile: null });
             setUserAuthState({ user: appUser, isUserLoading: false, userError: err });
-          });
+          }
         } else {
           if (unsubscribeProfile) unsubscribeProfile();
           setUserAuthState({ user: null, isUserLoading: false, userError: null });
         }
       },
-      (error) => { 
+      (error) => {
         console.error("FirebaseProvider: onAuthStateChanged error:", error);
         setUserAuthState({ user: null, isUserLoading: false, userError: error });
       }

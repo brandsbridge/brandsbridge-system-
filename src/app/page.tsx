@@ -1,3 +1,4 @@
+// Ensure the component always returns JSX and avoids conditional hooks
 'use client';
 
 export const dynamic = 'force-dynamic';
@@ -39,6 +40,9 @@ export default function DashboardRouter() {
     fetchRole();
   }, [user]);
 
+  const role = userRole;
+  const assignedMarket = user?.profile?.assignedMarket;
+
   if (isUserLoading || roleLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -47,48 +51,30 @@ export default function DashboardRouter() {
     );
   }
 
-  const role = userRole;
-  const assignedMarket = user?.profile?.assignedMarket;
-
-  if (role === 'super_admin') {
-    const SuperAdminDashboardLazy = React.lazy(() => 
-      import("@/components/dashboards/super-admin-dashboard").then(m => ({ default: m.SuperAdminDashboard }))
-    );
-    return (
-      <React.Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
-        <SuperAdminDashboardLazy />
-      </React.Suspense>
-    );
-  }
-
-  if (role === 'finance_manager') {
-    const FinanceDashboardLazy = React.lazy(() => 
-      import("@/components/dashboards/finance-dashboard").then(m => ({ default: m.FinanceDashboard }))
-    );
-    return (
-      <React.Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
-        <FinanceDashboardLazy />
-      </React.Suspense>
-    );
-  }
-
-  if (role === 'chocolate_manager' || role === 'cosmetics_manager' || role === 'detergents_manager') {
-    if (assignedMarket) {
-      const MarketDashboardLazy = React.lazy(() => 
-        import("@/components/dashboards/market-dashboard").then(m => ({ default: m.MarketDashboard }))
-      );
-      return (
-        <React.Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
-          <MarketDashboardLazy assignedMarket={assignedMarket} />
-        </React.Suspense>
-      );
-    }
-  }
-
-  return (
+  let DashboardComponent = () => (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
       <h2 className="text-2xl font-bold text-muted-foreground">Dashboard Access Restricted</h2>
       <p className="text-sm text-muted-foreground">Please configure your role or market assignment to view operational data.</p>
     </div>
+  );
+
+  if (role === 'super_admin') {
+    DashboardComponent = React.lazy(() => 
+      import("@/components/dashboards/super-admin-dashboard").then(m => ({ default: m.SuperAdminDashboard }))
+    );
+  } else if (role === 'finance_manager') {
+    DashboardComponent = React.lazy(() => 
+      import("@/components/dashboards/finance-dashboard").then(m => ({ default: m.FinanceDashboard }))
+    );
+  } else if ((role === 'chocolate_manager' || role === 'cosmetics_manager' || role === 'detergents_manager') && assignedMarket) {
+    DashboardComponent = React.lazy(() => 
+      import("@/components/dashboards/market-dashboard").then(m => ({ default: m.MarketDashboard }))
+    );
+  }
+
+  return (
+    <React.Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+      <DashboardComponent assignedMarket={assignedMarket} />
+    </React.Suspense>
   );
 }
