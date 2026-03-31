@@ -2,24 +2,27 @@
 
 export const dynamic = 'force-dynamic';
 
-import React, { useState, useEffect } from "react";
-import { 
-  Plus, 
-  Search, 
-  Download, 
-  MoreVertical, 
-  Loader2, 
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import {
+  Plus,
+  Search,
+  Download,
+  MoreVertical,
+  Loader2,
   Paperclip,
   Repeat,
-  Receipt
+  Receipt,
+  Upload,
+  X,
+  FileText as FileIcon
 } from "lucide-react";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -34,48 +37,96 @@ import {
   DialogFooter,
   DialogDescription
 } from "@/components/ui/dialog";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where } from "firebase/firestore";
+import { collection, query, where, doc, setDoc, getDocs, orderBy, Timestamp } from "firebase/firestore";
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { expenseService } from "@/services/expense-service";
 import { accountingService } from "@/services/accounting-service";
 import { CHART_OF_ACCOUNTS } from "@/lib/mock-data";
 import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { toast } from "@/hooks/use-toast";
+import { app, storage } from "@/lib/firebase";
+
+// Built-in expense accounts
+const BUILTIN_EXPENSE_ACCOUNTS = [
+  ...CHART_OF_ACCOUNTS.filter(a => a.group === 'Expenses'),
+  { code: '6200', name: 'Software & Subscriptions', group: 'Expenses' },
+  { code: '6300', name: 'Marketing & Advertising', group: 'Expenses' },
+  { code: '6400', name: 'Transportation & Logistics', group: 'Expenses' },
+  { code: '6500', name: 'Office Supplies', group: 'Expenses' },
+  { code: '6600', name: 'Travel & Accommodation', group: 'Expenses' },
+  { code: '6700', name: 'Communication & Internet', group: 'Expenses' },
+  { code: '6800', name: 'Professional Services', group: 'Expenses' },
+];
 
 export default function ExpensesPage() {
   const db = useFirestore();
   const { user } = useUser();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
 
+  // Date field state
+  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  // Vendor autocomplete state
+  const [vendorInput, setVendorInput] = useState('');
+  const [vendorSuggestions, setVendorSuggestions] = useState<any[]>([]);
+  const [showVendorSuggestions, setShowVendorSuggestions] = useState(false);
+  const vendorRef = useRef<HTMLDivElement>(null);
+
+  // Custom expense accounts state
+  const [customAccounts, setCustomAccounts] = useState<{ code: string; name: string }[]>([]);
+  const [isAddingAccount, setIsAddingAccount] = useState(false);
+  const [newAccountName, setNewAccountName] = useState('');
+  const [selectedAccountCode, setSelectedAccountCode] = useState('');
+
+  // Invoice attachment state
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
+  const [invoicePreview, setInvoicePreview] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null);
+  const [invoiceFileName, setInvoiceFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // All accounts = built-in + custom
+  const allExpenseAccounts = useMemo(() => {
+    return [...BUILTIN_EXPENSE_ACCOUNTS, ...customAccounts.map(c => ({ ...c, group: 'Expenses' }))];
+  }, [customAccounts]);
+
+  // Load custom accounts from Firestore
   useEffect(() => {
-    const saved = localStorage.getItem("demoUser");
-    if (saved) setCurrentUser(JSON.parse(saved));
-  }, []);
+    if (!db) return;
+    const loadCustomAccounts = async () => {
+      try {
+        const snap = await getDocs(collection(db, "expenseAccounts"));
+        const accs = snap.docs.map(d => ({ code: d.data().code, name: d.data().name }));
+        setCustomAccounts(accs);
+      } catch (err) {
+        console.error("Failed to load custom accounts:", err);
+      }
+    };
+    loadCustomAccounts();
+  }, [db]);
 
   // Fetch Suppliers and Customers for dropdowns
   const suppliersQuery = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
   const customersQuery = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
-  
+
   const expensesQuery = useMemoFirebase(() => {
-    if (!user || !currentUser) return null;
-    const colRef = collection(db, "expenses");
-    return currentUser.department === 'all' 
-      ? colRef 
-      : query(colRef, where("department", "==", currentUser.department));
-  }, [db, user, currentUser]);
+    if (!user) return null;
+    return collection(db, "expenses");
+  }, [db, user]);
 
   const recurringQuery = useMemoFirebase(() => {
     if (!user) return null;
@@ -92,31 +143,173 @@ export default function ExpensesPage() {
   const expenses = expensesData || [];
   const templates = templatesData || [];
 
-  const expenseAccounts = CHART_OF_ACCOUNTS.filter(a => a.group === 'Expenses');
+  // Vendor autocomplete: filter suppliers client-side
+  useEffect(() => {
+    if (!vendorInput.trim()) {
+      setVendorSuggestions([]);
+      return;
+    }
+    const lower = vendorInput.toLowerCase();
+    const matches = suppliers.filter((s: any) =>
+      s.name?.toLowerCase().includes(lower)
+    ).slice(0, 8);
+    setVendorSuggestions(matches);
+  }, [vendorInput, suppliers]);
 
-  const handleRecordExpense = (e: React.FormEvent) => {
+  // Close vendor suggestions on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (vendorRef.current && !vendorRef.current.contains(e.target as Node)) {
+        setShowVendorSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // Handle invoice file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+      toast({ variant: "destructive", title: "Invalid file type", description: "Only JPG, PNG, and PDF files are accepted." });
+      return;
+    }
+
+    setInvoiceFile(file);
+    setInvoiceFileName(file.name);
+
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setInvoicePreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setInvoicePreview(null);
+    }
+  };
+
+  const removeInvoice = () => {
+    setInvoiceFile(null);
+    setInvoicePreview(null);
+    setInvoiceUrl(null);
+    setInvoiceFileName(null);
+    setUploadProgress(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Upload invoice to Firebase Storage and return download URL
+  const uploadInvoice = async (expenseId: string): Promise<{ url: string; fileName: string } | null> => {
+    if (!invoiceFile) return null;
+
+    return new Promise((resolve, reject) => {
+      const storageRef = ref(storage, `expenses/${expenseId}/invoice`);
+      const uploadTask = uploadBytesResumable(storageRef, invoiceFile);
+
+      uploadTask.on('state_changed',
+        (snapshot) => {
+          const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          setUploadProgress(progress);
+        },
+        (error) => {
+          console.error("Upload failed:", error);
+          toast({ variant: "destructive", title: "Upload failed", description: error.message });
+          reject(error);
+        },
+        async () => {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve({ url, fileName: invoiceFile.name });
+        }
+      );
+    });
+  };
+
+  // Handle adding a new custom expense account
+  const handleAddCustomAccount = async () => {
+    if (!newAccountName.trim()) return;
+
+    // Generate a code: find max custom code and increment
+    const existingCodes = allExpenseAccounts.map(a => parseInt(a.code)).filter(n => !isNaN(n));
+    const nextCode = String(Math.max(...existingCodes, 6800) + 100);
+
+    const newAccount = {
+      code: nextCode,
+      name: newAccountName.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    try {
+      const docRef = doc(collection(db, "expenseAccounts"));
+      await setDoc(docRef, newAccount);
+      setCustomAccounts(prev => [...prev, { code: nextCode, name: newAccountName.trim() }]);
+      setSelectedAccountCode(nextCode);
+      setNewAccountName('');
+      setIsAddingAccount(false);
+      toast({ title: "Account Added", description: `${newAccountName.trim()} has been added.` });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    }
+  };
+
+  // Reset form state when modal opens/closes
+  useEffect(() => {
+    if (isAddModalOpen) {
+      setExpenseDate(new Date().toISOString().split('T')[0]);
+      setVendorInput('');
+      setSelectedAccountCode('');
+      setInvoiceFile(null);
+      setInvoicePreview(null);
+      setInvoiceUrl(null);
+      setInvoiceFileName(null);
+      setUploadProgress(null);
+      setIsAddingAccount(false);
+      setNewAccountName('');
+    }
+  }, [isAddModalOpen]);
+
+  const handleRecordExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
-    
-    const data = {
-      accountCode: formData.get('accountCode'),
-      accountName: expenseAccounts.find(a => a.code === formData.get('accountCode'))?.name,
+
+    const accountCode = selectedAccountCode;
+    const matchedAccount = allExpenseAccounts.find(a => a.code === accountCode);
+
+    const expenseId = doc(collection(db, "expenses")).id;
+
+    // Upload invoice if present
+    let invoiceData: { url: string; fileName: string } | null = null;
+    if (invoiceFile) {
+      try {
+        invoiceData = await uploadInvoice(expenseId);
+      } catch {
+        return; // upload failed, toast already shown
+      }
+    }
+
+    const data: any = {
+      accountCode,
+      accountName: matchedAccount?.name || accountCode,
       paidThrough: formData.get('paidThrough'),
       amount: parseFloat(formData.get('amount') as string),
       currency: formData.get('currency') || 'USD',
-      vendorId: formData.get('vendorId'),
-      vendorName: suppliers?.find(s => s.id === formData.get('vendorId'))?.name,
+      vendorName: vendorInput.trim() || null,
       reference: formData.get('reference'),
       notes: formData.get('notes'),
       customerId: formData.get('customerId'),
       customerName: customers?.find(c => c.id === formData.get('customerId'))?.name,
       isBillable: formData.get('isBillable') === 'on',
-      date: new Date().toISOString(),
-      department: currentUser?.department || 'all',
-      createdBy: currentUser?.name || 'System'
+      date: Timestamp.fromDate(new Date(expenseDate)),
+      department: 'all',
+      createdBy: user?.profile?.name || 'System',
     };
 
-    expenseService.createExpense(db, data);
+    if (invoiceData) {
+      data.invoiceUrl = invoiceData.url;
+      data.invoiceFileName = invoiceData.fileName;
+    }
+
+    await setDoc(doc(db, "expenses", expenseId), data);
     setIsAddModalOpen(false);
     toast({ title: "Expense Recorded", description: "The transaction has been logged." });
   };
@@ -166,25 +359,61 @@ export default function ExpensesPage() {
                 <DialogTrigger asChild>
                   <Button size="sm" className="bg-primary"><Plus className="mr-2 h-4 w-4" /> Record New Expense</Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl">
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <form onSubmit={handleRecordExpense}>
                     <DialogHeader>
                       <DialogTitle>Expense Entry</DialogTitle>
                       <DialogDescription>Record outgoing business costs and map them to the correct ledger account.</DialogDescription>
                     </DialogHeader>
-                    
+
                     <div className="grid grid-cols-2 gap-6 py-6">
                       <div className="space-y-4">
+                        {/* DATE FIELD */}
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest">Date</Label>
+                          <Input
+                            type="date"
+                            value={expenseDate}
+                            onChange={(e) => setExpenseDate(e.target.value)}
+                            required
+                          />
+                        </div>
+
+                        {/* EXPENSE ACCOUNT DROPDOWN */}
                         <div className="space-y-2">
                           <Label className="text-[10px] font-bold uppercase tracking-widest">Expense Account</Label>
-                          <Select name="accountCode" required>
-                            <SelectTrigger><SelectValue placeholder="Choose account..." /></SelectTrigger>
-                            <SelectContent>
-                              {expenseAccounts.map(acc => (
-                                <SelectItem key={acc.code} value={acc.code}>{acc.code} - {acc.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {!isAddingAccount ? (
+                            <Select value={selectedAccountCode} onValueChange={(val) => {
+                              if (val === '__add_new__') {
+                                setIsAddingAccount(true);
+                              } else {
+                                setSelectedAccountCode(val);
+                              }
+                            }}>
+                              <SelectTrigger><SelectValue placeholder="Choose account..." /></SelectTrigger>
+                              <SelectContent>
+                                {allExpenseAccounts.map(acc => (
+                                  <SelectItem key={acc.code} value={acc.code}>{acc.code} - {acc.name}</SelectItem>
+                                ))}
+                                <SelectItem value="__add_new__" className="text-primary font-semibold border-t mt-1 pt-2">
+                                  + Add New Account
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="flex gap-2">
+                              <Input
+                                value={newAccountName}
+                                onChange={(e) => setNewAccountName(e.target.value)}
+                                placeholder="New account name..."
+                                autoFocus
+                              />
+                              <Button type="button" size="sm" onClick={handleAddCustomAccount}>Save</Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => { setIsAddingAccount(false); setNewAccountName(''); }}>
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
 
                         <div className="space-y-2">
@@ -199,16 +428,37 @@ export default function ExpensesPage() {
                           </Select>
                         </div>
 
-                        <div className="space-y-2">
+                        {/* VENDOR / SUPPLIER AUTOCOMPLETE */}
+                        <div className="space-y-2" ref={vendorRef}>
                           <Label className="text-[10px] font-bold uppercase tracking-widest">Vendor / Supplier</Label>
-                          <Select name="vendorId">
-                            <SelectTrigger><SelectValue placeholder="Select supplier..." /></SelectTrigger>
-                            <SelectContent>
-                              {suppliers?.map(s => (
-                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          <div className="relative">
+                            <Input
+                              value={vendorInput}
+                              onChange={(e) => {
+                                setVendorInput(e.target.value);
+                                setShowVendorSuggestions(true);
+                              }}
+                              onFocus={() => vendorInput.trim() && setShowVendorSuggestions(true)}
+                              placeholder="Type vendor name..."
+                            />
+                            {showVendorSuggestions && vendorSuggestions.length > 0 && (
+                              <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                                {vendorSuggestions.map((s: any) => (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                                    onClick={() => {
+                                      setVendorInput(s.name);
+                                      setShowVendorSuggestions(false);
+                                    }}
+                                  >
+                                    {s.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
@@ -241,6 +491,51 @@ export default function ExpensesPage() {
                           <Textarea name="notes" className="h-20" placeholder="Purpose of this expense..." />
                         </div>
 
+                        {/* INVOICE ATTACHMENT */}
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest">Invoice / Receipt Attachment</Label>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept=".jpg,.jpeg,.png,.pdf"
+                            className="hidden"
+                            onChange={handleFileSelect}
+                          />
+                          {!invoiceFile ? (
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              className="w-full border-2 border-dashed rounded-lg p-4 text-center hover:border-primary/50 hover:bg-accent/50 transition-colors cursor-pointer"
+                            >
+                              <Upload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
+                              <p className="text-xs text-muted-foreground">Click to upload JPG, PNG, or PDF</p>
+                            </button>
+                          ) : (
+                            <div className="border rounded-lg p-3 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  {invoicePreview ? (
+                                    <img src={invoicePreview} alt="Invoice" className="h-10 w-10 object-cover rounded" />
+                                  ) : (
+                                    <div className="h-10 w-10 bg-red-500/10 rounded flex items-center justify-center">
+                                      <FileIcon className="h-5 w-5 text-red-500" />
+                                    </div>
+                                  )}
+                                  <span className="text-xs truncate">{invoiceFileName}</span>
+                                </div>
+                                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={removeInvoice}>
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              {uploadProgress !== null && uploadProgress < 100 && (
+                                <div className="w-full bg-secondary rounded-full h-1.5">
+                                  <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
                         <div className="p-4 bg-secondary/30 rounded-lg border space-y-4">
                           <div className="flex items-center justify-between">
                             <Label className="text-[10px] font-bold uppercase">Bill to Customer</Label>
@@ -262,7 +557,13 @@ export default function ExpensesPage() {
 
                     <DialogFooter>
                       <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
-                      <Button type="submit">Finalize Record</Button>
+                      <Button type="submit" disabled={uploadProgress !== null && uploadProgress < 100}>
+                        {uploadProgress !== null && uploadProgress < 100 ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...</>
+                        ) : (
+                          'Finalize Record'
+                        )}
+                      </Button>
                     </DialogFooter>
                   </form>
                 </DialogContent>
@@ -293,7 +594,16 @@ export default function ExpensesPage() {
                         <div className="font-bold text-sm">{e.vendorName || 'General Expense'}</div>
                         <div className="text-[10px] text-muted-foreground uppercase">{e.accountName}</div>
                       </TableCell>
-                      <TableCell className="font-mono text-xs">{e.reference || '-'}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        <div className="flex items-center gap-1">
+                          {e.reference || '-'}
+                          {e.invoiceUrl && (
+                            <a href={e.invoiceUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
+                              <Paperclip className="h-3 w-3" />
+                            </a>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         {e.isBillable ? (
                           <Badge variant="secondary" className="bg-blue-500/10 text-blue-500 text-[10px]">Billable</Badge>
