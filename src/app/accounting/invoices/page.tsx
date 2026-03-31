@@ -210,14 +210,20 @@ export default function InvoicesPage() {
     toast({ title: "Invoice Generated", description: `Record ${data.number} created in ${currency}.` });
   };
 
+  const generateInvoiceNumber = () => {
+    const digits = Math.floor(100000 + Math.random() * 900000);
+    return `INV-${digits}`;
+  };
+
   const handleManualSave = (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const grandTotal = manualSubtotal;
     const rate = exchangeRates?.rates[selectedCurrency] || 1;
-    
+    const rawNumber = (formData.get('number') as string)?.trim();
+
     const data = {
-      number: formData.get('number') || generatedNumber,
+      number: rawNumber || generatedNumber || generateInvoiceNumber(),
       type: invoiceType,
       status: 'draft',
       currency: selectedCurrency,
