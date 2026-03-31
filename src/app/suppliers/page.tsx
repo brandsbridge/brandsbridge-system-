@@ -271,14 +271,19 @@ export default function SuppliersPage() {
         const existingByName = name ? suppliers?.find(s => (s.name || "").toLowerCase().trim() === name.toLowerCase().trim()) : null;
         const existing = existingByEmail || existingByName;
         
+        const products = (row["Specialized Products"] || row["products"] || "").toString().split(",").map((s: string) => s.trim()).filter(Boolean);
+
         const supplierData = {
           name,
+          companyName: name,
           email: email || null,
           country: row["Country"] || row["country"] || null,
           natureOfBusiness: row["Nature of Business"] || row["natureOfBusiness"] || "Manufacturing",
           website: row["Website"] || row["website"] || null,
+          products,
+          markets: [] as string[],
           departments: [row["Department"] || currentDept],
-          specializedProducts: (row["Specialized Products"] || "").split(",").map((s: string) => s.trim()).filter(Boolean),
+          specializedProducts: products,
           pricing: {
             tier: row["Price Tier"] || "Mid-Range",
             paymentTerms: (row["Payment Terms"] || "").split(",").map((s: string) => s.trim()).filter(Boolean),
@@ -288,11 +293,11 @@ export default function SuppliersPage() {
             mov: parseFloat(row["MOV"]) || 1000
           },
           contacts: {
-            sales: { 
-              name: row["Owner"] || "Main Contact", 
-              email: email || null, 
-              phone: row["Phone"] || null, 
-              whatsapp: row["WhatsApp"] || null 
+            sales: {
+              name: row["Owner"] || "Main Contact",
+              email: email || null,
+              phone: row["Phone"] || null,
+              whatsapp: row["WhatsApp"] || null
             },
             export: { name: null, email: null, phone: null, whatsapp: null },
             support: { phone: null, email: null, hours: "9-5", language: "English" }
@@ -391,12 +396,12 @@ export default function SuppliersPage() {
                 <Upload className="mr-2 h-4 w-4" /> Import Suppliers
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-5xl">
+            <DialogContent className="w-[90vw] max-w-[90vw]">
               <DialogHeader>
                 <DialogTitle>Bulk Supplier Import</DialogTitle>
                 <DialogDescription>Synchronize your database with external spreadsheets.</DialogDescription>
               </DialogHeader>
-              
+
               {importStep === "upload" && (
                 <div className="space-y-6">
                   <div className="bg-secondary/20 p-6 rounded-xl border border-dashed border-primary/30 space-y-4">
@@ -415,7 +420,7 @@ export default function SuppliersPage() {
                     </div>
                   </div>
 
-                  <div 
+                  <div
                     className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-16 text-center hover:border-primary/50 transition-colors cursor-pointer bg-secondary/5"
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -428,34 +433,36 @@ export default function SuppliersPage() {
 
               {importStep === "preview" && (
                 <div className="space-y-6">
-                  <div className="max-h-[400px] overflow-auto border rounded-lg">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
+                  <div className="max-h-[400px] overflow-x-auto overflow-y-auto border rounded-lg">
+                    <table className="w-full text-sm" style={{ minWidth: 'max-content' }}>
+                      <thead className="sticky top-0 bg-background border-b z-10">
+                        <tr>
                           {previewData.length > 0 && Object.keys(previewData[0] || {}).map(k => (
-                            <TableHead key={k} className="text-[10px] uppercase whitespace-nowrap">{k}</TableHead>
+                            <th key={k} className="text-[10px] uppercase whitespace-nowrap font-semibold text-muted-foreground px-4 py-3 text-left">{k}</th>
                           ))}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
+                        </tr>
+                      </thead>
+                      <tbody>
                         {previewData.map((row, i) => (
-                          <TableRow key={i}>
+                          <tr key={i} className="border-b hover:bg-muted/50">
                             {Object.values(row).map((val: any, j) => (
-                              <TableCell key={j} className="text-[11px] truncate max-w-[150px]">{String(val)}</TableCell>
+                              <td key={j} className="text-[11px] whitespace-nowrap px-4 py-2.5 max-w-[200px] truncate">{String(val)}</td>
                             ))}
-                          </TableRow>
+                          </tr>
                         ))}
-                      </TableBody>
-                    </Table>
+                      </tbody>
+                    </table>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center pt-2 border-t">
                     <div className="space-y-1">
                       <p className="text-sm font-bold text-primary">{fullValidData.length} Valid Records Ready</p>
                       {validationErrors.length > 0 && <p className="text-xs text-destructive">{validationErrors.length} invalid rows will be skipped.</p>}
                     </div>
                     <div className="flex gap-3">
-                      <Button variant="ghost" onClick={resetImport}>Back</Button>
-                      <Button onClick={executeImport}>Begin Firestore Sync</Button>
+                      <Button variant="outline" onClick={() => { resetImport(); }}>Cancel</Button>
+                      <Button className="bg-[#0E7A96] hover:bg-[#0B5E75]" onClick={executeImport}>
+                        Import {fullValidData.length} Suppliers
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -465,16 +472,20 @@ export default function SuppliersPage() {
                 <div className="py-20 flex flex-col items-center gap-4">
                   <Loader2 className="h-12 w-12 text-primary animate-spin" />
                   <Progress value={importProgress} className="w-full max-w-xs h-2" />
-                  <p className="text-sm">Synchronizing data to cloud...</p>
+                  <p className="text-sm">Importing {Math.max(1, Math.round((importProgress / 100) * fullValidData.length))} of {fullValidData.length}...</p>
                 </div>
               )}
 
               {importStep === "success" && (
                 <div className="py-12 text-center space-y-4">
                   <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
-                  <h3 className="text-xl font-bold">Cloud Sync Complete</h3>
-                  <p className="text-sm text-muted-foreground">Database updated successfully with imported records.</p>
-                  <Button onClick={() => setIsImportModalOpen(false)}>Return to Hub</Button>
+                  <h3 className="text-xl font-bold">Import Complete</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Successfully imported {importResults.success} of {importResults.success + importResults.failed} suppliers.
+                    {importResults.updated > 0 && ` ${importResults.updated} existing records updated.`}
+                    {importResults.failed > 0 && ` ${importResults.failed} failed.`}
+                  </p>
+                  <Button onClick={() => { setIsImportModalOpen(false); resetImport(); }}>Return to Hub</Button>
                 </div>
               )}
             </DialogContent>
