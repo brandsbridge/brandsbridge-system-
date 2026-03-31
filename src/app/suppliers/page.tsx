@@ -48,7 +48,7 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, doc, writeBatch, setDoc, updateDoc, query, where } from "firebase/firestore";
+import { collection, doc, writeBatch, setDoc, updateDoc, query, where, orderBy } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { supplierService } from "@/services/supplier-service";
@@ -148,20 +148,26 @@ export default function SuppliersPage() {
   const { user } = useUser();
   const suppliersQuery = useMemoFirebase(() => {
     if (!user) return null;
-    return collection(db, "suppliers");
+    return query(collection(db, "suppliers"), orderBy("createdAt", "desc"));
   }, [db, user]);
   const { data: suppliers = [], isLoading: loading } = useCollection(suppliersQuery);
 
   const filteredSuppliers = useMemo(() => {
     if (!suppliers) return [];
-    return suppliers.filter(s => {
-      const matchesSearch = (s.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const filtered = suppliers.filter(s => {
+      const matchesSearch = (s.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (s.contacts?.sales?.name || "").toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCountry = countryFilter === "all" || s.country === countryFilter;
       const matchesTier = tierFilter === "all" || s.pricing?.tier === tierFilter;
       const matchesStatus = statusFilter === "all" || s.recordStatus === statusFilter;
       const matchesNature = natureFilter === "all" || s.natureOfBusiness === natureFilter;
       return matchesSearch && matchesCountry && matchesTier && matchesStatus && matchesNature;
+    });
+    // Maintain createdAt desc order; push docs missing createdAt to the bottom
+    return filtered.sort((a, b) => {
+      const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bDate - aDate;
     });
   }, [suppliers, searchTerm, countryFilter, tierFilter, statusFilter, natureFilter]);
 
