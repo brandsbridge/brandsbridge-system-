@@ -188,13 +188,22 @@ export default function SuppliersPage() {
     setImportFile(file);
     const reader = new FileReader();
     if (file.name.endsWith('.csv')) {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          validateAndPreview(results.data);
-        }
-      });
+      // Read file text first to detect delimiter
+      const textReader = new FileReader();
+      textReader.onload = (ev) => {
+        const text = ev.target?.result as string;
+        const firstLine = text.split('\n')[0] || '';
+        const delimiter = firstLine.includes(';') ? ';' : ',';
+        Papa.parse(file, {
+          header: true,
+          delimiter,
+          skipEmptyLines: true,
+          complete: (results) => {
+            validateAndPreview(results.data);
+          }
+        });
+      };
+      textReader.readAsText(file);
     } else if (file.name.endsWith('.json')) {
       reader.onload = (e) => {
         try {
@@ -264,14 +273,15 @@ export default function SuppliersPage() {
       const chunk = fullValidData.slice(i, i + BATCH_SIZE);
 
       for (const row of chunk) {
-        const email = (row["Email"] || row["email"] || "").toString().toLowerCase().trim();
         const name = row["Company Name"] || row["name"] || row["title"];
-        
+        const email = (row["Email"] || row["email"] || row["Support - Customer Service Email"] || "").toString().toLowerCase().trim();
+
         const existingByEmail = email ? suppliers?.find(s => (s.email || "").toLowerCase().trim() === email) : null;
         const existingByName = name ? suppliers?.find(s => (s.name || "").toLowerCase().trim() === name.toLowerCase().trim()) : null;
         const existing = existingByEmail || existingByName;
-        
-        const products = (row["Specialized Products"] || row["products"] || "").toString().split(",").map((s: string) => s.trim()).filter(Boolean);
+
+        const specializedProducts = (row["Specialized Products"] || row["products"] || "").toString().split(",").map((s: string) => s.trim()).filter(Boolean);
+        const topProducts = (row["Top 5 Best-Selling Products"] || "").toString().split(",").map((s: string) => s.trim()).filter(Boolean);
 
         const supplierData = {
           name,
@@ -280,13 +290,20 @@ export default function SuppliersPage() {
           country: row["Country"] || row["country"] || null,
           natureOfBusiness: row["Nature of Business"] || row["natureOfBusiness"] || "Manufacturing",
           website: row["Website"] || row["website"] || null,
-          products,
+          specializedProducts,
+          topProducts,
+          products: specializedProducts,
           markets: [] as string[],
           departments: [row["Department"] || currentDept],
-          specializedProducts: products,
+          socialFacebook: row["Social Media - Facebook"] || null,
+          socialInstagram: row["Social Media - Instagram"] || null,
+          socialLinkedin: row["Social Media - Linkedin"] || null,
+          overview: row["Company Overview"] || null,
+          certifications: row["Organic / Halal Certifications"] || null,
+          strategicNotes: row["Strategic Notes (GCC/KSA)"] || null,
           pricing: {
             tier: row["Price Tier"] || "Mid-Range",
-            paymentTerms: (row["Payment Terms"] || "").split(",").map((s: string) => s.trim()).filter(Boolean),
+            paymentTerms: (row["Payment Terms"] || "").toString().split(",").map((s: string) => s.trim()).filter(Boolean),
             leadTime: parseInt(row["Lead Time"]) || 7,
             currency: "USD",
             moq: row["MOQ"] || "100 units",
@@ -294,13 +311,21 @@ export default function SuppliersPage() {
           },
           contacts: {
             sales: {
-              name: row["Owner"] || "Main Contact",
+              name: row["Sales Manager"] || row["Owner"] || "Main Contact",
               email: email || null,
               phone: row["Phone"] || null,
               whatsapp: row["WhatsApp"] || null
             },
-            export: { name: null, email: null, phone: null, whatsapp: null },
-            support: { phone: null, email: null, hours: "9-5", language: "English" }
+            export: {
+              name: row["Export Manager"] || null,
+              email: null, phone: null, whatsapp: null
+            },
+            support: {
+              phone: row["Support - Customer Service Number"] || null,
+              email: row["Support - Customer Service Email"] || null,
+              hours: "9-5",
+              language: "English"
+            }
           },
           recordStatus: row["Record Status"] || "Active - Verified",
           priorityLevel: "Medium",
