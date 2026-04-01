@@ -29,9 +29,9 @@ import { MOCK_SUPPLIERS, MOCK_CUSTOMERS } from "@/lib/mock-data";
 
 export default function SharedClientsAdminPage() {
   const sharedSuppliers = useMemo(() => MOCK_SUPPLIERS.filter(s => s.departments.length > 1), []);
-  const sharedBuyers = useMemo(() => MOCK_CUSTOMERS.filter(c => c.departments.length > 1), []);
+  const sharedCustomers = useMemo(() => MOCK_CUSTOMERS.filter(c => c.departments.length > 1), []);
 
-  const totalShared = sharedSuppliers.length + sharedBuyers.length;
+  const totalShared = sharedSuppliers.length + sharedCustomers.length;
 
   return (
     <div className="space-y-8">
@@ -72,11 +72,11 @@ export default function SharedClientsAdminPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Shared Buyers</CardTitle>
+            <CardTitle className="text-sm font-medium">Shared Customers</CardTitle>
             <TrendingUp className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{sharedBuyers.length}</div>
+            <div className="text-2xl font-bold">{sharedCustomers.length}</div>
             <p className="text-[10px] text-muted-foreground mt-1">Multi-market accounts</p>
           </CardContent>
         </Card>
@@ -118,14 +118,14 @@ export default function SharedClientsAdminPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {[...sharedSuppliers, ...sharedBuyers].map((entity: any) => (
+              {[...sharedSuppliers, ...sharedCustomers].map((entity: any) => (
                 <TableRow key={entity.id}>
                   <TableCell>
                     <div className="font-medium">{entity.name}</div>
                     <div className="text-[10px] text-muted-foreground">{entity.email}</div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="text-[10px] uppercase">{entity.departments.includes('chocolate') && entity.productsOffered ? 'Supplier' : 'Buyer'}</Badge>
+                    <Badge variant="secondary" className="text-[10px] uppercase">{entity.departments.includes('chocolate') && entity.productsOffered ? 'Supplier' : 'Customer'}</Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">

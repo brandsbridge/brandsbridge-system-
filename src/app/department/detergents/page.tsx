@@ -5,18 +5,21 @@ export const dynamic = 'force-dynamic';
 
 import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { 
-  Mail, 
-  TrendingUp, 
-  ImageIcon, 
-  Plus, 
+import {
+  Mail,
+  TrendingUp,
+  ImageIcon,
+  Plus,
   Upload,
   Share2,
   ExternalLink,
   Loader2,
   FileText,
   Download,
-  Trash2
+  Trash2,
+  HeartPulse,
+  Star,
+  MoreVertical
 } from "lucide-react";
 import { 
   Table, 
@@ -64,6 +67,10 @@ import { customerService } from "@/services/customer-service";
 import { toast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
 
+const StarRating = ({ rating }: { rating: number }) => (
+  <div className="flex gap-0.5">{[1,2,3,4,5].map(i => <Star key={i} className={cn("h-3 w-3", i <= rating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30")} />)}</div>
+);
+
 export default function DetergentsDepartmentPage() {
   const departmentId = "detergents";
   const name = "Detergents Market";
@@ -76,18 +83,18 @@ export default function DetergentsDepartmentPage() {
   const db = useFirestore();
 
   // Firestore Queries for this specific market
-  const suppliersQuery = useMemoFirebase(() => query(collection(db, "suppliers"), where("departments", "array-contains", departmentId)), [db, departmentId]);
-  const customersQuery = useMemoFirebase(() => query(collection(db, "customers"), where("departments", "array-contains", departmentId)), [db, departmentId]);
+  const suppliersQuery = useMemoFirebase(() => query(collection(db, "suppliers"), where("markets", "array-contains", departmentId)), [db, departmentId]);
+  const customersQuery = useMemoFirebase(() => query(collection(db, "customers"), where("markets", "array-contains", departmentId)), [db, departmentId]);
   const productsQuery = useMemoFirebase(() => query(collection(db, "products"), where("department", "==", departmentId)), [db, departmentId]);
   const stocksQuery = useMemoFirebase(() => query(collection(db, "stocks"), where("department", "==", departmentId)), [db, departmentId]);
 
   const { data: suppliersData, isLoading: loadingSuppliers } = useCollection(suppliersQuery);
-  const { data: buyersData, isLoading: loadingBuyers } = useCollection(customersQuery);
+  const { data: customersData, isLoading: loadingCustomers } = useCollection(customersQuery);
   const { data: productsData } = useCollection(productsQuery);
   const { data: stocksData } = useCollection(stocksQuery);
 
   const suppliers = suppliersData || [];
-  const buyers = buyersData || [];
+  const customers = customersData || [];
   const products = productsData || [];
   const stocks = stocksData || [];
 
@@ -207,13 +214,13 @@ export default function DetergentsDepartmentPage() {
   const stats = useMemo(() => {
     return {
       suppliersCount: suppliers.length,
-      sharedSuppliers: suppliers.filter(s => s.departments && s.departments.length > 1).length,
-      buyersCount: buyers.length,
-      sharedBuyers: buyers.filter(b => b.departments && b.departments.length > 1).length,
+      sharedSuppliers: suppliers.filter(s => s.markets && s.markets.length > 1).length,
+      customersCount: customers.length,
+      sharedCustomers: customers.filter(b => b.markets && b.markets.length > 1).length,
       bestDeals: priceIntellData.filter(d => d.bestPrice > 0).length,
       totalPipeline: priceIntellData.reduce((acc, p) => acc + (p.sellingPrice * p.quantity), 0)
     };
-  }, [suppliers, buyers, priceIntellData]);
+  }, [suppliers, customers, priceIntellData]);
 
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -325,11 +332,11 @@ export default function DetergentsDepartmentPage() {
         </Card>
         <Card>
           <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Active Buyers</CardTitle>
-            <Badge variant="outline" className="text-[8px]">{stats.sharedBuyers} Shared</Badge>
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Active Customers</CardTitle>
+            <Badge variant="outline" className="text-[8px]">{stats.sharedCustomers} Shared</Badge>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{loadingBuyers ? "..." : stats.buyersCount}</div>
+            <div className="text-2xl font-bold">{loadingCustomers ? "..." : stats.customersCount}</div>
           </CardContent>
         </Card>
         <Card>
@@ -346,7 +353,7 @@ export default function DetergentsDepartmentPage() {
             <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Shared Clients</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{stats.sharedSuppliers + stats.sharedBuyers}</div>
+            <div className="text-2xl font-bold">{stats.sharedSuppliers + stats.sharedCustomers}</div>
             <p className="text-[10px] text-muted-foreground mt-1">Cross-department</p>
           </CardContent>
         </Card>
@@ -364,7 +371,7 @@ export default function DetergentsDepartmentPage() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 lg:w-[450px]">
           <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
-          <TabsTrigger value="buyers">Buyers</TabsTrigger>
+          <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="catalog">Catalog</TabsTrigger>
         </TabsList>
 
@@ -373,98 +380,166 @@ export default function DetergentsDepartmentPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Lead Time</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[250px]">Company Name</TableHead>
+                  <TableHead>Nature</TableHead>
+                  <TableHead>Markets</TableHead>
+                  <TableHead>Products</TableHead>
+                  <TableHead>Price Tier</TableHead>
+                  <TableHead>Record Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loadingSuppliers ? (
-                  <TableRow><TableCell colSpan={4} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
                 ) : suppliers.map(s => (
-                  <TableRow key={s.id}>
+                  <TableRow key={s.id} className="group">
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Link href={`/suppliers/${s.id}`} className="font-medium hover:text-primary flex items-center gap-1 group">
+                      <div>
+                        <Link href={`/suppliers/${s.id}`} className="font-bold hover:text-primary flex items-center gap-2 group/link">
+                          <span className="text-lg">{s.flag || '🏭'}</span>
                           {s.name}
                           <ExternalLink className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
                         </Link>
-                        {s.departments && s.departments.length > 1 && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <Share2 className="h-3 w-3 text-accent" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p className="text-[10px]">Shared with: {s.departments.filter((d: string) => d !== departmentId).join(", ")}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
+                        <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
+                          <span className="font-bold">{s.contacts?.sales?.name || 'No Contact'}</span>
+                          <span>•</span>
+                          <span>{s.country || "Global"}</span>
+                        </div>
                       </div>
-                      <div className="text-[10px] text-muted-foreground">{s.email} | {s.country}</div>
                     </TableCell>
-                    <TableCell>{s.pricing?.leadTime || 7} days</TableCell>
+                    <TableCell><span className="text-xs">{s.natureOfBusiness}</span></TableCell>
                     <TableCell>
-                      <Badge variant={s.recordStatus?.includes('Verified') ? 'default' : 'secondary'} className={s.recordStatus?.includes('Verified') ? 'bg-green-500' : ''}>
-                        {s.recordStatus}
-                      </Badge>
+                      <div className="flex flex-wrap gap-1 max-w-[150px]">
+                        {Array.isArray(s.markets) && s.markets.map((m: string) => (
+                          <Badge key={m} variant="outline" className="text-[8px] h-4 capitalize"
+                            style={{
+                              color: m === 'chocolate' ? '#7B3F00' : m === 'cosmetics' ? '#C2185B' : m === 'detergents' ? '#0B5E75' : 'inherit',
+                              backgroundColor: m === 'chocolate' ? '#7B3F0015' : m === 'cosmetics' ? '#C2185B15' : m === 'detergents' ? '#0B5E7515' : 'transparent',
+                              borderColor: m === 'chocolate' ? '#7B3F0040' : m === 'cosmetics' ? '#C2185B40' : m === 'detergents' ? '#0B5E7540' : 'inherit'
+                            }}>{m.replace('_', ' ')}</Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1 max-w-[200px]">
+                        {Array.isArray(s.specializedProducts) && s.specializedProducts.slice(0, 2).map((p: string) => (
+                          <Badge key={p} variant="secondary" className="text-[8px] h-4">{p}</Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn("text-[9px] font-bold",
+                        s.pricing?.tier === 'Luxury' && "border-primary text-primary",
+                        s.pricing?.tier === 'Premium' && "border-blue-500 text-blue-500",
+                        s.pricing?.tier === 'Mid-Range' && "border-green-500 text-green-500"
+                      )}>{s.pricing?.tier || 'N/A'}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={cn("text-[9px] capitalize",
+                        s.recordStatus?.includes('Verified') && "bg-green-500",
+                        s.recordStatus === 'Blacklisted' && "bg-destructive",
+                        s.recordStatus === 'Checking Data' && "bg-orange-500"
+                      )}>{s.recordStatus}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="outline" className="text-[10px] h-7">
-                        <Mail className="mr-1 h-3 w-3" /> Request Stock
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Link href={`/suppliers/${s.id}`}><Button variant="ghost" size="icon" className="h-8 w-8"><ExternalLink className="h-4 w-4" /></Button></Link>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Mail className="h-4 w-4" /></Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
                 {!loadingSuppliers && suppliers.length === 0 && (
-                  <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground italic">No suppliers linked to this market segment.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground italic">No suppliers linked to this market segment.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
           </Card>
         </TabsContent>
 
-        <TabsContent value="buyers" className="space-y-4 pt-4">
+        <TabsContent value="customers" className="space-y-4 pt-4">
           <Card>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Buyer Name</TableHead>
-                  <TableHead>Account</TableHead>
+                  <TableHead>Company Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Markets</TableHead>
+                  <TableHead>Health</TableHead>
+                  <TableHead>Rating</TableHead>
+                  <TableHead className="text-right">Total Revenue</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loadingBuyers ? (
-                  <TableRow><TableCell colSpan={3} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
-                ) : buyers.map(b => (
-                  <TableRow key={b.id}>
+                {loadingCustomers ? (
+                  <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+                ) : customers.map(c => (
+                  <TableRow key={c.id} className="group">
                     <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Link href={`/customers/${b.id}`} className="font-medium hover:text-primary flex items-center gap-1 group">
-                          {b.name}
-                          <ExternalLink className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
-                        </Link>
-                        {b.departments && b.departments.length > 1 && (
-                          <Badge variant="outline" className="text-[8px] flex items-center gap-1 border-accent text-accent">
-                            <Share2 className="h-2 w-2" /> Shared
-                          </Badge>
-                        )}
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded bg-accent/10 flex items-center justify-center text-xs font-bold text-accent">{c.name?.[0] || 'C'}</div>
+                        <div>
+                          <Link href={`/customers/${c.id}`} className="font-bold hover:text-primary flex items-center gap-1 group/link">
+                            {c.name}
+                            <ExternalLink className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
+                          </Link>
+                          <div className="text-[10px] text-muted-foreground flex items-center gap-2">
+                            <span>{c.country || "Global"}</span>
+                            <span>•</span>
+                            <span>{c.assignedManager || '-'}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[10px] text-muted-foreground">{b.country} | {b.email}</div>
+                    </TableCell>
+                    <TableCell><span className="text-xs">{c.companyType}</span></TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn("text-[9px] capitalize",
+                        c.accountStatus === 'active' && "bg-green-500 text-white border-none",
+                        c.accountStatus === 'key account' && "bg-primary text-white border-none",
+                        c.accountStatus === 'at risk' && "bg-yellow-500 text-white border-none"
+                      )}>{c.accountStatus}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="capitalize">{b.accountStatus}</Badge>
+                      <div className="flex flex-wrap gap-1 max-w-[150px]">
+                        {Array.isArray(c.markets) && c.markets.map((m: string) => (
+                          <Badge key={m} variant="outline" className="text-[8px] h-4 capitalize"
+                            style={{
+                              color: m === 'chocolate' ? '#7B3F00' : m === 'cosmetics' ? '#C2185B' : m === 'detergents' ? '#0B5E75' : 'inherit',
+                              backgroundColor: m === 'chocolate' ? '#7B3F0015' : m === 'cosmetics' ? '#C2185B15' : m === 'detergents' ? '#0B5E7515' : 'transparent',
+                              borderColor: m === 'chocolate' ? '#7B3F0040' : m === 'cosmetics' ? '#C2185B40' : m === 'detergents' ? '#0B5E7540' : 'inherit'
+                            }}>{m.replace('_', ' ')}</Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <HeartPulse className={cn("h-3 w-3", c.accountHealth === 'healthy' ? "text-green-500" : "text-destructive")} />
+                        <span className="text-[10px] capitalize font-medium">{c.accountHealth}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <StarRating rating={c.internalRating || 0} />
+                        <div className="w-16"><Progress value={c.dataCompleteness} className="h-1" /></div>
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" variant="ghost">Edit Notes</Button>
+                      <div className="text-xs font-bold text-primary">${(c.totalRevenue || 0).toLocaleString()}</div>
+                      <div className="text-[8px] text-muted-foreground">Lifetime Value</div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Link href={`/customers/${c.id}`}><Button variant="ghost" size="icon" className="h-8 w-8"><ExternalLink className="h-4 w-4" /></Button></Link>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Mail className="h-4 w-4" /></Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
-                {!loadingBuyers && buyers.length === 0 && (
-                  <TableRow><TableCell colSpan={3} className="text-center py-12 text-muted-foreground italic">No corporate buyers registered in this market.</TableCell></TableRow>
+                {!loadingCustomers && customers.length === 0 && (
+                  <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground italic">No customers linked to this market segment.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>

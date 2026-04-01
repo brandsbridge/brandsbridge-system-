@@ -393,7 +393,7 @@ export default function CustomersPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight font-headline">Corporate Buyers</h1>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">Corporate Customers</h1>
           <p className="text-muted-foreground">Manage B2B relationships and track procurement dynamics.</p>
         </div>
         <div className="flex gap-2">
@@ -726,7 +726,7 @@ export default function CustomersPage() {
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-                  <p className="text-xs text-muted-foreground">Loading buyers...</p>
+                  <p className="text-xs text-muted-foreground">Loading customers...</p>
                 </TableCell>
               </TableRow>
             ) : filteredCustomers.map((customer) => (

@@ -94,14 +94,14 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
   }, [db, user, departmentId]);
   const { data: firestoreSuppliers = [] } = useCollection(suppliersQuery);
 
-  const buyersQuery = useMemoFirebase(() => {
+  const customersQuery = useMemoFirebase(() => {
     if (!user) return null;
     return query(collection(db, "customers"), where("markets", "array-contains", departmentId));
   }, [db, user, departmentId]);
-  const { data: firestoreBuyers = [] } = useCollection(buyersQuery);
+  const { data: firestoreCustomers = [] } = useCollection(customersQuery);
 
   const suppliers = firestoreSuppliers as any[];
-  const buyers = firestoreBuyers as any[];
+  const customers = firestoreCustomers as any[];
   const products = useMemo(() => MOCK_PRODUCTS.filter(p => p.department === departmentId), [departmentId]);
   const stocks = useMemo(() => MOCK_STOCKS.filter(s => s.department === departmentId), [departmentId]);
 
@@ -129,18 +129,18 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
 
   const stats = useMemo(() => {
     const avgSupRating = suppliers.reduce((acc, s) => acc + (s.ratings.frequency + s.ratings.speed + s.ratings.price) / 3, 0) / (suppliers.length || 1);
-    const avgBuyRating = buyers.reduce((acc, b) => acc + (b.ratings.responseTime + b.ratings.activity + b.ratings.volume) / 3, 0) / (buyers.length || 1);
+    const avgBuyRating = customers.reduce((acc, b) => acc + (b.ratings.responseTime + b.ratings.activity + b.ratings.volume) / 3, 0) / (customers.length || 1);
     return {
       suppliersCount: suppliers.length,
       sharedSuppliers: suppliers.filter(s => s.departments.length > 1).length,
       avgSupRating,
-      buyersCount: buyers.length,
-      sharedBuyers: buyers.filter(b => b.departments.length > 1).length,
+      customersCount: customers.length,
+      sharedCustomers: customers.filter(b => b.departments.length > 1).length,
       avgBuyRating,
       bestDeals: priceIntellData.filter(d => d.bestPrice > 0).length,
       totalPipeline: priceIntellData.reduce((acc, p) => acc + (p.sellingPrice * p.quantity), 0)
     };
-  }, [suppliers, buyers, priceIntellData]);
+  }, [suppliers, customers, priceIntellData]);
 
   const handleQuickAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,11 +256,11 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
         </Card>
         <Card>
           <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Active Buyers</CardTitle>
-            <Badge variant="outline" className="text-[8px]">{stats.sharedBuyers} Shared</Badge>
+            <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Active Customers</CardTitle>
+            <Badge variant="outline" className="text-[8px]">{stats.sharedCustomers} Shared</Badge>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{stats.buyersCount}</div>
+            <div className="text-2xl font-bold">{stats.customersCount}</div>
             <div className="mt-1 flex items-center gap-1">
               <StarRating rating={stats.avgBuyRating} />
             </div>
@@ -280,7 +280,7 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
             <CardTitle className="text-xs font-medium uppercase text-muted-foreground">Shared Clients</CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{stats.sharedSuppliers + stats.sharedBuyers}</div>
+            <div className="text-2xl font-bold">{stats.sharedSuppliers + stats.sharedCustomers}</div>
             <p className="text-[10px] text-muted-foreground mt-1">Cross-department</p>
           </CardContent>
         </Card>
@@ -298,7 +298,7 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
           <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
-          <TabsTrigger value="buyers">Buyers</TabsTrigger>
+          <TabsTrigger value="customers">Customers</TabsTrigger>
           <TabsTrigger value="intelligence">Price Intelligence</TabsTrigger>
           <TabsTrigger value="catalog">Catalog</TabsTrigger>
         </TabsList>
@@ -360,19 +360,19 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="buyers" className="space-y-4 pt-4">
+        <TabsContent value="customers" className="space-y-4 pt-4">
           <Card>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Buyer Name</TableHead>
+                  <TableHead>Customer Name</TableHead>
                   <TableHead>Account</TableHead>
                   <TableHead>Engagement</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {buyers.map(b => (
+                {customers.map(b => (
                   <TableRow key={b.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">

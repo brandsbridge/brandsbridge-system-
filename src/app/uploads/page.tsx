@@ -86,9 +86,9 @@ export default function BulkUploadPage() {
                 <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center mb-4">
                   <FileText className="h-6 w-6 text-accent" />
                 </div>
-                <CardTitle className="mb-2">Upload Buyers</CardTitle>
+                <CardTitle className="mb-2">Upload Customers</CardTitle>
                 <CardDescription className="mb-6">
-                  Import prospective and active buyers using our standardized leads template.
+                  Import prospective and active customers using our standardized leads template.
                 </CardDescription>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm">
