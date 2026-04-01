@@ -64,18 +64,24 @@ const StarRating = ({ rating }: { rating: number }) => (
 );
 
 const IMPORT_TEMPLATE_HEADERS = [
-  "Company Name", "Email", "Country", "Nature of Business", "Website", "Phone", 
-  "Specialized Products", "Price Tier", "Record Status", "Compliance", 
-  "Completeness", "Owner", "Department"
+  "Company Name", "Country", "Nature of Business", "Specialized Products",
+  "Top 5 Best-Selling Products", "Website", "Social Media - Facebook",
+  "Social Media - Instagram", "Social Media - Linkedin", "Sales Manager",
+  "Export Manager", "Support - Customer Service Number", "Support - Customer Service Email",
+  "Company Overview", "Organic / Halal Certifications", "Price Tier",
+  "Strategic Notes (GCC/KSA)", "Record Status"
 ];
 
 const IMPORT_EXAMPLE_ROW = [
-  "Example Supplier Ltd", "sales@example.com", "UAE", "Manufacturer", 
-  "www.examplesupplier.com", "+971500000000", "Chocolate, Skincare products", "Premium", 
-  "Active - Verified", "Valid", "90", "Alex Johnson", "Chocolate"
+  "Example Supplier Ltd", "Turkey", "Manufacturer", "Chocolate, Cocoa Powder",
+  "Dark Chocolate 70%, Milk Chocolate, Cocoa Butter", "www.example.com", "fb.com/example",
+  "instagram.com/example", "linkedin.com/example", "John Smith",
+  "Jane Doe", "+905550000000", "support@example.com",
+  "Leading manufacturer of premium chocolate products", "Halal, ISO 9001", "Premium",
+  "Strong presence in GCC market", "Active - Verified"
 ];
 
-const PRIORITY_KEYS = ["Company Name", "Email", "Country", "Nature of Business", "Record Status"];
+const PRIORITY_KEYS = ["Company Name", "Country", "Nature of Business", "Price Tier", "Record Status"];
 
 export default function SuppliersPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,15 +99,33 @@ export default function SuppliersPage() {
     const formData = new FormData(e.target as HTMLFormElement);
     const assignedMarkets = formData.getAll('markets') as string[];
     const newDoc = doc(collection(db, "suppliers"));
+    const companyName = formData.get('name') as string;
     try {
       await setDoc(newDoc, {
-        name: formData.get('name') as string,
+        companyName,
+        name: companyName,
         country: formData.get('country') as string,
         natureOfBusiness: formData.get('natureOfBusiness') as string,
-        pricing: { tier: formData.get('tier') as string },
+        priceTier: formData.get('tier') as string,
         markets: assignedMarkets,
         departments: assignedMarkets.map(m => m.split('_')[0]),
         recordStatus: 'Active - Verified',
+        specializedProducts: [],
+        topProducts: [],
+        companyOverview: "",
+        certifications: "",
+        strategicNotes: "",
+        website: "",
+        socialFacebook: "",
+        socialInstagram: "",
+        socialLinkedin: "",
+        salesManager: "",
+        exportManager: "",
+        supportPhone: "",
+        supportEmail: "",
+        aiPriceInsights: "",
+        aiNotes: "",
+        staffNotes: "",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
@@ -155,10 +179,10 @@ export default function SuppliersPage() {
   const filteredSuppliers = useMemo(() => {
     if (!suppliers) return [];
     const filtered = suppliers.filter(s => {
-      const matchesSearch = (s.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (s.contacts?.sales?.name || "").toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (s.companyName || s.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (s.salesManager || s.contacts?.sales?.name || "").toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCountry = countryFilter === "all" || s.country === countryFilter;
-      const matchesTier = tierFilter === "all" || s.pricing?.tier === tierFilter;
+      const matchesTier = tierFilter === "all" || (s.priceTier || s.pricing?.tier) === tierFilter;
       const matchesStatus = statusFilter === "all" || s.recordStatus === statusFilter;
       const matchesNature = natureFilter === "all" || s.natureOfBusiness === natureFilter;
       return matchesSearch && matchesCountry && matchesTier && matchesStatus && matchesNature;
@@ -280,66 +304,39 @@ export default function SuppliersPage() {
 
       for (const row of chunk) {
         const name = row["Company Name"] || row["name"] || row["title"];
-        const email = (row["Email"] || row["email"] || row["Support - Customer Service Email"] || "").toString().toLowerCase().trim();
+        const supportEmail = (row["Support - Customer Service Email"] || row["supportEmail"] || "").toString().toLowerCase().trim();
 
-        const existingByEmail = email ? suppliers?.find(s => (s.email || "").toLowerCase().trim() === email) : null;
-        const existingByName = name ? suppliers?.find(s => (s.name || "").toLowerCase().trim() === name.toLowerCase().trim()) : null;
+        const existingByEmail = supportEmail ? suppliers?.find(s => (s.supportEmail || s.email || "").toLowerCase().trim() === supportEmail) : null;
+        const existingByName = name ? suppliers?.find(s => (s.companyName || s.name || "").toLowerCase().trim() === name.toLowerCase().trim()) : null;
         const existing = existingByEmail || existingByName;
 
-        const specializedProducts = (row["Specialized Products"] || row["products"] || "").toString().split(",").map((s: string) => s.trim()).filter(Boolean);
+        const specializedProducts = (row["Specialized Products"] || "").toString().split(",").map((s: string) => s.trim()).filter(Boolean);
         const topProducts = (row["Top 5 Best-Selling Products"] || "").toString().split(",").map((s: string) => s.trim()).filter(Boolean);
 
-        const supplierData = {
-          name,
+        const supplierData: any = {
           companyName: name,
-          email: email || null,
-          country: row["Country"] || row["country"] || null,
-          natureOfBusiness: row["Nature of Business"] || row["natureOfBusiness"] || "Manufacturing",
-          website: row["Website"] || row["website"] || null,
+          name,
+          country: row["Country"] || row["country"] || "",
+          natureOfBusiness: row["Nature of Business"] || row["natureOfBusiness"] || "",
           specializedProducts,
+          priceTier: row["Price Tier"] || row["priceTier"] || "",
+          strategicNotes: row["Strategic Notes (GCC/KSA)"] || row["strategicNotes"] || "",
           topProducts,
-          products: specializedProducts,
+          companyOverview: row["Company Overview"] || row["companyOverview"] || "",
+          certifications: row["Organic / Halal Certifications"] || row["certifications"] || "",
+          website: row["Website"] || row["website"] || "",
+          socialFacebook: row["Social Media - Facebook"] || row["socialFacebook"] || "",
+          socialInstagram: row["Social Media - Instagram"] || row["socialInstagram"] || "",
+          socialLinkedin: row["Social Media - Linkedin"] || row["socialLinkedin"] || "",
+          salesManager: row["Sales Manager"] || row["salesManager"] || "",
+          exportManager: row["Export Manager"] || row["exportManager"] || "",
+          supportPhone: row["Support - Customer Service Number"] || row["supportPhone"] || "",
+          supportEmail: supportEmail || "",
+          recordStatus: row["Record Status"] || row["recordStatus"] || "Active - Verified",
           markets: [] as string[],
-          departments: [row["Department"] || currentDept],
-          socialFacebook: row["Social Media - Facebook"] || null,
-          socialInstagram: row["Social Media - Instagram"] || null,
-          socialLinkedin: row["Social Media - Linkedin"] || null,
-          overview: row["Company Overview"] || null,
-          certifications: row["Organic / Halal Certifications"] || null,
-          strategicNotes: row["Strategic Notes (GCC/KSA)"] || null,
-          pricing: {
-            tier: row["Price Tier"] || "Mid-Range",
-            paymentTerms: (row["Payment Terms"] || "").toString().split(",").map((s: string) => s.trim()).filter(Boolean),
-            leadTime: parseInt(row["Lead Time"]) || 7,
-            currency: "USD",
-            moq: row["MOQ"] || "100 units",
-            mov: parseFloat(row["MOV"]) || 1000
-          },
-          contacts: {
-            sales: {
-              name: row["Sales Manager"] || row["Owner"] || "Main Contact",
-              email: email || null,
-              phone: row["Phone"] || null,
-              whatsapp: row["WhatsApp"] || null
-            },
-            export: {
-              name: row["Export Manager"] || null,
-              email: null, phone: null, whatsapp: null
-            },
-            support: {
-              phone: row["Support - Customer Service Number"] || null,
-              email: row["Support - Customer Service Email"] || null,
-              hours: "9-5",
-              language: "English"
-            }
-          },
-          recordStatus: row["Record Status"] || "Active - Verified",
-          priorityLevel: "Medium",
-          dataCompleteness: parseInt(row["Completeness"]) || 60,
-          internalRating: 3,
-          lastUpdatedBy: manager.name,
-          lastUpdatedDate: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
+          aiPriceInsights: "",
+          aiNotes: "",
+          staffNotes: "",
           updatedAt: new Date().toISOString()
         };
 
@@ -350,6 +347,7 @@ export default function SuppliersPage() {
             updates++;
           }
         } else {
+          supplierData.createdAt = new Date().toISOString();
           const newDocRef = doc(collection(db, "suppliers"));
           batch.set(newDocRef, supplierData);
           success++;
@@ -375,16 +373,16 @@ export default function SuppliersPage() {
 
     const formData = new FormData(e.target as HTMLFormElement);
     const assignedMarkets = formData.getAll('markets') as string[];
+    const companyName = formData.get('name') as string;
     const data = {
-      name: formData.get('name'),
+      companyName,
+      name: companyName,
       country: formData.get('country'),
       natureOfBusiness: formData.get('natureOfBusiness'),
+      priceTier: formData.get('tier'),
       markets: assignedMarkets,
       departments: assignedMarkets.map(m => m.split('_')[0]),
-      pricing: {
-        ...editingSupplier.pricing,
-        tier: formData.get('tier')
-      }
+      updatedAt: new Date().toISOString()
     };
 
     supplierService.updateSupplier(db, editingSupplier.id, data);
@@ -634,11 +632,13 @@ export default function SuppliersPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[250px]">Company Name</TableHead>
-              <TableHead>Nature</TableHead>
-              <TableHead>Markets</TableHead>
-              <TableHead>Products</TableHead>
+              <TableHead className="w-[200px]">Company Name</TableHead>
+              <TableHead>Country</TableHead>
+              <TableHead>Nature of Business</TableHead>
+              <TableHead>Specialized Products</TableHead>
               <TableHead>Price Tier</TableHead>
+              <TableHead className="max-w-[180px]">Strategic Notes</TableHead>
+              <TableHead>Top 5 Products</TableHead>
               <TableHead>Record Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -646,7 +646,7 @@ export default function SuppliersPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12">
+                <TableCell colSpan={9} className="text-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">Loading suppliers...</p>
                 </TableCell>
@@ -654,56 +654,64 @@ export default function SuppliersPage() {
             ) : filteredSuppliers.map((supplier) => (
               <TableRow key={supplier.id} className="group">
                 <TableCell>
-                  <div>
-                    <Link href={`/suppliers/${supplier.id}`} className="font-bold hover:text-primary flex items-center gap-2 group/link">
-                      <span className="text-lg">{supplier.flag || '🏭'}</span>
-                      {supplier.name}
-                      <ExternalLink className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
-                    </Link>
-                    <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
-                      <span className="font-bold">{supplier.contacts?.sales?.name || 'No Contact'}</span>
-                      <span>•</span>
-                      <span>{supplier.country || "Global"}</span>
-                    </div>
-                  </div>
+                  <Link href={`/suppliers/${supplier.id}`} className="font-bold hover:text-primary flex items-center gap-2 group/link">
+                    <span className="text-lg">{supplier.flag || '🏭'}</span>
+                    {supplier.companyName || supplier.name}
+                    <ExternalLink className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
+                  </Link>
                 </TableCell>
                 <TableCell>
-                  <span className="text-xs">{supplier.natureOfBusiness}</span>
+                  <span className="text-xs">{supplier.country || "—"}</span>
                 </TableCell>
                 <TableCell>
-                  <div className="flex flex-wrap gap-1 max-w-[150px]">
-                    {Array.isArray(supplier.markets) && supplier.markets.map((m: string) => (
-                      <Badge 
-                        key={m} 
-                        variant="outline" 
-                        className="text-[8px] h-4 capitalize"
-                        style={{
-                          color: m === 'chocolate_market' ? '#7B3F00' : m === 'cosmetics_market' ? '#C2185B' : m === 'detergents_market' ? '#0B5E75' : 'inherit',
-                          backgroundColor: m === 'chocolate_market' ? '#7B3F0015' : m === 'cosmetics_market' ? '#C2185B15' : m === 'detergents_market' ? '#0B5E7515' : 'transparent',
-                          borderColor: m === 'chocolate_market' ? '#7B3F0040' : m === 'cosmetics_market' ? '#C2185B40' : m === 'detergents_market' ? '#0B5E7540' : 'inherit'
-                        }}
-                      >
-                        {m.replace('_', ' ')}
-                      </Badge>
-                    ))}
-                  </div>
+                  <span className="text-xs">{supplier.natureOfBusiness || "—"}</span>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1 max-w-[200px]">
-                    {Array.isArray(supplier.specializedProducts) && supplier.specializedProducts.slice(0, 2).map((p: string) => (
+                    {Array.isArray(supplier.specializedProducts) && supplier.specializedProducts.slice(0, 3).map((p: string) => (
                       <Badge key={p} variant="secondary" className="text-[8px] h-4">{p}</Badge>
                     ))}
+                    {Array.isArray(supplier.specializedProducts) && supplier.specializedProducts.length > 3 && (
+                      <Badge variant="outline" className="text-[8px] h-4">+{supplier.specializedProducts.length - 3}</Badge>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline" className={cn(
                     "text-[9px] font-bold",
-                    supplier.pricing?.tier === 'Luxury' && "border-primary text-primary",
-                    supplier.pricing?.tier === 'Premium' && "border-blue-500 text-blue-500",
-                    supplier.pricing?.tier === 'Mid-Range' && "border-green-500 text-green-500"
+                    (supplier.priceTier || supplier.pricing?.tier) === 'Luxury' && "border-primary text-primary",
+                    (supplier.priceTier || supplier.pricing?.tier) === 'Premium' && "border-blue-500 text-blue-500",
+                    (supplier.priceTier || supplier.pricing?.tier) === 'Mid-Range' && "border-green-500 text-green-500",
+                    (supplier.priceTier || supplier.pricing?.tier) === 'Budget' && "border-orange-500 text-orange-500"
                   )}>
-                    {supplier.pricing?.tier || 'N/A'}
+                    {supplier.priceTier || supplier.pricing?.tier || 'N/A'}
                   </Badge>
+                </TableCell>
+                <TableCell className="max-w-[180px]">
+                  <p className="text-[11px] text-muted-foreground truncate" title={supplier.strategicNotes || ""}>
+                    {supplier.strategicNotes || "—"}
+                  </p>
+                </TableCell>
+                <TableCell>
+                  <div className="relative group/top5">
+                    <span className="text-[11px] text-muted-foreground cursor-default">
+                      {Array.isArray(supplier.topProducts) && supplier.topProducts.length > 0
+                        ? `${supplier.topProducts.length} product${supplier.topProducts.length > 1 ? 's' : ''}`
+                        : "—"}
+                    </span>
+                    {Array.isArray(supplier.topProducts) && supplier.topProducts.length > 0 && (
+                      <div className="absolute z-50 left-0 top-full mt-1 hidden group-hover/top5:block bg-popover border rounded-lg shadow-lg p-3 min-w-[200px]">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Top Products</p>
+                        <ul className="space-y-1">
+                          {supplier.topProducts.map((p: string, i: number) => (
+                            <li key={i} className="text-xs flex items-center gap-2">
+                              <span className="text-primary font-bold">{i + 1}.</span> {p}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <Badge className={cn(
@@ -712,7 +720,7 @@ export default function SuppliersPage() {
                     supplier.recordStatus === 'Blacklisted' && "bg-destructive",
                     supplier.recordStatus === 'Checking Data' && "bg-orange-500"
                   )}>
-                    {supplier.recordStatus}
+                    {supplier.recordStatus || "—"}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">

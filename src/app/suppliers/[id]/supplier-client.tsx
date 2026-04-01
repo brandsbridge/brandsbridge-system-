@@ -3,15 +3,17 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { 
-  ArrowLeft, Mail, MapPin, 
-  Download, Send, 
+import {
+  ArrowLeft, Mail, MapPin,
+  Download, Send,
   MessageSquare, Clock, Phone,
   Briefcase, Loader2, Edit, Trash2, MoreVertical,
   Globe, Factory, Box, Package, DollarSign,
   FileText, Plus, FileCheck, ExternalLink,
   History, CreditCard, Receipt, Paperclip, X,
-  AlertCircle, Upload, Trash
+  AlertCircle, Upload, Trash,
+  Facebook, Instagram, Linkedin,
+  Bot, StickyNote, Save, XCircle, ShieldCheck
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -60,13 +62,16 @@ export default function SupplierClient({ id }: { id: string }) {
   const { toast } = useToast();
 
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Inline edit mode
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<any>({});
   
   // --- Data Fetching ---
   const supplierRef = useMemoFirebase(() => doc(db, "suppliers", id), [id]);
@@ -135,28 +140,65 @@ export default function SupplierClient({ id }: { id: string }) {
     }
   };
 
-  const handleUpdateNotes = async (notes: string) => {
-    await updateDoc(supplierRef, { notes, updatedAt: serverTimestamp() });
-    toast({ title: "Notes Saved" });
+  const startEditing = () => {
+    if (!supplier) return;
+    setEditForm({
+      companyName: supplier.companyName || supplier.name || "",
+      country: supplier.country || "",
+      natureOfBusiness: supplier.natureOfBusiness || "",
+      specializedProducts: (supplier.specializedProducts || []).join(", "),
+      priceTier: supplier.priceTier || supplier.pricing?.tier || "",
+      strategicNotes: supplier.strategicNotes || "",
+      topProducts: (supplier.topProducts || []).join("\n"),
+      companyOverview: supplier.companyOverview || supplier.overview || "",
+      certifications: supplier.certifications || "",
+      salesManager: supplier.salesManager || supplier.contacts?.sales?.name || "",
+      exportManager: supplier.exportManager || supplier.contacts?.export?.name || "",
+      supportPhone: supplier.supportPhone || supplier.contacts?.support?.phone || "",
+      supportEmail: supplier.supportEmail || supplier.contacts?.support?.email || "",
+      website: supplier.website || "",
+      socialFacebook: supplier.socialFacebook || "",
+      socialInstagram: supplier.socialInstagram || "",
+      socialLinkedin: supplier.socialLinkedin || "",
+      staffNotes: supplier.staffNotes || "",
+      recordStatus: supplier.recordStatus || "Active - Verified",
+    });
+    setIsEditing(true);
   };
 
-  const handleUpdateSupplier = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    const data = {
-      name: formData.get('name'),
-      country: formData.get('country'),
-      natureOfBusiness: formData.get('natureOfBusiness'),
-      pricing: {
-        ...supplier.pricing,
-        tier: formData.get('tier')
-      }
-    };
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditForm({});
+  };
 
+  const handleSaveAll = async () => {
     try {
-      await updateDoc(supplierRef, { ...data, updatedAt: serverTimestamp() });
-      setIsEditDialogOpen(false);
-      toast({ title: "Record Updated" });
+      const data = {
+        companyName: editForm.companyName,
+        name: editForm.companyName,
+        country: editForm.country,
+        natureOfBusiness: editForm.natureOfBusiness,
+        specializedProducts: editForm.specializedProducts.split(",").map((s: string) => s.trim()).filter(Boolean),
+        priceTier: editForm.priceTier,
+        strategicNotes: editForm.strategicNotes,
+        topProducts: editForm.topProducts.split("\n").map((s: string) => s.trim()).filter(Boolean),
+        companyOverview: editForm.companyOverview,
+        certifications: editForm.certifications,
+        salesManager: editForm.salesManager,
+        exportManager: editForm.exportManager,
+        supportPhone: editForm.supportPhone,
+        supportEmail: editForm.supportEmail,
+        website: editForm.website,
+        socialFacebook: editForm.socialFacebook,
+        socialInstagram: editForm.socialInstagram,
+        socialLinkedin: editForm.socialLinkedin,
+        staffNotes: editForm.staffNotes,
+        recordStatus: editForm.recordStatus,
+        updatedAt: serverTimestamp(),
+      };
+      await updateDoc(supplierRef, data);
+      setIsEditing(false);
+      toast({ title: "Supplier Updated", description: "All changes saved successfully." });
     } catch (e) {
       toast({ variant: "destructive", title: "Update Failed" });
     }
@@ -292,18 +334,26 @@ export default function SupplierClient({ id }: { id: string }) {
           </div>
         </div>
         <div className="flex gap-2 print:hidden">
-          <Button variant="outline" onClick={handleExportPDF}><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
-          <Button className="bg-primary shadow-lg shadow-primary/20" onClick={() => setIsEmailDialogOpen(true)}><Send className="h-4 w-4 mr-2" /> Contact Supplier</Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="border"><MoreVertical className="h-4 w-4" /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => setIsEditDialogOpen(true)}><Edit className="mr-2 h-4 w-4" /> Edit Record</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive font-bold"><Trash2 className="mr-2 h-4 w-4" /> Archive</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {isEditing ? (
+            <>
+              <Button variant="outline" onClick={cancelEditing}><XCircle className="h-4 w-4 mr-2" /> Cancel</Button>
+              <Button className="bg-green-600 hover:bg-green-700" onClick={handleSaveAll}><Save className="h-4 w-4 mr-2" /> Save All Changes</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={handleExportPDF}><Download className="h-4 w-4 mr-2" /> Export PDF</Button>
+              <Button variant="outline" onClick={startEditing}><Edit className="h-4 w-4 mr-2" /> Edit</Button>
+              <Button className="bg-primary shadow-lg shadow-primary/20" onClick={() => setIsEmailDialogOpen(true)}><Send className="h-4 w-4 mr-2" /> Contact Supplier</Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="border"><MoreVertical className="h-4 w-4" /></Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem className="text-destructive font-bold"><Trash2 className="mr-2 h-4 w-4" /> Archive</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          )}
         </div>
       </div>
 
@@ -349,24 +399,63 @@ export default function SupplierClient({ id }: { id: string }) {
         {/* Tab 1: Overview */}
         <TabsContent value="overview" className="space-y-6 pt-6">
           <div className="grid gap-6 md:grid-cols-2">
+            {/* Basic Intelligence */}
             <Card>
               <CardHeader><CardTitle className="text-sm font-bold uppercase">Basic Intelligence</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Nature of Business</label>
-                    <p className="font-medium">{supplier.natureOfBusiness}</p>
+                    {isEditing ? (
+                      <Select value={editForm.natureOfBusiness} onValueChange={(v) => setEditForm({ ...editForm, natureOfBusiness: v })}>
+                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Manufacturer">Manufacturer</SelectItem>
+                          <SelectItem value="Trader">Trader</SelectItem>
+                          <SelectItem value="Distributor">Distributor</SelectItem>
+                          <SelectItem value="Wholesaler">Wholesaler</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="font-medium">{supplier.natureOfBusiness || "—"}</p>
+                    )}
                   </div>
                   <div>
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Country</label>
-                    <p className="font-medium">{supplier.country}</p>
+                    {isEditing ? (
+                      <Input className="mt-1" value={editForm.country} onChange={(e) => setEditForm({ ...editForm, country: e.target.value })} />
+                    ) : (
+                      <p className="font-medium">{supplier.country || "—"}</p>
+                    )}
                   </div>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase text-muted-foreground">Specialized Products</label>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {supplier.specializedProducts?.map((p: string) => <Badge key={p} variant="secondary" className="text-[10px]">{p}</Badge>)}
-                  </div>
+                  {isEditing ? (
+                    <Input className="mt-1" placeholder="Comma separated: Chocolate, Cocoa, etc." value={editForm.specializedProducts} onChange={(e) => setEditForm({ ...editForm, specializedProducts: e.target.value })} />
+                  ) : (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {supplier.specializedProducts?.length > 0
+                        ? supplier.specializedProducts.map((p: string) => <Badge key={p} variant="secondary" className="text-[10px]">{p}</Badge>)
+                        : <span className="text-xs text-muted-foreground italic">None</span>}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground">Price Tier</label>
+                  {isEditing ? (
+                    <Select value={editForm.priceTier} onValueChange={(v) => setEditForm({ ...editForm, priceTier: v })}>
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Budget">Budget</SelectItem>
+                        <SelectItem value="Mid-Range">Mid-Range</SelectItem>
+                        <SelectItem value="Premium">Premium</SelectItem>
+                        <SelectItem value="Luxury">Luxury</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="font-medium">{supplier.priceTier || supplier.pricing?.tier || "—"}</p>
+                  )}
                 </div>
                 <div>
                   <label className="text-[10px] font-bold uppercase text-muted-foreground">Market Assignment</label>
@@ -380,41 +469,190 @@ export default function SupplierClient({ id }: { id: string }) {
                     </SelectContent>
                   </Select>
                 </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground">Strategic Notes (GCC/KSA)</label>
+                  {isEditing ? (
+                    <Textarea className="mt-1 min-h-[80px]" value={editForm.strategicNotes} onChange={(e) => setEditForm({ ...editForm, strategicNotes: e.target.value })} placeholder="Strategic notes for GCC/KSA market..." />
+                  ) : (
+                    <p className="text-sm mt-1 leading-relaxed">{supplier.strategicNotes || <span className="text-muted-foreground italic">No strategic notes</span>}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground">Top 5 Best-Selling Products</label>
+                  {isEditing ? (
+                    <Textarea className="mt-1 min-h-[100px]" placeholder="One product per line" value={editForm.topProducts} onChange={(e) => setEditForm({ ...editForm, topProducts: e.target.value })} />
+                  ) : (
+                    <div className="mt-1">
+                      {supplier.topProducts?.length > 0 ? (
+                        <ol className="list-decimal list-inside space-y-0.5">
+                          {supplier.topProducts.map((p: string, i: number) => (
+                            <li key={i} className="text-sm">{p}</li>
+                          ))}
+                        </ol>
+                      ) : <span className="text-xs text-muted-foreground italic">None listed</span>}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground">Company Overview</label>
+                  {isEditing ? (
+                    <Textarea className="mt-1 min-h-[100px]" value={editForm.companyOverview} onChange={(e) => setEditForm({ ...editForm, companyOverview: e.target.value })} placeholder="Brief company description..." />
+                  ) : (
+                    <p className="text-sm mt-1 leading-relaxed">{supplier.companyOverview || supplier.overview || <span className="text-muted-foreground italic">No overview</span>}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> Organic / Halal Certifications</label>
+                  {isEditing ? (
+                    <Input className="mt-1" value={editForm.certifications} onChange={(e) => setEditForm({ ...editForm, certifications: e.target.value })} placeholder="e.g. Halal, ISO 9001, Organic" />
+                  ) : (
+                    <p className="font-medium mt-1">{supplier.certifications || <span className="text-muted-foreground italic">None</span>}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground">Record Status</label>
+                  {isEditing ? (
+                    <Select value={editForm.recordStatus} onValueChange={(v) => setEditForm({ ...editForm, recordStatus: v })}>
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Active - Verified">Active - Verified</SelectItem>
+                        <SelectItem value="Checking Data">Checking Data</SelectItem>
+                        <SelectItem value="Inactive">Inactive</SelectItem>
+                        <SelectItem value="Blacklisted">Blacklisted</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge className={cn("mt-1 text-[9px]",
+                      supplier.recordStatus?.includes('Verified') && "bg-green-500",
+                      supplier.recordStatus === 'Blacklisted' && "bg-destructive",
+                      supplier.recordStatus === 'Checking Data' && "bg-orange-500"
+                    )}>{supplier.recordStatus || "—"}</Badge>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader><CardTitle className="text-sm font-bold uppercase">Primary Sales Contact</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                {supplier.contacts?.sales ? (
-                  <>
-                    <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full bg-accent/10 flex items-center justify-center text-accent font-black">{supplier.contacts.sales.name?.[0]}</div>
+            <div className="space-y-6">
+              {/* Primary Sales Contact */}
+              <Card>
+                <CardHeader><CardTitle className="text-sm font-bold uppercase">Primary Sales Contact</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground">Sales Manager</label>
+                      {isEditing ? (
+                        <Input className="mt-1" value={editForm.salesManager} onChange={(e) => setEditForm({ ...editForm, salesManager: e.target.value })} />
+                      ) : (
+                        <p className="font-medium">{supplier.salesManager || supplier.contacts?.sales?.name || "—"}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground">Export Manager</label>
+                      {isEditing ? (
+                        <Input className="mt-1" value={editForm.exportManager} onChange={(e) => setEditForm({ ...editForm, exportManager: e.target.value })} />
+                      ) : (
+                        <p className="font-medium">{supplier.exportManager || supplier.contacts?.export?.name || "—"}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground">Support Phone</label>
+                      {isEditing ? (
+                        <Input className="mt-1" value={editForm.supportPhone} onChange={(e) => setEditForm({ ...editForm, supportPhone: e.target.value })} />
+                      ) : (
+                        <div className="flex items-center gap-2 mt-1">
+                          <Phone className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-sm">{supplier.supportPhone || supplier.contacts?.support?.phone || "—"}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground">Support Email</label>
+                      {isEditing ? (
+                        <Input className="mt-1" type="email" value={editForm.supportEmail} onChange={(e) => setEditForm({ ...editForm, supportEmail: e.target.value })} />
+                      ) : (
+                        <div className="flex items-center gap-2 mt-1">
+                          <Mail className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-sm">{supplier.supportEmail || supplier.contacts?.support?.email || "—"}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Social Media */}
+              <Card>
+                <CardHeader><CardTitle className="text-sm font-bold uppercase">Social Media</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  {isEditing ? (
+                    <>
                       <div>
-                        <p className="font-bold">{supplier.contacts.sales.name}</p>
-                        <p className="text-xs text-muted-foreground">Key Account Manager</p>
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground">Website</label>
+                        <Input className="mt-1" value={editForm.website} onChange={(e) => setEditForm({ ...editForm, website: e.target.value })} placeholder="https://..." />
                       </div>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground">Facebook</label>
+                        <Input className="mt-1" value={editForm.socialFacebook} onChange={(e) => setEditForm({ ...editForm, socialFacebook: e.target.value })} placeholder="Facebook URL" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground">Instagram</label>
+                        <Input className="mt-1" value={editForm.socialInstagram} onChange={(e) => setEditForm({ ...editForm, socialInstagram: e.target.value })} placeholder="Instagram URL" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground">LinkedIn</label>
+                        <Input className="mt-1" value={editForm.socialLinkedin} onChange={(e) => setEditForm({ ...editForm, socialLinkedin: e.target.value })} placeholder="LinkedIn URL" />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      {[
+                        { icon: Globe, label: "Website", value: supplier.website },
+                        { icon: Facebook, label: "Facebook", value: supplier.socialFacebook },
+                        { icon: Instagram, label: "Instagram", value: supplier.socialInstagram },
+                        { icon: Linkedin, label: "LinkedIn", value: supplier.socialLinkedin },
+                      ].map(({ icon: Icon, label, value }) => (
+                        <div key={label} className="flex items-center gap-3 text-sm">
+                          <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-[10px] font-bold uppercase text-muted-foreground w-20">{label}</span>
+                          {value ? (
+                            <a href={value.startsWith("http") ? value : `https://${value}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
+                              {value} <ExternalLink className="h-3 w-3 shrink-0" />
+                            </a>
+                          ) : <span className="text-muted-foreground italic">—</span>}
+                        </div>
+                      ))}
                     </div>
-                    <div className="space-y-2 pt-2">
-                      <div className="flex items-center gap-2 text-sm"><Mail className="h-4 w-4 text-muted-foreground" /> {supplier.contacts.sales.email}</div>
-                      <div className="flex items-center gap-2 text-sm"><Phone className="h-4 w-4 text-muted-foreground" /> {supplier.contacts.sales.phone || "N/A"}</div>
-                    </div>
-                  </>
-                ) : <p className="text-sm italic text-muted-foreground">No contact data recorded.</p>}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
 
-            <Card className="md:col-span-2">
-              <CardHeader><CardTitle className="text-sm font-bold uppercase">Operational Notes</CardTitle></CardHeader>
-              <CardContent>
-                <Textarea 
-                  className="min-h-[150px] leading-relaxed" 
-                  defaultValue={supplier.notes} 
-                  placeholder="Strategic notes, quality history, or delivery preferences..."
-                  onBlur={(e) => handleUpdateNotes(e.target.value)}
-                />
-              </CardContent>
-            </Card>
+              {/* AI Insights */}
+              <Card className="border-primary/20 bg-primary/5">
+                <CardHeader><CardTitle className="text-sm font-bold uppercase flex items-center gap-2"><Bot className="h-4 w-4 text-primary" /> AI Insights</CardTitle></CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Best Product Price (AI from n8n)</label>
+                    <p className="text-sm mt-1 leading-relaxed">{supplier.aiPriceInsights || <span className="text-muted-foreground italic">No AI price insights available</span>}</p>
+                  </div>
+                  <Separator />
+                  <div>
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">AI Notes (from n8n)</label>
+                    <p className="text-sm mt-1 leading-relaxed">{supplier.aiNotes || <span className="text-muted-foreground italic">No AI notes available</span>}</p>
+                  </div>
+                  <Separator />
+                  <div>
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1"><StickyNote className="h-3 w-3" /> Staff Notes</label>
+                    {isEditing ? (
+                      <Textarea className="mt-1 min-h-[80px]" value={editForm.staffNotes} onChange={(e) => setEditForm({ ...editForm, staffNotes: e.target.value })} placeholder="Internal staff notes..." />
+                    ) : (
+                      <p className="text-sm mt-1 leading-relaxed">{supplier.staffNotes || <span className="text-muted-foreground italic">No staff notes</span>}</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </TabsContent>
 
@@ -607,55 +845,6 @@ export default function SupplierClient({ id }: { id: string }) {
           </Card>
         </TabsContent>
       </Tabs>
-
-      {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <form onSubmit={handleUpdateSupplier}>
-            <DialogHeader>
-              <DialogTitle>Edit Partner Intelligence</DialogTitle>
-              <DialogDescription>Modify core supplier details.</DialogDescription>
-            </DialogHeader>
-            <div className="grid grid-cols-2 gap-4 py-4">
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase">Company Name</label>
-                <Input name="name" defaultValue={supplier.name} required />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase">Nature of Business</label>
-                <Select name="natureOfBusiness" defaultValue={supplier.natureOfBusiness}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Manufacturer">Manufacturer</SelectItem>
-                    <SelectItem value="Trader">Trader</SelectItem>
-                    <SelectItem value="Distributor">Distributor</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase">Country</label>
-                <Input name="country" defaultValue={supplier.country} required />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase">Price Tier</label>
-                <Select name="tier" defaultValue={supplier.pricing?.tier || 'Premium'}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Budget">Budget</SelectItem>
-                    <SelectItem value="Mid-Range">Mid-Range</SelectItem>
-                    <SelectItem value="Premium">Premium</SelectItem>
-                    <SelectItem value="Luxury">Luxury</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-              <Button type="submit">Sync Changes</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Email Dialog */}
       <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
