@@ -87,17 +87,18 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const db = useFirestore();
   const { user } = useUser();
+  const marketId = `${departmentId}_market`;
 
   const suppliersQuery = useMemoFirebase(() => {
     if (!user) return null;
-    return query(collection(db, "suppliers"), where("markets", "array-contains", departmentId));
-  }, [db, user, departmentId]);
+    return query(collection(db, "suppliers"), where("markets", "array-contains", marketId));
+  }, [db, user, marketId]);
   const { data: firestoreSuppliers = [] } = useCollection(suppliersQuery);
 
   const customersQuery = useMemoFirebase(() => {
     if (!user) return null;
-    return query(collection(db, "customers"), where("markets", "array-contains", departmentId));
-  }, [db, user, departmentId]);
+    return query(collection(db, "customers"), where("markets", "array-contains", marketId));
+  }, [db, user, marketId]);
   const { data: firestoreCustomers = [] } = useCollection(customersQuery);
 
   const suppliers = firestoreSuppliers as any[];
@@ -151,7 +152,7 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
       name: formData.get('companyName'),
       email: formData.get('email'),
       country: formData.get('country'),
-      markets: [departmentId],
+      markets: [marketId],
       departments: [departmentId.split('_')[0]],
       createdAt: new Date().toISOString()
     };

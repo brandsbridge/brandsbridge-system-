@@ -164,6 +164,7 @@ export default function SuppliersPage() {
   const [fullValidData, setFullValidData] = useState<any[]>([]);
   const [validationErrors, setValidationErrors] = useState<{row: number, message: string}[]>([]);
   const [duplicateMode, setDuplicateMode] = useState<"skip" | "update">("skip");
+  const [importMarket, setImportMarket] = useState<string>("none");
   const [importProgress, setImportProgress] = useState(0);
   const [importResults, setImportResults] = useState({ success: 0, failed: 0, updated: 0, invalid: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -333,7 +334,9 @@ export default function SuppliersPage() {
           supportPhone: row["Support - Customer Service Number"] || row["supportPhone"] || "",
           supportEmail: supportEmail || "",
           recordStatus: row["Record Status"] || row["recordStatus"] || "Active - Verified",
-          markets: [] as string[],
+          markets: importMarket === "all"
+            ? ["chocolate_market", "cosmetics_market", "detergents_market"]
+            : importMarket !== "none" ? [importMarket] : [] as string[],
           aiPriceInsights: "",
           aiNotes: "",
           staffNotes: "",
@@ -397,6 +400,52 @@ export default function SuppliersPage() {
     }
   };
 
+  const migrateMarkets = async () => {
+    if (!suppliers || suppliers.length === 0) return;
+    const chocolateKeywords = /chocolate|confectionery|cocoa|candy|sweets|biscuit|wafer|snack/i;
+    const cosmeticsKeywords = /cosmetic|skincare|beauty|perfume|hair|cream|lotion|soap|shampoo|makeup/i;
+    const detergentsKeywords = /detergent|cleaning|hygiene|household|bleach|disinfect|laundry|dishwash/i;
+
+    let migrated = 0;
+    const BATCH_SIZE = 500;
+    const suppliersToMigrate = suppliers.filter(s => !s.markets || s.markets.length === 0);
+
+    for (let i = 0; i < suppliersToMigrate.length; i += BATCH_SIZE) {
+      const batch = writeBatch(db);
+      const chunk = suppliersToMigrate.slice(i, i + BATCH_SIZE);
+
+      for (const s of chunk) {
+        const text = [
+          ...(s.specializedProducts || []),
+          ...(s.topProducts || []),
+          s.companyOverview || "",
+          s.natureOfBusiness || ""
+        ].join(" ");
+
+        const markets: string[] = [];
+        if (chocolateKeywords.test(text)) markets.push("chocolate_market");
+        if (cosmeticsKeywords.test(text)) markets.push("cosmetics_market");
+        if (detergentsKeywords.test(text)) markets.push("detergents_market");
+
+        if (markets.length > 0) {
+          batch.update(doc(db, "suppliers", s.id), { markets, updatedAt: new Date().toISOString() });
+          migrated++;
+        }
+      }
+
+      try {
+        await batch.commit();
+      } catch (e) {
+        console.error("Migration batch error:", e);
+      }
+    }
+
+    toast({
+      title: "Migration Complete",
+      description: `Auto-assigned markets for ${migrated} of ${suppliersToMigrate.length} unassigned suppliers.`
+    });
+  };
+
   const resetImport = () => {
     setImportFile(null);
     setImportStep("upload");
@@ -404,6 +453,7 @@ export default function SuppliersPage() {
     setFullValidData([]);
     setValidationErrors([]);
     setImportProgress(0);
+    setImportMarket("none");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -415,6 +465,9 @@ export default function SuppliersPage() {
           <p className="text-muted-foreground">Consolidated database of verified manufacturing and trading partners.</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={migrateMarkets} title="Auto-assign markets based on product keywords">
+            <Tags className="mr-2 h-4 w-4" /> Migrate Markets
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExportCSV}>
             <Download className="mr-2 h-4 w-4" /> Export CSV
           </Button>
@@ -482,16 +535,31 @@ export default function SuppliersPage() {
                       </tbody>
                     </table>
                   </div>
-                  <div className="flex justify-between items-center pt-2 border-t">
-                    <div className="space-y-1">
-                      <p className="text-sm font-bold text-primary">{fullValidData.length} Valid Records Ready</p>
-                      {validationErrors.length > 0 && <p className="text-xs text-destructive">{validationErrors.length} invalid rows will be skipped.</p>}
-                    </div>
-                    <div className="flex gap-3">
-                      <Button variant="outline" onClick={() => { resetImport(); }}>Cancel</Button>
-                      <Button className="bg-[#0E7A96] hover:bg-[#0B5E75]" onClick={executeImport}>
-                        Import {fullValidData.length} Suppliers
-                      </Button>
+                  <div className="flex flex-col gap-4 pt-4 border-t">
+                    <div className="flex items-center gap-4">
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold uppercase text-muted-foreground">Assign to Market</label>
+                        <Select value={importMarket} onValueChange={setImportMarket}>
+                          <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None (Manual Later)</SelectItem>
+                            <SelectItem value="chocolate_market">Chocolate Market</SelectItem>
+                            <SelectItem value="cosmetics_market">Cosmetics Market</SelectItem>
+                            <SelectItem value="detergents_market">Detergents Market</SelectItem>
+                            <SelectItem value="all">All Markets</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1 flex-1">
+                        <p className="text-sm font-bold text-primary">{fullValidData.length} Valid Records Ready</p>
+                        {validationErrors.length > 0 && <p className="text-xs text-destructive">{validationErrors.length} invalid rows will be skipped.</p>}
+                      </div>
+                      <div className="flex gap-3">
+                        <Button variant="outline" onClick={() => { resetImport(); }}>Cancel</Button>
+                        <Button className="bg-[#0E7A96] hover:bg-[#0B5E75]" onClick={executeImport}>
+                          Import {fullValidData.length} Suppliers
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>

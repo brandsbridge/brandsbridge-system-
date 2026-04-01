@@ -73,9 +73,10 @@ const StarRating = ({ rating }: { rating: number }) => (
 
 export default function CosmeticsDepartmentPage() {
   const departmentId = "cosmetics";
+  const marketId = "cosmetics_market";
   const name = "Cosmetics Market";
   const manager = "Musaed Manager";
-  
+
   const [activeTab, setActiveTab] = useState("suppliers");
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -83,8 +84,8 @@ export default function CosmeticsDepartmentPage() {
   const db = useFirestore();
 
   // Firestore Queries for this specific market
-  const suppliersQuery = useMemoFirebase(() => query(collection(db, "suppliers"), where("markets", "array-contains", departmentId)), [db, departmentId]);
-  const customersQuery = useMemoFirebase(() => query(collection(db, "customers"), where("markets", "array-contains", departmentId)), [db, departmentId]);
+  const suppliersQuery = useMemoFirebase(() => query(collection(db, "suppliers"), where("markets", "array-contains", marketId)), [db, marketId]);
+  const customersQuery = useMemoFirebase(() => query(collection(db, "customers"), where("markets", "array-contains", marketId)), [db, marketId]);
   const productsQuery = useMemoFirebase(() => query(collection(db, "products"), where("department", "==", departmentId)), [db, departmentId]);
   const stocksQuery = useMemoFirebase(() => query(collection(db, "stocks"), where("department", "==", departmentId)), [db, departmentId]);
 
@@ -231,6 +232,7 @@ export default function CosmeticsDepartmentPage() {
       name: formData.get('companyName'),
       email: formData.get('email'),
       country: formData.get('country'),
+      markets: [marketId],
       departments: [departmentId],
       createdAt: new Date().toISOString()
     };
