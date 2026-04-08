@@ -64,24 +64,41 @@ const StarRating = ({ rating }: { rating: number }) => (
 );
 
 const IMPORT_TEMPLATE_HEADERS = [
-  "Company Name", "Country", "Nature of Business", "Specialized Products",
-  "Top 5 Best-Selling Products", "Website", "Social Media - Facebook",
-  "Social Media - Instagram", "Social Media - Linkedin", "Sales Manager",
-  "Export Manager", "Support - Customer Service Number", "Support - Customer Service Email",
-  "Company Overview", "Organic / Halal Certifications", "Price Tier",
-  "Strategic Notes (GCC/KSA)", "Record Status"
+  "#", "Company Name", "Country", "Nature of Business", "Specialized Products",
+  "Price Tier", "Strategic Notes (GCC/KSA)", "Top 5 Best-Selling Products",
+  "supplier last product and pricelist", "best product price by AI from n8n",
+  "notes from n8n", "notes from stuff", "Website",
+  "Social Media - Facebook", "Social Media - Instagram", "Social Media - Linkedin",
+  "Sales Manager", "Export Manager",
+  "support - Customer Service number", "support - Customer Service email",
+  "Company Overview", "Organic / Halal Certifications", "Record Status"
 ];
 
 const IMPORT_EXAMPLE_ROW = [
-  "Example Supplier Ltd", "Turkey", "Manufacturer", "Chocolate, Cocoa Powder",
-  "Dark Chocolate 70%, Milk Chocolate, Cocoa Butter", "www.example.com", "fb.com/example",
-  "instagram.com/example", "linkedin.com/example", "John Smith",
-  "Jane Doe", "+905550000000", "support@example.com",
-  "Leading manufacturer of premium chocolate products", "Halal, ISO 9001", "Premium",
-  "Strong presence in GCC market", "Active - Verified"
+  "1", "Example Supplier Ltd", "Turkey", "Manufacturer", "Chocolate, Cocoa Powder",
+  "Premium", "Strong GCC presence", "Dark Chocolate 70%\nMilk Chocolate\nCocoa Butter",
+  "Dark Choc 70% @ $2.50/kg", "Best price: $2.30/kg from AI analysis",
+  "Reliable supplier, fast response", "Good quality, recommend for GCC",
+  "www.example.com", "fb.com/example", "instagram.com/example", "linkedin.com/example",
+  "John Smith", "Jane Doe",
+  "+905550000000", "support@example.com",
+  "Leading manufacturer of premium chocolate products", "Halal, ISO 9001", "Active - Verified"
 ];
 
 const PRIORITY_KEYS = ["Company Name", "Country", "Nature of Business", "Price Tier", "Record Status"];
+
+/** Trim a value; return null if empty. */
+const clean = (v: any): string | null => {
+  if (v === null || v === undefined) return null;
+  const s = v.toString().trim();
+  return s === "" ? null : s;
+};
+
+/** Split a comma-separated or newline-separated value into an array. */
+const splitList = (v: any): string[] => {
+  if (!v) return [];
+  return v.toString().split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean);
+};
 
 export default function SuppliersPage() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -315,54 +332,60 @@ export default function SuppliersPage() {
         const ci = (key: string) => row[key] ?? ciRow[key.toLowerCase().trim()] ?? "";
 
         const name = ci("Company Name") || ci("name") || ci("title");
-        const supportEmail = (ci("Support - Customer Service Email") || ci("support - Customer Service email") || ci("supportEmail") || "").toString().toLowerCase().trim();
+        const supportEmail = (ci("support - Customer Service email") || ci("Support - Customer Service Email") || ci("supportEmail") || "").toString().toLowerCase().trim() || null;
 
         const existingByEmail = supportEmail ? suppliers?.find(s => (s.supportEmail || s.email || "").toLowerCase().trim() === supportEmail) : null;
         const existingByName = name ? suppliers?.find(s => (s.companyName || s.name || "").toLowerCase().trim() === name.toLowerCase().trim()) : null;
         const existing = existingByEmail || existingByName;
 
-        const specializedProducts = (ci("Specialized Products")).toString().split(",").map((s: string) => s.trim()).filter(Boolean);
-        const topProducts = (ci("Top 5 Best-Selling Products")).toString().split(",").map((s: string) => s.trim()).filter(Boolean);
+        const specializedProducts = splitList(ci("Specialized Products"));
+        const topProducts = splitList(ci("Top 5 Best-Selling Products"));
 
         const supplierData: any = {
           companyName: name,
           name,
-          country: ci("Country") || "",
-          natureOfBusiness: ci("Nature of Business") || "",
+          country: clean(ci("Country")),
+          natureOfBusiness: clean(ci("Nature of Business")),
           specializedProducts,
-          priceTier: ci("Price Tier") || "",
-          strategicNotes: ci("Strategic Notes (GCC/KSA)") || "",
+          priceTier: clean(ci("Price Tier")),
+          strategicNotes: clean(ci("Strategic Notes (GCC/KSA)")),
           topProducts,
-          companyOverview: ci("Company Overview") || "",
-          certifications: ci("Organic / Halal Certifications") || "",
-          website: ci("Website") || "",
-          socialFacebook: ci("Social Media - Facebook") || "",
-          socialInstagram: ci("Social Media - Instagram") || "",
-          socialLinkedin: ci("Social Media - Linkedin") || "",
-          salesManager: ci("Sales Manager") || "",
-          exportManager: ci("Export Manager") || "",
-          supportPhone: ci("Support - Customer Service Number") || ci("support - Customer Service number") || "",
-          supportEmail: supportEmail || "",
-          recordStatus: ci("Record Status") || "Active - Verified",
+          lastProductPricelist: clean(ci("supplier last product and pricelist")),
+          aiPriceInsights: clean(ci("best product price by AI from n8n")),
+          aiNotes: clean(ci("notes from n8n")),
+          staffNotes: clean(ci("notes from stuff")),
+          companyOverview: clean(ci("Company Overview")),
+          certifications: clean(ci("Organic / Halal Certifications")),
+          website: clean(ci("Website")),
+          socialFacebook: clean(ci("Social Media - Facebook")),
+          socialInstagram: clean(ci("Social Media - Instagram")),
+          socialLinkedin: clean(ci("Social Media - Linkedin")),
+          salesManager: clean(ci("Sales Manager")),
+          exportManager: clean(ci("Export Manager")),
+          supportPhone: clean(ci("support - Customer Service number")),
+          supportEmail: supportEmail || null,
+          recordStatus: clean(ci("Record Status")) || "Active - Verified",
           markets: importMarket === "all"
             ? ["chocolate_market", "cosmetics_market", "detergents_market"]
             : importMarket !== "none" ? [importMarket] : [] as string[],
-          aiPriceInsights: "",
-          aiNotes: "",
-          staffNotes: "",
           updatedAt: new Date().toISOString()
         };
+
+        // Remove null values so Firestore only stores fields with actual data
+        const cleanData = Object.fromEntries(
+          Object.entries(supplierData).filter(([, v]) => v !== null)
+        );
 
         if (existing && existing.id) {
           if (duplicateMode === "update") {
             const docRef = doc(db, "suppliers", existing.id);
-            batch.update(docRef, supplierData);
+            batch.update(docRef, cleanData);
             updates++;
           }
         } else {
-          supplierData.createdAt = new Date().toISOString();
+          cleanData.createdAt = new Date().toISOString();
           const newDocRef = doc(collection(db, "suppliers"));
-          batch.set(newDocRef, supplierData);
+          batch.set(newDocRef, cleanData);
           success++;
         }
       }
