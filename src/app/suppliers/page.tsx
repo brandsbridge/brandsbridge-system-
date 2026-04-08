@@ -303,37 +303,47 @@ export default function SuppliersPage() {
       const batch = writeBatch(db);
       const chunk = fullValidData.slice(i, i + BATCH_SIZE);
 
-      for (const row of chunk) {
-        const name = row["Company Name"] || row["name"] || row["title"];
-        const supportEmail = (row["Support - Customer Service Email"] || row["supportEmail"] || "").toString().toLowerCase().trim();
+      for (const rawRow of chunk) {
+        // Build a case-insensitive lookup so column headers like
+        // "support - Customer Service number" match regardless of casing
+        const row: any = {};
+        const ciRow: Record<string, any> = {};
+        for (const [k, v] of Object.entries(rawRow)) {
+          row[k] = v;
+          ciRow[k.toLowerCase().trim()] = v;
+        }
+        const ci = (key: string) => row[key] ?? ciRow[key.toLowerCase().trim()] ?? "";
+
+        const name = ci("Company Name") || ci("name") || ci("title");
+        const supportEmail = (ci("Support - Customer Service Email") || ci("support - Customer Service email") || ci("supportEmail") || "").toString().toLowerCase().trim();
 
         const existingByEmail = supportEmail ? suppliers?.find(s => (s.supportEmail || s.email || "").toLowerCase().trim() === supportEmail) : null;
         const existingByName = name ? suppliers?.find(s => (s.companyName || s.name || "").toLowerCase().trim() === name.toLowerCase().trim()) : null;
         const existing = existingByEmail || existingByName;
 
-        const specializedProducts = (row["Specialized Products"] || "").toString().split(",").map((s: string) => s.trim()).filter(Boolean);
-        const topProducts = (row["Top 5 Best-Selling Products"] || "").toString().split(",").map((s: string) => s.trim()).filter(Boolean);
+        const specializedProducts = (ci("Specialized Products")).toString().split(",").map((s: string) => s.trim()).filter(Boolean);
+        const topProducts = (ci("Top 5 Best-Selling Products")).toString().split(",").map((s: string) => s.trim()).filter(Boolean);
 
         const supplierData: any = {
           companyName: name,
           name,
-          country: row["Country"] || row["country"] || "",
-          natureOfBusiness: row["Nature of Business"] || row["natureOfBusiness"] || "",
+          country: ci("Country") || "",
+          natureOfBusiness: ci("Nature of Business") || "",
           specializedProducts,
-          priceTier: row["Price Tier"] || row["priceTier"] || "",
-          strategicNotes: row["Strategic Notes (GCC/KSA)"] || row["strategicNotes"] || "",
+          priceTier: ci("Price Tier") || "",
+          strategicNotes: ci("Strategic Notes (GCC/KSA)") || "",
           topProducts,
-          companyOverview: row["Company Overview"] || row["companyOverview"] || "",
-          certifications: row["Organic / Halal Certifications"] || row["certifications"] || "",
-          website: row["Website"] || row["website"] || "",
-          socialFacebook: row["Social Media - Facebook"] || row["socialFacebook"] || "",
-          socialInstagram: row["Social Media - Instagram"] || row["socialInstagram"] || "",
-          socialLinkedin: row["Social Media - Linkedin"] || row["socialLinkedin"] || "",
-          salesManager: row["Sales Manager"] || row["salesManager"] || "",
-          exportManager: row["Export Manager"] || row["exportManager"] || "",
-          supportPhone: row["Support - Customer Service Number"] || row["supportPhone"] || "",
+          companyOverview: ci("Company Overview") || "",
+          certifications: ci("Organic / Halal Certifications") || "",
+          website: ci("Website") || "",
+          socialFacebook: ci("Social Media - Facebook") || "",
+          socialInstagram: ci("Social Media - Instagram") || "",
+          socialLinkedin: ci("Social Media - Linkedin") || "",
+          salesManager: ci("Sales Manager") || "",
+          exportManager: ci("Export Manager") || "",
+          supportPhone: ci("Support - Customer Service Number") || ci("support - Customer Service number") || "",
           supportEmail: supportEmail || "",
-          recordStatus: row["Record Status"] || row["recordStatus"] || "Active - Verified",
+          recordStatus: ci("Record Status") || "Active - Verified",
           markets: importMarket === "all"
             ? ["chocolate_market", "cosmetics_market", "detergents_market"]
             : importMarket !== "none" ? [importMarket] : [] as string[],
