@@ -432,10 +432,11 @@ export default function DetergentsDepartmentPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn("text-[9px] font-bold",
-                        s.pricing?.tier === 'Luxury' && "border-primary text-primary",
-                        s.pricing?.tier === 'Premium' && "border-blue-500 text-blue-500",
-                        s.pricing?.tier === 'Mid-Range' && "border-green-500 text-green-500"
-                      )}>{s.pricing?.tier || 'N/A'}</Badge>
+                        (s.priceTier || s.pricing?.tier) === 'Luxury' && "border-primary text-primary",
+                        (s.priceTier || s.pricing?.tier) === 'Premium' && "border-blue-500 text-blue-500",
+                        (s.priceTier || s.pricing?.tier) === 'Mid-Range' && "border-green-500 text-green-500",
+                        (s.priceTier || s.pricing?.tier) === 'Budget' && "border-orange-500 text-orange-500"
+                      )}>{s.priceTier || s.pricing?.tier || 'N/A'}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge className={cn("text-[9px] capitalize",

@@ -380,7 +380,7 @@ export default function SupplierClient({ id }: { id: string }) {
         <Card className="bg-secondary/20">
           <CardContent className="p-4">
             <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Price Tier</p>
-            <p className="text-2xl font-bold text-accent">{supplier.pricing?.tier || 'Premium'}</p>
+            <p className="text-2xl font-bold text-accent">{supplier.priceTier || supplier.pricing?.tier || 'N/A'}</p>
           </CardContent>
         </Card>
       </div>
