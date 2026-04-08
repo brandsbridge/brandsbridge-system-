@@ -196,10 +196,10 @@ export default function SuppliersPage() {
     });
   }, [suppliers, searchTerm, countryFilter, tierFilter, statusFilter, natureFilter]);
 
-  const countries = Array.from(new Set(suppliers?.map(s => s.country) || [])).sort();
-  const natures = Array.from(new Set(suppliers?.map(s => s.natureOfBusiness) || [])).sort();
+  const countries = Array.from(new Set(suppliers?.map(s => s.country).filter(Boolean) || [])).sort();
+  const natures = Array.from(new Set(suppliers?.map(s => s.natureOfBusiness).filter(Boolean) || [])).sort();
   const tiers = ['Budget', 'Mid-Range', 'Premium', 'Luxury'];
-  const statuses = Array.from(new Set(suppliers?.map(s => s.recordStatus) || [])).sort();
+  const statuses = Array.from(new Set(suppliers?.map(s => s.recordStatus).filter(Boolean) || [])).sort();
 
   const handleExportCSV = () => {
     const csv = Papa.unparse(filteredSuppliers);
