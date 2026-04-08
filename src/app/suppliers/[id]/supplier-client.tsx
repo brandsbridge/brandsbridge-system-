@@ -407,7 +407,7 @@ export default function SupplierClient({ id }: { id: string }) {
                   <div>
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Nature of Business</label>
                     {isEditing ? (
-                      <Select value={editForm.natureOfBusiness} onValueChange={(v) => setEditForm({ ...editForm, natureOfBusiness: v })}>
+                      <Select value={editForm.natureOfBusiness || "Manufacturer"} onValueChange={(v) => setEditForm({ ...editForm, natureOfBusiness: v })}>
                         <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Manufacturer">Manufacturer</SelectItem>
@@ -444,7 +444,7 @@ export default function SupplierClient({ id }: { id: string }) {
                 <div>
                   <label className="text-[10px] font-bold uppercase text-muted-foreground">Price Tier</label>
                   {isEditing ? (
-                    <Select value={editForm.priceTier} onValueChange={(v) => setEditForm({ ...editForm, priceTier: v })}>
+                    <Select value={editForm.priceTier || "Mid-Range"} onValueChange={(v) => setEditForm({ ...editForm, priceTier: v })}>
                       <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Budget">Budget</SelectItem>
@@ -512,7 +512,7 @@ export default function SupplierClient({ id }: { id: string }) {
                 <div>
                   <label className="text-[10px] font-bold uppercase text-muted-foreground">Record Status</label>
                   {isEditing ? (
-                    <Select value={editForm.recordStatus} onValueChange={(v) => setEditForm({ ...editForm, recordStatus: v })}>
+                    <Select value={editForm.recordStatus || "Active - Verified"} onValueChange={(v) => setEditForm({ ...editForm, recordStatus: v })}>
                       <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Active - Verified">Active - Verified</SelectItem>

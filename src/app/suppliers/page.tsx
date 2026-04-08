@@ -836,7 +836,7 @@ export default function SuppliersPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase">Nature of Business</label>
-                <Select name="natureOfBusiness" defaultValue={editingSupplier?.natureOfBusiness}>
+                <Select name="natureOfBusiness" defaultValue={editingSupplier?.natureOfBusiness || "Manufacturer"}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Manufacturer">Manufacturer</SelectItem>
@@ -851,7 +851,7 @@ export default function SuppliersPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase">Price Tier</label>
-                <Select name="tier" defaultValue={editingSupplier?.pricing?.tier}>
+                <Select name="tier" defaultValue={editingSupplier?.priceTier || editingSupplier?.pricing?.tier || "Mid-Range"}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {tiers.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}

@@ -154,8 +154,8 @@ export default function CustomersPage() {
     return MOCK_CUSTOMERS;
   }, [firestoreCustomers]);
 
-  const countries = Array.from(new Set(customers.map(c => c.country))).sort();
-  const statuses = Array.from(new Set(customers.map(c => c.accountStatus))).sort();
+  const countries = Array.from(new Set(customers.map(c => c.country).filter(Boolean))).sort();
+  const statuses = Array.from(new Set(customers.map(c => c.accountStatus).filter(Boolean))).sort();
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => {
