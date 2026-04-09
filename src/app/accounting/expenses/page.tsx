@@ -62,6 +62,12 @@ import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { toast } from "@/hooks/use-toast";
 import { app, storage } from "@/lib/firebase";
 
+const BUILTIN_COST_CENTERS = [
+  "Marketing", "Operations", "Sales", "Administration",
+  "Rent & Facilities", "Human Resources", "Technology & IT",
+  "Logistics & Shipping", "Other",
+];
+
 // Built-in expense accounts
 const BUILTIN_EXPENSE_ACCOUNTS = [
   ...CHART_OF_ACCOUNTS.filter(a => a.group === 'Expenses'),
@@ -94,6 +100,18 @@ export default function ExpensesPage() {
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [newAccountName, setNewAccountName] = useState('');
   const [selectedAccountCode, setSelectedAccountCode] = useState('');
+
+  // Cost center state
+  const [customCostCenters, setCustomCostCenters] = useState<string[]>([]);
+  const [selectedCostCenter, setSelectedCostCenter] = useState('');
+  const [isAddingCostCenter, setIsAddingCostCenter] = useState(false);
+  const [newCostCenterName, setNewCostCenterName] = useState('');
+  const [costCenterFilter, setCostCenterFilter] = useState('all');
+
+  const allCostCenters = useMemo(() => {
+    const merged = [...BUILTIN_COST_CENTERS, ...customCostCenters];
+    return [...new Set(merged)];
+  }, [customCostCenters]);
 
   // Document type options for attachments
   const DOCUMENT_TYPES = [
@@ -131,7 +149,7 @@ export default function ExpensesPage() {
     return [...BUILTIN_EXPENSE_ACCOUNTS, ...customAccounts.map(c => ({ ...c, group: 'Expenses' }))];
   }, [customAccounts]);
 
-  // Load custom accounts from Firestore
+  // Load custom accounts and cost centers from Firestore
   useEffect(() => {
     if (!db) return;
     const loadCustomAccounts = async () => {
@@ -143,7 +161,17 @@ export default function ExpensesPage() {
         console.error("Failed to load custom accounts:", err);
       }
     };
+    const loadCostCenters = async () => {
+      try {
+        const snap = await getDocs(collection(db, "costCenters"));
+        const centers = snap.docs.map(d => d.data().name as string).filter(Boolean);
+        setCustomCostCenters(centers);
+      } catch (err) {
+        console.error("Failed to load cost centers:", err);
+      }
+    };
     loadCustomAccounts();
+    loadCostCenters();
   }, [db]);
 
   // Fetch Suppliers and Customers for dropdowns
@@ -333,6 +361,7 @@ export default function ExpensesPage() {
     setExpenseDate(expense.date ? (typeof expense.date.toDate === 'function' ? expense.date.toDate().toISOString().split('T')[0] : new Date(expense.date).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]);
     setVendorInput(expense.vendorName || '');
     setSelectedAccountCode(expense.accountCode || '');
+    setSelectedCostCenter(expense.costCenter || '');
 
     // Load existing attachments
     const existing: AttachmentItem[] = (expense.attachments || []).map((att: any, i: number) => ({
@@ -397,6 +426,9 @@ export default function ExpensesPage() {
       setExpenseDate(new Date().toISOString().split('T')[0]);
       setVendorInput('');
       setSelectedAccountCode('');
+      setSelectedCostCenter('');
+      setIsAddingCostCenter(false);
+      setNewCostCenterName('');
       setAttachments([]);
       setAttachmentError(null);
       setIsAddingAccount(false);
@@ -458,6 +490,7 @@ export default function ExpensesPage() {
       customerId: formData.get('customerId'),
       customerName: customers?.find(c => c.id === formData.get('customerId'))?.name,
       isBillable: formData.get('isBillable') === 'on',
+      costCenter: selectedCostCenter || null,
       date: Timestamp.fromDate(new Date(expenseDate)),
       department: 'all',
       createdBy: user?.profile?.name || 'System',
@@ -514,9 +547,22 @@ export default function ExpensesPage() {
 
         <TabsContent value="expenses" className="space-y-6 pt-6">
           <div className="flex items-center justify-between mb-4">
-            <div className="relative w-full max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search expenses..." className="pl-9 h-9" />
+            <div className="flex items-center gap-3">
+              <div className="relative w-full max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search expenses..." className="pl-9 h-9" />
+              </div>
+              <Select value={costCenterFilter} onValueChange={setCostCenterFilter}>
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="All Cost Centers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Cost Centers</SelectItem>
+                  {allCostCenters.map(cc => (
+                    <SelectItem key={cc} value={cc}>{cc}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4" /> Export</Button>
@@ -591,6 +637,58 @@ export default function ExpensesPage() {
                               <SelectItem value="Credit Card">Business Credit Card</SelectItem>
                             </SelectContent>
                           </Select>
+                        </div>
+
+                        {/* COST CENTER */}
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest">Cost Center</Label>
+                          {!isAddingCostCenter ? (
+                            <Select value={selectedCostCenter || '_none_'} onValueChange={(val) => {
+                              if (val === '__add_new_cc__') {
+                                setIsAddingCostCenter(true);
+                              } else {
+                                setSelectedCostCenter(val === '_none_' ? '' : val);
+                              }
+                            }}>
+                              <SelectTrigger><SelectValue placeholder="Select cost center..." /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none_">None</SelectItem>
+                                {allCostCenters.map(cc => (
+                                  <SelectItem key={cc} value={cc}>{cc}</SelectItem>
+                                ))}
+                                <SelectItem value="__add_new_cc__" className="text-primary font-semibold border-t mt-1 pt-2">
+                                  + Add New Cost Center
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="flex gap-2">
+                              <Input
+                                value={newCostCenterName}
+                                onChange={(e) => setNewCostCenterName(e.target.value)}
+                                placeholder="New cost center..."
+                                autoFocus
+                              />
+                              <Button type="button" size="sm" onClick={async () => {
+                                const name = newCostCenterName.trim();
+                                if (!name) return;
+                                try {
+                                  const docRef = doc(collection(db, "costCenters"));
+                                  await setDoc(docRef, { name, createdAt: new Date().toISOString() });
+                                  setCustomCostCenters(prev => [...prev, name]);
+                                  setSelectedCostCenter(name);
+                                  setNewCostCenterName('');
+                                  setIsAddingCostCenter(false);
+                                  toast({ title: "Cost Center Added", description: `${name} is now available.` });
+                                } catch (err: any) {
+                                  toast({ variant: "destructive", title: "Error", description: err.message });
+                                }
+                              }}>Save</Button>
+                              <Button type="button" size="sm" variant="ghost" onClick={() => { setIsAddingCostCenter(false); setNewCostCenterName(''); }}>
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
 
                         {/* VENDOR / SUPPLIER AUTOCOMPLETE */}
@@ -813,6 +911,7 @@ export default function ExpensesPage() {
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Vendor / Account</TableHead>
+                    <TableHead>Cost Center</TableHead>
                     <TableHead>Reference</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
@@ -820,12 +919,21 @@ export default function ExpensesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {expenses.map(e => (
+                  {expenses
+                    .filter((e: any) => costCenterFilter === 'all' || e.costCenter === costCenterFilter)
+                    .map(e => (
                     <TableRow key={e.id}>
                       <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(e.date)}</TableCell>
                       <TableCell>
                         <div className="font-bold text-sm">{e.vendorName || 'General Expense'}</div>
                         <div className="text-[10px] text-muted-foreground uppercase">{e.accountName}</div>
+                      </TableCell>
+                      <TableCell>
+                        {e.costCenter ? (
+                          <Badge variant="secondary" className="text-[10px] bg-purple-500/10 text-purple-500 border-purple-500/20">{e.costCenter}</Badge>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
                         <div className="flex items-center gap-1">
@@ -857,7 +965,7 @@ export default function ExpensesPage() {
                   ))}
                   {expenses.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-12 text-muted-foreground italic">No expense records found.</TableCell>
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground italic">No expense records found.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
