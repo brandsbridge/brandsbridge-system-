@@ -20,7 +20,10 @@ import {
   X,
   FileText as FileIcon,
   Eye,
-  CheckCircle
+  CheckCircle,
+  Trash2,
+  Pencil,
+  History,
 } from "lucide-react";
 import { 
   Table, 
@@ -47,7 +50,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where, updateDoc, doc, setDoc, Timestamp } from "firebase/firestore";
+import { collection, query, where, updateDoc, doc, setDoc, deleteDoc, Timestamp } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import { Textarea } from "@/components/ui/textarea";
@@ -89,12 +92,14 @@ export default function PaymentsPage() {
   const [staffReceiptFileName, setStaffReceiptFileName] = useState<string | null>(null);
   const staffFileInputRef = useRef<HTMLInputElement>(null);
 
-  // Log Filter State
-  const [logTypeFilter, setLogTypeFilter] = useState("all");
-  const [logNameFilter, setLogNameFilter] = useState("all");
-  const [logStatusFilter, setLogStatusFilter] = useState("all");
-  const [logStartDate, setLogStartDate] = useState("");
-  const [logEndDate, setLogEndDate] = useState("");
+  // Audit Log State
+  const [auditActionFilter, setAuditActionFilter] = useState("all");
+  const [auditUserFilter, setAuditUserFilter] = useState("all");
+  const [auditStartDate, setAuditStartDate] = useState("");
+  const [auditEndDate, setAuditEndDate] = useState("");
+  const [auditSearch, setAuditSearch] = useState("");
+  const [editingNotePaymentId, setEditingNotePaymentId] = useState<string | null>(null);
+  const [noteValue, setNoteValue] = useState("");
 
   useEffect(() => {
     const saved = localStorage.getItem("demoUser");
@@ -118,6 +123,7 @@ export default function PaymentsPage() {
   const suppliersQuery = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [user]);
   const employeesQuery = useMemoFirebase(() => user ? collection(db, "employees") : null, [user]);
   const staffAdvancesQuery = useMemoFirebase(() => user ? collection(db, "staff_advances") : null, [user]);
+  const auditLogQuery = useMemoFirebase(() => user ? collection(db, "paymentAuditLog") : null, [user]);
 
   const { data: paymentsData, isLoading: loadingPayments } = useCollection(paymentsQuery);
   const { data: advancesData, isLoading: loadingAdvances } = useCollection(advancesQuery);
@@ -127,17 +133,85 @@ export default function PaymentsPage() {
   const { data: suppliers } = useCollection(suppliersQuery);
   const { data: employeesData } = useCollection(employeesQuery);
   const { data: staffAdvancesData, isLoading: loadingStaffAdvances } = useCollection(staffAdvancesQuery);
+  const { data: auditLogData, isLoading: loadingAuditLog } = useCollection(auditLogQuery);
 
   const employees = employeesData || [];
   const staffAdvances = staffAdvancesData || [];
+  const auditLog = auditLogData || [];
 
   const payments = paymentsData || [];
   const advances = advancesData || [];
   const invoices = invoicesData || [];
   const credits = creditsData || [];
 
+  // --- Audit Log Helper ---
+  const logAudit = async (
+    paymentId: string,
+    action: "created" | "updated" | "deleted" | "status_changed",
+    previousValue: any,
+    newValue: any,
+    notes?: string
+  ) => {
+    const auditRef = doc(collection(db, "paymentAuditLog"));
+    await setDoc(auditRef, {
+      paymentId,
+      action,
+      changedBy: user?.profile?.name || currentUser?.name || "System",
+      changedAt: new Date().toISOString(),
+      previousValue: previousValue || null,
+      newValue: newValue || null,
+      notes: notes || null,
+    });
+  };
+
+  const filteredAuditLog = useMemo(() => {
+    return auditLog
+      .filter((entry: any) => {
+        if (auditActionFilter !== "all" && entry.action !== auditActionFilter) return false;
+        if (auditUserFilter !== "all" && entry.changedBy !== auditUserFilter) return false;
+        if (auditSearch && !entry.paymentId?.toLowerCase().includes(auditSearch.toLowerCase())) return false;
+        if (auditStartDate) {
+          const d = new Date(entry.changedAt);
+          if (d < new Date(auditStartDate)) return false;
+        }
+        if (auditEndDate) {
+          const d = new Date(entry.changedAt);
+          const end = new Date(auditEndDate);
+          end.setHours(23, 59, 59);
+          if (d > end) return false;
+        }
+        return true;
+      })
+      .sort((a: any, b: any) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime());
+  }, [auditLog, auditActionFilter, auditUserFilter, auditSearch, auditStartDate, auditEndDate]);
+
+  const auditUsers = useMemo(() => {
+    const users = new Set(auditLog.map((e: any) => e.changedBy).filter(Boolean));
+    return [...users];
+  }, [auditLog]);
+
+  const handleSaveNote = async (paymentId: string) => {
+    const payment = payments.find((p: any) => p.id === paymentId);
+    const oldNotes = payment?.notes || '';
+    await updateDoc(doc(db, "payments", paymentId), { notes: noteValue, updatedAt: new Date().toISOString() });
+    await logAudit(paymentId, "updated", { notes: oldNotes }, { notes: noteValue }, oldNotes ? "Notes updated" : "Notes added");
+    setEditingNotePaymentId(null);
+    toast({ title: "Notes Saved" });
+  };
+
+  const handleDeletePayment = async (payment: any) => {
+    await logAudit(payment.id, "deleted", {
+      partyName: payment.partyName,
+      amount: payment.amount,
+      currency: payment.currency,
+      type: payment.type,
+    }, null, "Payment deleted");
+    await deleteDoc(doc(db, "payments", payment.id));
+    toast({ title: "Payment Deleted" });
+  };
+
   // --- Handlers ---
-  const handleRecordPayment = (e: React.FormEvent) => {
+  const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const amount = parseFloat(paymentAmount) || 0;
@@ -157,7 +231,9 @@ export default function PaymentsPage() {
       date: new Date().toISOString()
     };
 
-    paymentService.createPayment(db, data);
+    const newDocRef = doc(collection(db, "payments"));
+    await setDoc(newDocRef, { ...data, createdAt: new Date().toISOString() });
+    await logAudit(newDocRef.id, "created", null, data, "Payment created");
     setIsPaymentModalOpen(false);
     toast({ title: "Payment Recorded", description: `Settlement of ${paymentCurrency} ${amount} saved.` });
   };
@@ -300,32 +376,6 @@ export default function PaymentsPage() {
     }
   }, [isStaffAdvanceModalOpen]);
 
-  const handleExportCSV = () => {
-    if (filteredLog.length === 0) {
-      toast({ variant: "destructive", title: "No data to export" });
-      return;
-    }
-    const data = filteredLog.map(l => ({
-      Date: new Date(l.date).toLocaleDateString(),
-      Party: l.name,
-      Type: l.type,
-      Amount: l.amount,
-      Currency: l.currency,
-      Status: l.status,
-      Reference: l.invoice || '-'
-    }));
-    const csv = Papa.unparse(data);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `payment_log_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast({ title: "Log Exported", description: "CSV file has been generated." });
-  };
-
   // --- Filtered Data ---
   const usdPreview = useMemo(() => {
     if (!exchangeRates) return 0;
@@ -340,58 +390,6 @@ export default function PaymentsPage() {
       !advances.some(a => a.invoiceId === i.id)
     );
   }, [invoices, linkingCustomerName, advances]);
-
-  const combinedLog = useMemo(() => {
-    const p = payments.map(pay => ({
-      id: pay.id,
-      date: pay.date,
-      name: pay.partyName,
-      type: pay.type === 'received' ? 'Inward Payment' : 'Outward Settlement',
-      amount: pay.amount,
-      currency: pay.currency || 'USD',
-      status: 'Settled',
-      invoice: pay.reference,
-      category: pay.type === 'received' ? 'customer' : 'supplier'
-    }));
-
-    const a = advances.map(adv => ({
-      id: adv.id,
-      date: adv.date,
-      name: adv.customerName,
-      type: 'Customer Advance',
-      amount: adv.amount,
-      currency: 'USD',
-      status: adv.invoiceId ? 'Applied' : 'Available',
-      invoice: adv.invoiceId ? invoices.find(i => i.id === adv.invoiceId)?.number : '-',
-      category: 'customer'
-    }));
-
-    const c = credits.map(cred => ({
-      id: cred.id,
-      date: cred.date,
-      name: cred.customerName,
-      type: 'Credit Note',
-      amount: cred.amount,
-      currency: 'USD',
-      status: cred.status,
-      invoice: cred.invoiceId,
-      category: 'customer'
-    }));
-
-    return [...p, ...a, ...c].sort((x, y) => new Date(y.date).getTime() - new Date(x.date).getTime());
-  }, [payments, advances, credits, invoices]);
-
-  const filteredLog = useMemo(() => {
-    return combinedLog.filter(l => {
-      const matchesType = logTypeFilter === 'all' || l.category === logTypeFilter;
-      const matchesName = logNameFilter === 'all' || l.name === logNameFilter;
-      const matchesStatus = logStatusFilter === 'all' || l.status.toLowerCase() === logStatusFilter.toLowerCase();
-      const itemDate = new Date(l.date);
-      const matchesStart = !logStartDate || itemDate >= new Date(logStartDate);
-      const matchesEnd = !logEndDate || itemDate <= new Date(logEndDate);
-      return matchesType && matchesName && matchesStatus && matchesStart && matchesEnd;
-    });
-  }, [combinedLog, logTypeFilter, logNameFilter, logStatusFilter, logStartDate, logEndDate]);
 
   return (
     <div className="space-y-8">
@@ -507,7 +505,9 @@ export default function PaymentsPage() {
                     <TableHead>Party Name</TableHead>
                     <TableHead>Original Currency</TableHead>
                     <TableHead className="text-right">USD Equivalent</TableHead>
-                    <TableHead className="text-right">Type</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -522,16 +522,41 @@ export default function PaymentsPage() {
                       <TableCell className={cn("text-right font-bold", pay.type === 'received' ? "text-green-500" : "text-red-500")}>
                         {pay.type === 'received' ? '+' : '-'}${ (pay.totalUSD || pay.amount || 0).toLocaleString()}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="max-w-[160px]">
+                        {editingNotePaymentId === pay.id ? (
+                          <input
+                            className="w-full text-xs border rounded px-2 py-1 bg-background"
+                            value={noteValue}
+                            onChange={(e) => setNoteValue(e.target.value)}
+                            onBlur={() => handleSaveNote(pay.id)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveNote(pay.id); if (e.key === 'Escape') setEditingNotePaymentId(null); }}
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            className="text-xs text-muted-foreground hover:text-foreground cursor-pointer truncate block w-full text-left"
+                            onClick={() => { setEditingNotePaymentId(pay.id); setNoteValue(pay.notes || ''); }}
+                            title="Click to edit"
+                          >
+                            {pay.notes || <span className="italic text-muted-foreground/50">Add note...</span>}
+                          </button>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <Badge className={pay.type === 'received' ? "bg-green-500/10 text-green-500 border-green-500/20" : "bg-red-500/10 text-red-500 border-red-500/20"}>
                           {pay.type === 'received' ? 'Inward' : 'Outward'}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeletePayment(pay)} title="Delete">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
                   {payments.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-12 text-muted-foreground italic">No payments recorded.</TableCell>
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground italic">No payments recorded.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -656,24 +681,26 @@ export default function PaymentsPage() {
           <Card className="bg-secondary/10 border-none shadow-none">
             <CardContent className="p-4 grid gap-4 md:grid-cols-5">
               <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Entity Type</Label>
-                <Select value={logTypeFilter} onValueChange={setLogTypeFilter}>
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Action Type</Label>
+                <Select value={auditActionFilter} onValueChange={setAuditActionFilter}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Participants</SelectItem>
-                    <SelectItem value="customer">Customers Only</SelectItem>
-                    <SelectItem value="supplier">Suppliers Only</SelectItem>
+                    <SelectItem value="all">All Actions</SelectItem>
+                    <SelectItem value="created">Created</SelectItem>
+                    <SelectItem value="updated">Updated</SelectItem>
+                    <SelectItem value="deleted">Deleted</SelectItem>
+                    <SelectItem value="status_changed">Status Changed</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Select Name</Label>
-                <Select value={logNameFilter} onValueChange={setLogNameFilter}>
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Changed By</Label>
+                <Select value={auditUserFilter} onValueChange={setAuditUserFilter}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Names</SelectItem>
-                    {[...(customers || []), ...(suppliers || [])].map(e => (
-                      <SelectItem key={e.id} value={e.name}>{e.name}</SelectItem>
+                    <SelectItem value="all">All Users</SelectItem>
+                    {auditUsers.map((u: string) => (
+                      <SelectItem key={u} value={u}>{u}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -681,75 +708,101 @@ export default function PaymentsPage() {
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Date Range</Label>
                 <div className="flex gap-2">
-                  <Input type="date" className="h-9 text-xs" value={logStartDate} onChange={e => setLogStartDate(e.target.value)} />
-                  <Input type="date" className="h-9 text-xs" value={logEndDate} onChange={e => setLogEndDate(e.target.value)} />
+                  <Input type="date" className="h-9 text-xs" value={auditStartDate} onChange={e => setAuditStartDate(e.target.value)} />
+                  <Input type="date" className="h-9 text-xs" value={auditEndDate} onChange={e => setAuditEndDate(e.target.value)} />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Status</Label>
-                <Select value={logStatusFilter} onValueChange={setLogStatusFilter}>
-                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="Settled">Settled</SelectItem>
-                    <SelectItem value="Available">Available</SelectItem>
-                    <SelectItem value="Applied">Applied</SelectItem>
-                    <SelectItem value="Open">Open Credit</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Payment ID</Label>
+                <div className="relative">
+                  <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+                  <Input className="h-9 text-xs pl-8" placeholder="Search..." value={auditSearch} onChange={e => setAuditSearch(e.target.value)} />
+                </div>
               </div>
               <div className="flex items-end">
-                <Button variant="outline" className="w-full h-9" onClick={handleExportCSV}>
-                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Export CSV
+                <Button variant="outline" className="w-full h-9" onClick={() => { setAuditActionFilter("all"); setAuditUserFilter("all"); setAuditStartDate(""); setAuditEndDate(""); setAuditSearch(""); }}>
+                  Clear Filters
                 </Button>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Transaction Type</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Reference</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLog.map(l => (
-                  <TableRow key={l.id}>
-                    <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(l.date)}</TableCell>
-                    <TableCell className="font-medium">{l.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px]">{l.type}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-bold">
-                      {l.currency} {l.amount?.toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={cn(
-                        "text-[9px]",
-                        l.status === 'Settled' && "bg-green-500",
-                        l.status === 'Applied' && "bg-primary",
-                        l.status === 'Available' && "bg-yellow-500",
-                        l.status === 'Open' && "bg-blue-500"
-                      )}>
-                        {l.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-xs font-mono text-muted-foreground">{l.invoice}</TableCell>
-                  </TableRow>
-                ))}
-                {filteredLog.length === 0 && (
+            {loadingAuditLog ? (
+              <div className="py-20 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12 text-muted-foreground italic">No transactions found for the selected filters.</TableCell>
+                    <TableHead>Date & Time</TableHead>
+                    <TableHead>Payment ID</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Changed By</TableHead>
+                    <TableHead>Change Details</TableHead>
+                    <TableHead>Notes</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredAuditLog.map((entry: any) => {
+                    // Build change details string
+                    const details: string[] = [];
+                    if (entry.action === 'created' && entry.newValue) {
+                      details.push(`${entry.newValue.type === 'received' ? 'Inward' : 'Outward'}: ${entry.newValue.currency || 'USD'} ${entry.newValue.amount?.toLocaleString()} — ${entry.newValue.partyName || ''}`);
+                    } else if (entry.action === 'deleted' && entry.previousValue) {
+                      details.push(`Removed: ${entry.previousValue.currency || 'USD'} ${entry.previousValue.amount?.toLocaleString()} — ${entry.previousValue.partyName || ''}`);
+                    } else if (entry.action === 'updated' || entry.action === 'status_changed') {
+                      const prev = entry.previousValue || {};
+                      const next = entry.newValue || {};
+                      for (const key of Object.keys(next)) {
+                        if (prev[key] !== undefined && prev[key] !== next[key]) {
+                          const label = key.charAt(0).toUpperCase() + key.slice(1);
+                          details.push(`${label}: ${prev[key]} → ${next[key]}`);
+                        } else if (prev[key] === undefined && next[key]) {
+                          const label = key.charAt(0).toUpperCase() + key.slice(1);
+                          details.push(`${label}: ${next[key]}`);
+                        }
+                      }
+                    }
+
+                    return (
+                      <TableRow key={entry.id}>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {entry.changedAt ? new Date(entry.changedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' - ' + new Date(entry.changedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '-'}
+                        </TableCell>
+                        <TableCell className="font-mono text-[10px] text-primary">{entry.paymentId?.slice(0, 12)}...</TableCell>
+                        <TableCell>
+                          <Badge className={cn(
+                            "text-[9px]",
+                            entry.action === 'created' && "bg-green-500/15 text-green-500 border-green-500/30",
+                            entry.action === 'updated' && "bg-blue-500/15 text-blue-500 border-blue-500/30",
+                            entry.action === 'deleted' && "bg-red-500/15 text-red-500 border-red-500/30",
+                            entry.action === 'status_changed' && "bg-yellow-500/15 text-yellow-500 border-yellow-500/30",
+                          )}>
+                            {entry.action === 'status_changed' ? 'Status Changed' : entry.action?.charAt(0).toUpperCase() + entry.action?.slice(1)}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">{entry.changedBy}</TableCell>
+                        <TableCell className="text-xs max-w-[220px]">
+                          {details.length > 0 ? (
+                            <div className="space-y-0.5">
+                              {details.map((d, i) => <p key={i} className="truncate" title={d}>{d}</p>)}
+                            </div>
+                          ) : <span className="text-muted-foreground">-</span>}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground max-w-[140px] truncate">{entry.notes || '-'}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {filteredAuditLog.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-12 text-muted-foreground italic">
+                        {auditLog.length === 0 ? 'No audit log entries yet. Changes will be tracked automatically.' : 'No entries match the selected filters.'}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </Card>
         </TabsContent>
         <TabsContent value="staff-advances" className="space-y-6 pt-6">
