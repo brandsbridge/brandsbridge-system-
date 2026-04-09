@@ -14,7 +14,11 @@ import {
   Receipt,
   Upload,
   X,
-  FileText as FileIcon
+  FileText as FileIcon,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  Eye
 } from "lucide-react";
 import {
   Table,
@@ -91,13 +95,25 @@ export default function ExpensesPage() {
   const [newAccountName, setNewAccountName] = useState('');
   const [selectedAccountCode, setSelectedAccountCode] = useState('');
 
-  // Invoice attachment state
-  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
-  const [invoicePreview, setInvoicePreview] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [invoiceUrl, setInvoiceUrl] = useState<string | null>(null);
-  const [invoiceFileName, setInvoiceFileName] = useState<string | null>(null);
+  // Multi-file attachment state
+  interface AttachmentItem {
+    id: string;
+    file?: File;
+    fileName: string;
+    fileType: "image" | "pdf";
+    preview?: string | null;
+    progress: number;
+    url?: string;
+    error?: string;
+    uploadedAt?: string;
+    existing?: boolean; // true if loaded from Firestore (edit mode)
+  }
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit mode state
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
   // All accounts = built-in + custom
   const allExpenseAccounts = useMemo(() => {
@@ -167,62 +183,171 @@ export default function ExpensesPage() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  // Handle invoice file selection
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const MAX_ATTACHMENTS = 10;
 
+  // Handle multi-file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setAttachmentError(null);
     const validTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-    if (!validTypes.includes(file.type)) {
-      toast({ variant: "destructive", title: "Invalid file type", description: "Only JPG, PNG, and PDF files are accepted." });
+    const currentCount = attachments.length;
+    const newFiles = Array.from(files);
+
+    if (currentCount + newFiles.length > MAX_ATTACHMENTS) {
+      setAttachmentError(`Maximum ${MAX_ATTACHMENTS} files allowed per expense. You have ${currentCount}, tried to add ${newFiles.length}.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
-    setInvoiceFile(file);
-    setInvoiceFileName(file.name);
-
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setInvoicePreview(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    } else {
-      setInvoicePreview(null);
+    const invalidFiles = newFiles.filter(f => !validTypes.includes(f.type));
+    if (invalidFiles.length > 0) {
+      setAttachmentError(`Invalid file type: ${invalidFiles.map(f => f.name).join(', ')}. Only JPG, PNG, and PDF are accepted.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
     }
-  };
 
-  const removeInvoice = () => {
-    setInvoiceFile(null);
-    setInvoicePreview(null);
-    setInvoiceUrl(null);
-    setInvoiceFileName(null);
-    setUploadProgress(null);
+    const newAttachments: AttachmentItem[] = newFiles.map(file => {
+      const item: AttachmentItem = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+        file,
+        fileName: file.name,
+        fileType: file.type.startsWith('image/') ? 'image' : 'pdf',
+        progress: 0,
+        preview: null,
+      };
+
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setAttachments(prev => prev.map(a =>
+            a.id === item.id ? { ...a, preview: ev.target?.result as string } : a
+          ));
+        };
+        reader.readAsDataURL(file);
+      }
+
+      return item;
+    });
+
+    setAttachments(prev => [...prev, ...newAttachments]);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Upload invoice to Firebase Storage and return download URL
-  const uploadInvoice = async (expenseId: string): Promise<{ url: string; fileName: string } | null> => {
-    if (!invoiceFile) return null;
+  // Remove a single attachment
+  const removeAttachment = async (id: string) => {
+    const item = attachments.find(a => a.id === id);
+    // If it's an existing attachment from Firestore, delete from Storage
+    if (item?.existing && item.url && editingExpenseId) {
+      try {
+        const storageRef = ref(storage, `expenses/${editingExpenseId}/attachments/${item.fileName}`);
+        await deleteObject(storageRef);
+      } catch (err) {
+        console.warn("Could not delete from storage:", err);
+      }
+    }
+    setAttachments(prev => prev.filter(a => a.id !== id));
+  };
 
-    return new Promise((resolve, reject) => {
-      const storageRef = ref(storage, `expenses/${expenseId}/invoice`);
-      const uploadTask = uploadBytesResumable(storageRef, invoiceFile);
+  // Upload all pending attachments to Firebase Storage
+  const uploadAttachments = async (expenseId: string): Promise<AttachmentItem[]> => {
+    const pendingFiles = attachments.filter(a => a.file && !a.url);
+    if (pendingFiles.length === 0) return attachments.filter(a => a.url); // return existing ones
 
-      uploadTask.on('state_changed',
-        (snapshot) => {
-          const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-          setUploadProgress(progress);
-        },
-        (error) => {
-          console.error("Upload failed:", error);
-          toast({ variant: "destructive", title: "Upload failed", description: error.message });
-          reject(error);
-        },
-        async () => {
-          const url = await getDownloadURL(uploadTask.snapshot.ref);
-          resolve({ url, fileName: invoiceFile.name });
-        }
-      );
+    const uploadPromises = pendingFiles.map(item => {
+      return new Promise<AttachmentItem>((resolve, reject) => {
+        if (!item.file) return reject(new Error('No file'));
+
+        const storageRef = ref(storage, `expenses/${expenseId}/attachments/${item.fileName}`);
+        const uploadTask = uploadBytesResumable(storageRef, item.file);
+
+        uploadTask.on('state_changed',
+          (snapshot) => {
+            const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+            setAttachments(prev => prev.map(a =>
+              a.id === item.id ? { ...a, progress } : a
+            ));
+          },
+          (error) => {
+            setAttachments(prev => prev.map(a =>
+              a.id === item.id ? { ...a, error: error.message, progress: 0 } : a
+            ));
+            reject(error);
+          },
+          async () => {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            const uploaded: AttachmentItem = {
+              ...item,
+              url,
+              progress: 100,
+              uploadedAt: new Date().toISOString(),
+            };
+            setAttachments(prev => prev.map(a =>
+              a.id === item.id ? uploaded : a
+            ));
+            resolve(uploaded);
+          }
+        );
+      });
     });
+
+    const results = await Promise.allSettled(uploadPromises);
+    const successful = results
+      .filter((r): r is PromiseFulfilledResult<AttachmentItem> => r.status === 'fulfilled')
+      .map(r => r.value);
+
+    const failed = results.filter(r => r.status === 'rejected').length;
+    if (failed > 0) {
+      toast({ variant: "destructive", title: "Upload Error", description: `${failed} file(s) failed to upload. You can retry them.` });
+    }
+
+    // Combine existing (already uploaded) + newly uploaded
+    const existingUploaded = attachments.filter(a => a.url && !a.file);
+    return [...existingUploaded, ...successful];
+  };
+
+  // Retry a failed upload
+  const retryUpload = (id: string) => {
+    setAttachments(prev => prev.map(a =>
+      a.id === id ? { ...a, error: undefined, progress: 0 } : a
+    ));
+    // The retry will happen on form submit
+  };
+
+  // Open edit mode for an existing expense
+  const openEditExpense = (expense: any) => {
+    setEditingExpenseId(expense.id);
+    setExpenseDate(expense.date ? (typeof expense.date.toDate === 'function' ? expense.date.toDate().toISOString().split('T')[0] : new Date(expense.date).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]);
+    setVendorInput(expense.vendorName || '');
+    setSelectedAccountCode(expense.accountCode || '');
+
+    // Load existing attachments
+    const existing: AttachmentItem[] = (expense.attachments || []).map((att: any, i: number) => ({
+      id: `existing-${i}-${Date.now()}`,
+      fileName: att.fileName,
+      fileType: att.fileType || (att.fileName?.match(/\.pdf$/i) ? 'pdf' : 'image'),
+      url: att.url,
+      progress: 100,
+      uploadedAt: att.uploadedAt,
+      existing: true,
+    }));
+
+    // Also handle legacy single invoiceUrl
+    if (expense.invoiceUrl && existing.length === 0) {
+      existing.push({
+        id: `legacy-${Date.now()}`,
+        fileName: expense.invoiceFileName || 'invoice',
+        fileType: expense.invoiceFileName?.match(/\.pdf$/i) ? 'pdf' : 'image',
+        url: expense.invoiceUrl,
+        progress: 100,
+        existing: true,
+      });
+    }
+
+    setAttachments(existing);
+    setAttachmentError(null);
+    setIsAddModalOpen(true);
   };
 
   // Handle adding a new custom expense account
@@ -252,19 +377,17 @@ export default function ExpensesPage() {
     }
   };
 
-  // Reset form state when modal opens/closes
+  // Reset form state when modal closes (not when it opens — edit mode sets state before opening)
   useEffect(() => {
-    if (isAddModalOpen) {
+    if (!isAddModalOpen) {
       setExpenseDate(new Date().toISOString().split('T')[0]);
       setVendorInput('');
       setSelectedAccountCode('');
-      setInvoiceFile(null);
-      setInvoicePreview(null);
-      setInvoiceUrl(null);
-      setInvoiceFileName(null);
-      setUploadProgress(null);
+      setAttachments([]);
+      setAttachmentError(null);
       setIsAddingAccount(false);
       setNewAccountName('');
+      setEditingExpenseId(null);
     }
   }, [isAddModalOpen]);
 
@@ -275,17 +398,38 @@ export default function ExpensesPage() {
     const accountCode = selectedAccountCode;
     const matchedAccount = allExpenseAccounts.find(a => a.code === accountCode);
 
-    const expenseId = doc(collection(db, "expenses")).id;
+    const expenseId = editingExpenseId || doc(collection(db, "expenses")).id;
 
-    // Upload invoice if present
-    let invoiceData: { url: string; fileName: string } | null = null;
-    if (invoiceFile) {
+    // Upload all pending attachments
+    let uploadedAttachments: AttachmentItem[] = [];
+    const pendingFiles = attachments.filter(a => a.file && !a.url && !a.error);
+    if (pendingFiles.length > 0 || attachments.some(a => a.url)) {
       try {
-        invoiceData = await uploadInvoice(expenseId);
+        uploadedAttachments = await uploadAttachments(expenseId);
       } catch {
         return; // upload failed, toast already shown
       }
     }
+
+    // Check if any files failed
+    const failedFiles = attachments.filter(a => a.error);
+    if (failedFiles.length > 0) {
+      toast({ variant: "destructive", title: "Upload incomplete", description: `${failedFiles.length} file(s) failed. Please retry or remove them.` });
+      return;
+    }
+
+    const attachmentData = [...uploadedAttachments, ...attachments.filter(a => a.existing && a.url)].reduce((acc, a) => {
+      // Deduplicate by url
+      if (!acc.find((x: any) => x.url === a.url)) {
+        acc.push({
+          fileName: a.fileName,
+          fileType: a.fileType,
+          url: a.url!,
+          uploadedAt: a.uploadedAt || new Date().toISOString(),
+        });
+      }
+      return acc;
+    }, [] as any[]);
 
     const data: any = {
       accountCode,
@@ -302,16 +446,22 @@ export default function ExpensesPage() {
       date: Timestamp.fromDate(new Date(expenseDate)),
       department: 'all',
       createdBy: user?.profile?.name || 'System',
+      attachments: attachmentData,
+      updatedAt: new Date().toISOString(),
     };
 
-    if (invoiceData) {
-      data.invoiceUrl = invoiceData.url;
-      data.invoiceFileName = invoiceData.fileName;
+    if (editingExpenseId) {
+      // Update existing expense
+      const { setDoc: _, ...updateData } = data;
+      await setDoc(doc(db, "expenses", expenseId), data, { merge: true });
+      toast({ title: "Expense Updated", description: "The expense record has been updated." });
+    } else {
+      data.createdAt = new Date().toISOString();
+      await setDoc(doc(db, "expenses", expenseId), data);
+      toast({ title: "Expense Recorded", description: "The transaction has been logged." });
     }
 
-    await setDoc(doc(db, "expenses", expenseId), data);
     setIsAddModalOpen(false);
-    toast({ title: "Expense Recorded", description: "The transaction has been logged." });
   };
 
   const handleCreateTemplate = (e: React.FormEvent) => {
@@ -362,8 +512,8 @@ export default function ExpensesPage() {
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <form onSubmit={handleRecordExpense}>
                     <DialogHeader>
-                      <DialogTitle>Expense Entry</DialogTitle>
-                      <DialogDescription>Record outgoing business costs and map them to the correct ledger account.</DialogDescription>
+                      <DialogTitle>{editingExpenseId ? 'Edit Expense' : 'Expense Entry'}</DialogTitle>
+                      <DialogDescription>{editingExpenseId ? 'Update this expense record and its attachments.' : 'Record outgoing business costs and map them to the correct ledger account.'}</DialogDescription>
                     </DialogHeader>
 
                     <div className="grid grid-cols-2 gap-6 py-6">
@@ -491,47 +641,102 @@ export default function ExpensesPage() {
                           <Textarea name="notes" className="h-20" placeholder="Purpose of this expense..." />
                         </div>
 
-                        {/* INVOICE ATTACHMENT */}
+                        {/* MULTI-FILE ATTACHMENTS */}
                         <div className="space-y-2">
-                          <Label className="text-[10px] font-bold uppercase tracking-widest">Invoice / Receipt Attachment</Label>
+                          <Label className="text-[10px] font-bold uppercase tracking-widest">
+                            Attachments ({attachments.length}/{MAX_ATTACHMENTS})
+                          </Label>
                           <input
                             ref={fileInputRef}
                             type="file"
+                            multiple
                             accept=".jpg,.jpeg,.png,.pdf"
                             className="hidden"
                             onChange={handleFileSelect}
                           />
-                          {!invoiceFile ? (
+
+                          {/* Error message */}
+                          {attachmentError && (
+                            <div className="text-xs text-destructive bg-destructive/10 rounded-md p-2">
+                              {attachmentError}
+                            </div>
+                          )}
+
+                          {/* Upload drop zone */}
+                          {attachments.length < MAX_ATTACHMENTS && (
                             <button
                               type="button"
                               onClick={() => fileInputRef.current?.click()}
-                              className="w-full border-2 border-dashed rounded-lg p-4 text-center hover:border-primary/50 hover:bg-accent/50 transition-colors cursor-pointer"
+                              className="w-full border-2 border-dashed rounded-lg p-3 text-center hover:border-primary/50 hover:bg-accent/50 transition-colors cursor-pointer"
                             >
-                              <Upload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
-                              <p className="text-xs text-muted-foreground">Click to upload JPG, PNG, or PDF</p>
+                              <Upload className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
+                              <p className="text-xs text-muted-foreground">Click to upload JPG, PNG, or PDF (max {MAX_ATTACHMENTS})</p>
                             </button>
-                          ) : (
-                            <div className="border rounded-lg p-3 space-y-2">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  {invoicePreview ? (
-                                    <img src={invoicePreview} alt="Invoice" className="h-10 w-10 object-cover rounded" />
-                                  ) : (
-                                    <div className="h-10 w-10 bg-red-500/10 rounded flex items-center justify-center">
-                                      <FileIcon className="h-5 w-5 text-red-500" />
+                          )}
+
+                          {/* Attachment list */}
+                          {attachments.length > 0 && (
+                            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                              {attachments.map(att => (
+                                <div key={att.id} className="border rounded-lg p-2 space-y-1.5">
+                                  <div className="flex items-center gap-2">
+                                    {/* Thumbnail / icon */}
+                                    {att.fileType === 'image' && (att.preview || att.url) ? (
+                                      <a href={att.url || att.preview || '#'} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                                        <img src={att.preview || att.url} alt={att.fileName} className="h-10 w-10 object-cover rounded cursor-pointer hover:opacity-80" />
+                                      </a>
+                                    ) : (
+                                      <a href={att.url || '#'} target={att.url ? "_blank" : undefined} rel="noopener noreferrer" className="shrink-0">
+                                        <div className="h-10 w-10 bg-red-500/10 rounded flex items-center justify-center">
+                                          <FileIcon className="h-5 w-5 text-red-500" />
+                                        </div>
+                                      </a>
+                                    )}
+
+                                    {/* File name + status */}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs truncate font-medium">{att.fileName}</p>
+                                      {att.error ? (
+                                        <p className="text-[10px] text-destructive flex items-center gap-1">
+                                          <XCircle className="h-3 w-3" /> Upload failed
+                                        </p>
+                                      ) : att.progress === 100 || att.url ? (
+                                        <p className="text-[10px] text-green-600 flex items-center gap-1">
+                                          <CheckCircle2 className="h-3 w-3" /> {att.existing ? 'Saved' : 'Ready'}
+                                        </p>
+                                      ) : att.progress > 0 ? (
+                                        <p className="text-[10px] text-muted-foreground">{att.progress}%</p>
+                                      ) : null}
+                                    </div>
+
+                                    {/* Action buttons */}
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {att.url && (
+                                        <a href={att.url} target="_blank" rel="noopener noreferrer">
+                                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7">
+                                            <Eye className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </a>
+                                      )}
+                                      {att.error && (
+                                        <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-orange-500" onClick={() => retryUpload(att.id)}>
+                                          <RefreshCw className="h-3.5 w-3.5" />
+                                        </Button>
+                                      )}
+                                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeAttachment(att.id)}>
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  {/* Progress bar */}
+                                  {att.progress > 0 && att.progress < 100 && !att.error && (
+                                    <div className="w-full bg-secondary rounded-full h-1.5">
+                                      <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${att.progress}%` }} />
                                     </div>
                                   )}
-                                  <span className="text-xs truncate">{invoiceFileName}</span>
                                 </div>
-                                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={removeInvoice}>
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </div>
-                              {uploadProgress !== null && uploadProgress < 100 && (
-                                <div className="w-full bg-secondary rounded-full h-1.5">
-                                  <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }} />
-                                </div>
-                              )}
+                              ))}
                             </div>
                           )}
                         </div>
@@ -557,9 +762,11 @@ export default function ExpensesPage() {
 
                     <DialogFooter>
                       <Button type="button" variant="outline" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
-                      <Button type="submit" disabled={uploadProgress !== null && uploadProgress < 100}>
-                        {uploadProgress !== null && uploadProgress < 100 ? (
+                      <Button type="submit" disabled={attachments.some(a => a.progress > 0 && a.progress < 100)}>
+                        {attachments.some(a => a.progress > 0 && a.progress < 100) ? (
                           <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...</>
+                        ) : editingExpenseId ? (
+                          'Update Record'
                         ) : (
                           'Finalize Record'
                         )}
@@ -597,10 +804,11 @@ export default function ExpensesPage() {
                       <TableCell className="font-mono text-xs">
                         <div className="flex items-center gap-1">
                           {e.reference || '-'}
-                          {e.invoiceUrl && (
-                            <a href={e.invoiceUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80">
+                          {(e.attachments?.length > 0 || e.invoiceUrl) && (
+                            <span className="text-primary flex items-center gap-0.5">
                               <Paperclip className="h-3 w-3" />
-                            </a>
+                              {e.attachments?.length > 1 && <span className="text-[10px]">{e.attachments.length}</span>}
+                            </span>
                           )}
                         </div>
                       </TableCell>
@@ -615,7 +823,9 @@ export default function ExpensesPage() {
                         {e.currency === 'AED' ? 'د.إ' : '$'}{e.amount?.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditExpense(e)}>
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
