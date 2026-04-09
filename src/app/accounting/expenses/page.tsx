@@ -95,18 +95,29 @@ export default function ExpensesPage() {
   const [newAccountName, setNewAccountName] = useState('');
   const [selectedAccountCode, setSelectedAccountCode] = useState('');
 
+  // Document type options for attachments
+  const DOCUMENT_TYPES = [
+    { value: "invoice", label: "Invoice" },
+    { value: "receipt", label: "Receipt" },
+    { value: "bill_of_lading", label: "Bill of Lading" },
+    { value: "packing_list", label: "Packing List" },
+    { value: "other", label: "Other" },
+  ] as const;
+  type DocumentType = typeof DOCUMENT_TYPES[number]["value"];
+
   // Multi-file attachment state
   interface AttachmentItem {
     id: string;
     file?: File;
     fileName: string;
     fileType: "image" | "pdf";
+    documentType: DocumentType;
     preview?: string | null;
     progress: number;
     url?: string;
     error?: string;
     uploadedAt?: string;
-    existing?: boolean; // true if loaded from Firestore (edit mode)
+    existing?: boolean;
   }
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
@@ -214,6 +225,7 @@ export default function ExpensesPage() {
         file,
         fileName: file.name,
         fileType: file.type.startsWith('image/') ? 'image' : 'pdf',
+        documentType: 'invoice',
         progress: 0,
         preview: null,
       };
@@ -327,6 +339,7 @@ export default function ExpensesPage() {
       id: `existing-${i}-${Date.now()}`,
       fileName: att.fileName,
       fileType: att.fileType || (att.fileName?.match(/\.pdf$/i) ? 'pdf' : 'image'),
+      documentType: att.documentType || 'invoice',
       url: att.url,
       progress: 100,
       uploadedAt: att.uploadedAt,
@@ -339,6 +352,7 @@ export default function ExpensesPage() {
         id: `legacy-${Date.now()}`,
         fileName: expense.invoiceFileName || 'invoice',
         fileType: expense.invoiceFileName?.match(/\.pdf$/i) ? 'pdf' : 'image',
+        documentType: 'invoice',
         url: expense.invoiceUrl,
         progress: 100,
         existing: true,
@@ -424,6 +438,7 @@ export default function ExpensesPage() {
         acc.push({
           fileName: a.fileName,
           fileType: a.fileType,
+          documentType: a.documentType || 'invoice',
           url: a.url!,
           uploadedAt: a.uploadedAt || new Date().toISOString(),
         });
@@ -676,7 +691,7 @@ export default function ExpensesPage() {
 
                           {/* Attachment list */}
                           {attachments.length > 0 && (
-                            <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                            <div className="space-y-2 max-h-[240px] overflow-y-auto">
                               {attachments.map(att => (
                                 <div key={att.id} className="border rounded-lg p-2 space-y-1.5">
                                   <div className="flex items-center gap-2">
@@ -693,20 +708,31 @@ export default function ExpensesPage() {
                                       </a>
                                     )}
 
-                                    {/* File name + status */}
+                                    {/* File name + document type + status */}
                                     <div className="flex-1 min-w-0">
                                       <p className="text-xs truncate font-medium">{att.fileName}</p>
-                                      {att.error ? (
-                                        <p className="text-[10px] text-destructive flex items-center gap-1">
-                                          <XCircle className="h-3 w-3" /> Upload failed
-                                        </p>
-                                      ) : att.progress === 100 || att.url ? (
-                                        <p className="text-[10px] text-green-600 flex items-center gap-1">
-                                          <CheckCircle2 className="h-3 w-3" /> {att.existing ? 'Saved' : 'Ready'}
-                                        </p>
-                                      ) : att.progress > 0 ? (
-                                        <p className="text-[10px] text-muted-foreground">{att.progress}%</p>
-                                      ) : null}
+                                      <div className="flex items-center gap-1.5 mt-0.5">
+                                        <select
+                                          className="text-[10px] bg-secondary/50 border rounded px-1 py-0.5 cursor-pointer"
+                                          value={att.documentType}
+                                          onChange={(e) => setAttachments(prev => prev.map(a =>
+                                            a.id === att.id ? { ...a, documentType: e.target.value as DocumentType } : a
+                                          ))}
+                                        >
+                                          {DOCUMENT_TYPES.map(dt => (
+                                            <option key={dt.value} value={dt.value}>{dt.label}</option>
+                                          ))}
+                                        </select>
+                                        {att.error ? (
+                                          <span className="text-[10px] text-destructive flex items-center gap-0.5">
+                                            <XCircle className="h-3 w-3" /> Failed
+                                          </span>
+                                        ) : att.progress === 100 || att.url ? (
+                                          <span className="text-[10px] text-green-600 flex items-center gap-0.5">
+                                            <CheckCircle2 className="h-3 w-3" />
+                                          </span>
+                                        ) : null}
+                                      </div>
                                     </div>
 
                                     {/* Action buttons */}

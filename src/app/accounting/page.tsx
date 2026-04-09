@@ -3,10 +3,10 @@
 export const dynamic = 'force-dynamic';
 
 import React, { useMemo, useEffect, useState } from "react";
-import { 
-  TrendingUp, 
-  Plus, 
-  FileMinus, 
+import {
+  TrendingUp,
+  Plus,
+  FileMinus,
   Loader2,
   Download,
   Printer,
@@ -15,7 +15,8 @@ import {
   Search,
   MoreVertical,
   Banknote,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -78,16 +79,27 @@ export default function AccountingDashboard() {
 
   const advancesQuery = useMemoFirebase(() => collection(db, "customer_advances"), []);
   const creditsQuery = useMemoFirebase(() => collection(db, "credit_notes"), []);
+  const bankStatementsQuery = useMemoFirebase(() => collection(db, "bankStatements"), []);
 
   const { data: invoicesData, isLoading: loadingInvoices } = useCollection(invoicesQuery);
   const { data: paymentsData, isLoading: loadingPayments } = useCollection(paymentsQuery);
   const { data: advancesData } = useCollection(advancesQuery);
   const { data: creditsData, isLoading: loadingCredits } = useCollection(creditsQuery);
+  const { data: bankStatementsData } = useCollection(bankStatementsQuery);
 
   const invoices = invoicesData || [];
   const payments = paymentsData || [];
   const advances = advancesData || [];
   const credits = creditsData || [];
+  const bankStatements = bankStatementsData || [];
+
+  const hasRecentBankStatement = bankStatements.some((s: any) => {
+    if (!s.uploadedAt) return false;
+    const d = new Date(s.uploadedAt);
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    return d >= thirtyDaysAgo;
+  });
 
   const stats = useMemo(() => {
     const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
@@ -184,6 +196,21 @@ export default function AccountingDashboard() {
           <Link href="/accounting/invoices"><Button className="bg-primary" size="sm"><Plus className="mr-2 h-4 w-4" /> New Invoice</Button></Link>
         </div>
       </div>
+
+      {!hasRecentBankStatement && (
+        <div className="flex items-center gap-3 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+          <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-yellow-600">No bank statement uploaded this month.</p>
+            <p className="text-xs text-muted-foreground">Upload your latest bank statement to keep reconciliation up to date.</p>
+          </div>
+          <Link href="/accounting/bank-reconciliation">
+            <Button size="sm" variant="outline" className="shrink-0 border-yellow-500/30 text-yellow-600 hover:bg-yellow-500/10">
+              Upload Now
+            </Button>
+          </Link>
+        </div>
+      )}
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList className="grid w-full grid-cols-3 lg:w-[600px] h-12">

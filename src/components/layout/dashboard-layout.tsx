@@ -28,6 +28,7 @@ import {
   Settings,
   Loader2,
   CreditCard as CreditCardIcon,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { name: "Invoices", href: "/accounting/invoices", icon: FileText },
     { name: "Payments", href: "/accounting/payments", icon: CreditCardIcon },
     { name: "Purchase Orders", href: "/accounting/purchase-orders", icon: FileText },
+    { name: "Bank Reconciliation", href: "/accounting/bank-reconciliation", icon: Landmark },
     { type: 'separator', label: 'Marketing' },
     { name: "Campaigns", href: "/campaigns", icon: Send },
     { name: "Email Analytics", href: "/email-analytics", icon: Mail },
