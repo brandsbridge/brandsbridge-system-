@@ -603,7 +603,7 @@ export default function CustomersPage() {
           <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="bg-primary">
-                <Plus className="mr-2 h-4 w-4" /> Register Buyer
+                <Plus className="mr-2 h-4 w-4" /> Register Customer
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl">
