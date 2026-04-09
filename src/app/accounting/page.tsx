@@ -16,7 +16,9 @@ import {
   MoreVertical,
   Banknote,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -105,15 +107,42 @@ export default function AccountingDashboard() {
     const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
     const outstandingAR = invoices.filter(i => i.status === 'pending' || i.status === 'overdue' || i.status === 'draft').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
     const overdueAR = invoices.filter(i => i.status === 'overdue').reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
-    
+
     const cashIn = payments.filter(p => p.type === 'received').reduce((acc, p) => acc + (p.totalUSD || p.amount || 0), 0);
     const cashOut = payments.filter(p => p.type === 'made').reduce((acc, p) => acc + (p.totalUSD || p.amount || 0), 0);
-    
+
     const totalAdvances = advances.reduce((acc, a) => acc + (a.remainingAmount || 0), 0);
     const totalCredits = credits.reduce((acc, c) => acc + (c.remainingAmount || 0), 0);
 
+    // MTD vs previous month revenue
+    const now = new Date();
+    const curMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const today = now.toISOString().split('T')[0];
+    const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+    const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+
+    const getInvoiceDate = (inv: any): string => {
+      if (inv.dateIssue) return typeof inv.dateIssue === 'string' ? inv.dateIssue.split('T')[0] : '';
+      if (inv.date) {
+        if (typeof inv.date.toDate === 'function') return inv.date.toDate().toISOString().split('T')[0];
+        if (typeof inv.date === 'string') return inv.date.split('T')[0];
+      }
+      if (inv.createdAt) return typeof inv.createdAt === 'string' ? inv.createdAt.split('T')[0] : '';
+      return '';
+    };
+
+    const paidInvoices = invoices.filter(i => i.status === 'paid');
+    const curMonthRevenue = paidInvoices
+      .filter(i => { const d = getInvoiceDate(i); return d >= curMonthStart && d <= today; })
+      .reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
+    const prevMonthRevenue = paidInvoices
+      .filter(i => { const d = getInvoiceDate(i); return d >= prevMonthStart && d <= prevMonthEnd; })
+      .reduce((acc, i) => acc + (i.totalUSD || i.total || i.totals?.gross || 0), 0);
+
     return {
       revenue: totalRevenue,
+      curMonthRevenue,
+      prevMonthRevenue,
       expenses: cashOut,
       profit: totalRevenue - cashOut,
       receivables: outstandingAR,
@@ -227,7 +256,21 @@ export default function AccountingDashboard() {
                 <TrendingUp className="h-4 w-4 text-green-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${stats.revenue.toLocaleString()}</div>
+                <div className="text-2xl font-bold">${stats.curMonthRevenue.toLocaleString()}</div>
+                {(() => {
+                  const cur = stats.curMonthRevenue;
+                  const prev = stats.prevMonthRevenue;
+                  if (prev === 0 && cur === 0) return <p className="text-[10px] text-muted-foreground mt-1">No data for comparison</p>;
+                  if (prev === 0) return <p className="text-[10px] text-green-500 mt-1">New this month</p>;
+                  const pct = ((cur - prev) / prev) * 100;
+                  const isUp = pct >= 0;
+                  return (
+                    <p className={`text-[10px] mt-1 flex items-center gap-1 ${isUp ? 'text-green-500' : 'text-red-500'}`}>
+                      {isUp ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                      {isUp ? '+' : ''}{pct.toFixed(1)}% vs last month
+                    </p>
+                  );
+                })()}
               </CardContent>
             </Card>
             <Card>
