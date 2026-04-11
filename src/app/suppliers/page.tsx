@@ -248,12 +248,17 @@ export default function SuppliersPage() {
       textReader.onload = (ev) => {
         const text = ev.target?.result as string;
         const firstLine = text.split('\n')[0] || '';
-        const delimiter = firstLine.includes(';') ? ';' : ',';
+        // Auto-detect: whichever delimiter occurs more frequently in the header row wins
+        const commaCount = (firstLine.match(/,/g) || []).length;
+        const semicolonCount = (firstLine.match(/;/g) || []).length;
+        const delimiter = semicolonCount > commaCount ? ';' : ',';
+        console.log(`[CSV Import] Detected delimiter: "${delimiter}" (commas: ${commaCount}, semicolons: ${semicolonCount})`);
         Papa.parse(file, {
           header: true,
           delimiter,
           skipEmptyLines: true,
           complete: (results) => {
+            console.log(`[CSV Import] Parsed ${results.data.length} rows. Headers:`, results.meta.fields);
             validateAndPreview(results.data);
           }
         });
@@ -312,11 +317,13 @@ export default function SuppliersPage() {
   };
 
   const executeImport = async () => {
+    console.log(`[Import] Starting import of ${fullValidData.length} records. Market: ${importMarket}, duplicateMode: ${duplicateMode}`);
     setImportStep("importing");
-    
+
     let success = 0;
     let updates = 0;
     let failed = 0;
+    let skipped = 0;
 
     const savedUser = localStorage.getItem("demoUser");
     const manager = savedUser ? JSON.parse(savedUser) : { name: "System", department: "all" };
@@ -355,7 +362,7 @@ export default function SuppliersPage() {
           natureOfBusiness: clean(ci("Nature of Business")),
           specializedProducts,
           priceTier: clean(ci("Price Tier")),
-          strategicNotes: clean(ci("Strategic Notes (GCC/KSA)")),
+          strategicNotes: clean(ci("Important / Specific Notes")) || clean(ci("Strategic Notes (GCC/KSA)")),
           topProducts,
           lastProductPricelist: clean(ci("supplier last product and pricelist")),
           aiPriceInsights: clean(ci("best product price by AI from n8n")),
@@ -383,11 +390,16 @@ export default function SuppliersPage() {
           Object.entries(supplierData).filter(([, v]) => v !== null)
         );
 
+        console.log(`[Import] Row:`, { name, existing: !!existing, data: cleanData });
+
         if (existing && existing.id) {
           if (duplicateMode === "update") {
             const docRef = doc(db, "suppliers", existing.id);
             batch.update(docRef, cleanData);
             updates++;
+          } else {
+            console.log(`[Import] Skipping duplicate (duplicateMode=skip): ${name}`);
+            skipped++;
           }
         } else {
           cleanData.createdAt = new Date().toISOString();
@@ -399,15 +411,34 @@ export default function SuppliersPage() {
 
       try {
         await batch.commit();
+        console.log(`[Import] Batch committed successfully. Chunk size: ${chunk.length}`);
         setImportProgress(Math.min(100, Math.round(((i + chunk.length) / fullValidData.length) * 100)));
-      } catch (e) {
+      } catch (e: any) {
+        console.error(`[Import] Batch commit failed:`, e);
         failed += chunk.length;
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: e?.message || "Failed to save records to Firestore."
+        });
       }
     }
 
+    console.log(`[Import] Done. success=${success}, updated=${updates}, skipped=${skipped}, failed=${failed}`);
     setImportResults({ success, failed, updated: updates, invalid: validationErrors.length });
     setImportStep("success");
-    toast({ title: "Import Complete", description: `Synchronized ${fullValidData.length} records.` });
+    if (success === 0 && updates === 0 && skipped > 0) {
+      toast({
+        variant: "destructive",
+        title: "No Records Saved",
+        description: `All ${skipped} records matched existing suppliers by name/email. Switch duplicate mode to "update" to overwrite them, or rename the records.`
+      });
+    } else {
+      toast({
+        title: "Import Complete",
+        description: `Created ${success}, updated ${updates}, skipped ${skipped}, failed ${failed}.`
+      });
+    }
   };
 
   const handleUpdateSupplier = (e: React.FormEvent) => {
@@ -518,10 +549,12 @@ export default function SuppliersPage() {
                 <Upload className="mr-2 h-4 w-4" /> Import Suppliers
               </Button>
             </DialogTrigger>
-            <DialogContent className="w-[90vw] max-w-[1200px] max-h-[85vh] p-0 flex flex-col gap-0 overflow-hidden">
+            <DialogContent aria-describedby="import-description" className="w-[90vw] max-w-[1200px] max-h-[85vh] p-0 flex flex-col gap-0 overflow-hidden">
               <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
                 <DialogTitle>Bulk Supplier Import</DialogTitle>
-                <DialogDescription>Synchronize your database with external spreadsheets.</DialogDescription>
+                <DialogDescription id="import-description">
+                  Import suppliers from CSV or Excel file
+                </DialogDescription>
               </DialogHeader>
 
               {importStep === "upload" && (
