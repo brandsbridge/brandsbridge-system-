@@ -139,6 +139,19 @@ export default function PaymentsPage() {
   const staffAdvances = staffAdvancesData || [];
   const auditLog = auditLogData || [];
 
+  // Payment Accounts
+  const paymentAccountsQuery = useMemoFirebase(
+    () => (user ? collection(db, "paymentAccounts") : null),
+    [user]
+  );
+  const { data: paymentAccountsData } = useCollection(paymentAccountsQuery);
+  const activePaymentAccounts = useMemo(
+    () => (paymentAccountsData || []).filter((a: any) => a.isActive !== false),
+    [paymentAccountsData]
+  );
+  const [settlementPaymentAccount, setSettlementPaymentAccount] = useState<string>("");
+  const [staffAdvancePaymentAccount, setStaffAdvancePaymentAccount] = useState<string>("");
+
   const payments = paymentsData || [];
   const advances = advancesData || [];
   const invoices = invoicesData || [];
@@ -226,6 +239,7 @@ export default function PaymentsPage() {
       totalUSD: amount / rate,
       type: formData.get('type'),
       method: formData.get('method'),
+      paymentAccount: settlementPaymentAccount || null,
       reference: formData.get('reference') || `REF-${Date.now().toString().slice(-4)}`,
       department: currentUser?.department || 'all',
       date: new Date().toISOString()
@@ -234,6 +248,7 @@ export default function PaymentsPage() {
     const newDocRef = doc(collection(db, "payments"));
     await setDoc(newDocRef, { ...data, createdAt: new Date().toISOString() });
     await logAudit(newDocRef.id, "created", null, data, "Payment created");
+    setSettlementPaymentAccount("");
     setIsPaymentModalOpen(false);
     toast({ title: "Payment Recorded", description: `Settlement of ${paymentCurrency} ${amount} saved.` });
   };
@@ -337,7 +352,7 @@ export default function PaymentsPage() {
       currency: formData.get('currency') || 'USD',
       purpose: formData.get('purpose'),
       category: formData.get('category'),
-      paidThrough: formData.get('paidThrough'),
+      paymentAccount: staffAdvancePaymentAccount || null,
       notes: formData.get('notes') || '',
       status: 'pending',
       reimbursedDate: null,
@@ -349,6 +364,7 @@ export default function PaymentsPage() {
     }
 
     await setDoc(doc(db, "staff_advances", advanceId), data);
+    setStaffAdvancePaymentAccount("");
     setIsStaffAdvanceModalOpen(false);
     toast({ title: "Staff Advance Recorded", description: `Advance for ${employeeName} saved.` });
   };
@@ -483,6 +499,21 @@ export default function PaymentsPage() {
                         <Label className="text-xs font-bold uppercase">Reference #</Label>
                         <Input name="reference" placeholder="e.g. Bank Ref" />
                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase">Payment Account</Label>
+                      <Select value={settlementPaymentAccount || "_none_"} onValueChange={(v) => setSettlementPaymentAccount(v === "_none_" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_none_">None</SelectItem>
+                          {activePaymentAccounts.map((acc: any) => (
+                            <SelectItem key={acc.id} value={acc.accountName}>
+                              {acc.accountName} ({acc.owner})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   <DialogFooter>
@@ -882,8 +913,18 @@ export default function PaymentsPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase tracking-widest">Paid Through</Label>
-                        <Input name="paidThrough" placeholder='e.g. "Personal credit card"' />
+                        <Label className="text-[10px] font-bold uppercase tracking-widest">Payment Account</Label>
+                        <Select value={staffAdvancePaymentAccount || "_none_"} onValueChange={(v) => setStaffAdvancePaymentAccount(v === "_none_" ? "" : v)}>
+                          <SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="_none_">None</SelectItem>
+                            {activePaymentAccounts.map((acc: any) => (
+                              <SelectItem key={acc.id} value={acc.accountName}>
+                                {acc.accountName} ({acc.owner})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       <div className="space-y-2">

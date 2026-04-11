@@ -70,6 +70,14 @@ export default function PurchaseOrdersPage() {
   const suppliersQuery = useMemoFirebase(() => user ? collection(db, "suppliers") : null, [db, user]);
   const { data: suppliers } = useCollection(suppliersQuery);
 
+  // Fetch Payment Accounts for dropdown
+  const paymentAccountsQuery = useMemoFirebase(() => user ? collection(db, "paymentAccounts") : null, [db, user]);
+  const { data: paymentAccountsData } = useCollection(paymentAccountsQuery);
+  const activePaymentAccounts = useMemo(
+    () => (paymentAccountsData || []).filter((a: any) => a.isActive !== false),
+    [paymentAccountsData]
+  );
+
   const poQuery = useMemoFirebase(() => {
     if (!user || !currentUser) return null;
     const colRef = collection(db, "purchase_orders");
@@ -92,6 +100,10 @@ export default function PurchaseOrdersPage() {
   const handleCreatePO = (e: React.FormEvent) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
+    const paymentAccountId = formData.get('paymentAccountId') as string | null;
+    const paymentAccountRecord = paymentAccountId
+      ? activePaymentAccounts.find((a: any) => a.id === paymentAccountId)
+      : null;
     const data = {
       number: formData.get('reference') || `PO-${Date.now().toString().slice(-6)}`,
       supplierId: formData.get('supplierId'),
@@ -99,6 +111,8 @@ export default function PurchaseOrdersPage() {
       total: parseFloat(formData.get('total') as string),
       status: 'Confirmed',
       notes: formData.get('notes'),
+      paymentAccount: paymentAccountRecord ? (paymentAccountRecord as any).accountName : null,
+      paymentAccountId: paymentAccountId || null,
       date: new Date().toISOString(),
       department: currentUser?.department || 'all',
       createdAt: new Date().toISOString()
@@ -156,6 +170,19 @@ export default function PurchaseOrdersPage() {
                   <div className="space-y-2">
                     <Label className="text-xs font-bold uppercase">Estimated Total ($)</Label>
                     <Input name="total" type="number" step="0.01" required placeholder="0.00" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase">Payment Account</Label>
+                    <Select name="paymentAccountId">
+                      <SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger>
+                      <SelectContent>
+                        {activePaymentAccounts.map((acc: any) => (
+                          <SelectItem key={acc.id} value={acc.id}>
+                            {acc.accountName} ({acc.owner})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 

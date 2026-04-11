@@ -214,6 +214,18 @@ export default function ExpensesPage() {
   const { data: expensesData, isLoading: loadingExpenses } = useCollection(expensesQuery);
   const { data: templatesData, isLoading: loadingTemplates } = useCollection(recurringQuery);
 
+  // Payment accounts for "Paid From" dropdown
+  const paymentAccountsQuery = useMemoFirebase(
+    () => (user ? collection(db, "paymentAccounts") : null),
+    [db, user]
+  );
+  const { data: paymentAccountsData } = useCollection(paymentAccountsQuery);
+  const activePaymentAccounts = useMemo(
+    () => (paymentAccountsData || []).filter((a: any) => a.isActive !== false),
+    [paymentAccountsData]
+  );
+  const [paidFromAccount, setPaidFromAccount] = useState<string>("");
+
   // Memoize derived collections so their reference is stable across renders.
   // Using `x || []` inline in render creates a fresh array every render, which
   // causes any effect/memo depending on it to fire in a loop (React error #185).
@@ -383,6 +395,7 @@ export default function ExpensesPage() {
     setVendorInput(expense.vendorName || '');
     setSelectedAccountCode(expense.accountCode || '');
     setSelectedCostCenter(expense.costCenter || '');
+    setPaidFromAccount(expense.paidFromAccount || '');
 
     // Load existing attachments
     const existing: AttachmentItem[] = (expense.attachments || []).map((att: any, i: number) => ({
@@ -455,6 +468,7 @@ export default function ExpensesPage() {
       setIsAddingAccount(false);
       setNewAccountName('');
       setEditingExpenseId(null);
+      setPaidFromAccount('');
     }
   }, [isAddModalOpen]);
 
@@ -503,6 +517,7 @@ export default function ExpensesPage() {
       accountCode,
       accountName: matchedAccount?.name || accountCode,
       paidThrough: formData.get('paidThrough'),
+      paidFromAccount: paidFromAccount || null,
       amount: parseFloat(formData.get('amount') as string),
       currency: formData.get('currency') || 'USD',
       vendorName: vendorInput.trim() || null,
@@ -656,6 +671,22 @@ export default function ExpensesPage() {
                               <SelectItem value="Cash">Petty Cash</SelectItem>
                               <SelectItem value="Bank Account">Corporate Bank Account</SelectItem>
                               <SelectItem value="Credit Card">Business Credit Card</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* PAID FROM ACCOUNT */}
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-bold uppercase tracking-widest">Paid From Account</Label>
+                          <Select value={paidFromAccount || "_none_"} onValueChange={(v) => setPaidFromAccount(v === "_none_" ? "" : v)}>
+                            <SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="_none_">None</SelectItem>
+                              {activePaymentAccounts.map((acc: any) => (
+                                <SelectItem key={acc.id} value={acc.accountName}>
+                                  {acc.accountName} ({acc.owner})
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
