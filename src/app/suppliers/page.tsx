@@ -810,12 +810,31 @@ export default function SuppliersPage() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div className="flex flex-wrap gap-1 max-w-[200px]">
-                    {Array.isArray(supplier.specializedProducts) && supplier.specializedProducts.slice(0, 3).map((p: string) => (
-                      <Badge key={p} variant="secondary" className="text-[8px] h-4">{p}</Badge>
-                    ))}
-                    {Array.isArray(supplier.specializedProducts) && supplier.specializedProducts.length > 3 && (
-                      <Badge variant="outline" className="text-[8px] h-4">+{supplier.specializedProducts.length - 3}</Badge>
+                  <div className="relative group/specialized max-w-[200px]">
+                    <div className="flex flex-wrap gap-1 items-center">
+                      {Array.isArray(supplier.specializedProducts) && supplier.specializedProducts.slice(0, 2).map((p: string) => (
+                        <Badge key={p} variant="secondary" className="text-[8px] h-4">{p}</Badge>
+                      ))}
+                      {Array.isArray(supplier.specializedProducts) && supplier.specializedProducts.length > 2 && (
+                        <Badge variant="outline" className="text-[8px] h-4 cursor-default">
+                          +{supplier.specializedProducts.length - 2} more
+                        </Badge>
+                      )}
+                      {(!Array.isArray(supplier.specializedProducts) || supplier.specializedProducts.length === 0) && (
+                        <span className="text-[11px] text-muted-foreground">—</span>
+                      )}
+                    </div>
+                    {Array.isArray(supplier.specializedProducts) && supplier.specializedProducts.length > 2 && (
+                      <div className="absolute z-50 left-0 top-full mt-1 hidden group-hover/specialized:block bg-popover border rounded-lg shadow-lg p-3 min-w-[200px]">
+                        <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Specialized Products</p>
+                        <ul className="space-y-1">
+                          {supplier.specializedProducts.map((p: string, i: number) => (
+                            <li key={i} className="text-xs flex items-center gap-2">
+                              <span className="text-primary font-bold">{i + 1}.</span> {p}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </div>
                 </TableCell>
