@@ -518,14 +518,14 @@ export default function SuppliersPage() {
                 <Upload className="mr-2 h-4 w-4" /> Import Suppliers
               </Button>
             </DialogTrigger>
-            <DialogContent className="w-[90vw] max-w-[90vw]">
-              <DialogHeader>
+            <DialogContent className="w-[90vw] max-w-[1200px] max-h-[85vh] p-0 flex flex-col gap-0 overflow-hidden">
+              <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
                 <DialogTitle>Bulk Supplier Import</DialogTitle>
                 <DialogDescription>Synchronize your database with external spreadsheets.</DialogDescription>
               </DialogHeader>
 
               {importStep === "upload" && (
-                <div className="space-y-6">
+                <div className="space-y-6 px-6 py-6 overflow-y-auto flex-1">
                   <div className="bg-secondary/20 p-6 rounded-xl border border-dashed border-primary/30 space-y-4">
                     <div className="flex items-center justify-between">
                       <div>
@@ -554,59 +554,109 @@ export default function SuppliersPage() {
               )}
 
               {importStep === "preview" && (
-                <div className="space-y-6">
-                  <div className="max-h-[400px] overflow-x-auto overflow-y-auto border rounded-lg">
-                    <table className="w-full text-sm" style={{ minWidth: 'max-content' }}>
-                      <thead className="sticky top-0 bg-background border-b z-10">
-                        <tr>
-                          {previewData.length > 0 && Object.keys(previewData[0] || {}).map(k => (
-                            <th key={k} className="text-[10px] uppercase whitespace-nowrap font-semibold text-muted-foreground px-4 py-3 text-left">{k}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previewData.map((row, i) => (
-                          <tr key={i} className="border-b hover:bg-muted/50">
-                            {Object.values(row).map((val: any, j) => (
-                              <td key={j} className="text-[11px] whitespace-nowrap px-4 py-2.5 max-w-[200px] truncate">{String(val)}</td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="flex flex-col gap-4 pt-4 border-t">
-                    <div className="flex items-center gap-4">
-                      <div className="space-y-1">
-                        <label className="text-xs font-bold uppercase text-muted-foreground">Assign to Market</label>
-                        <Select value={importMarket} onValueChange={setImportMarket}>
-                          <SelectTrigger className="w-[220px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">None (Manual Later)</SelectItem>
-                            <SelectItem value="chocolate_market">Chocolate Market</SelectItem>
-                            <SelectItem value="cosmetics_market">Cosmetics Market</SelectItem>
-                            <SelectItem value="detergents_market">Detergents Market</SelectItem>
-                            <SelectItem value="all">All Markets</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1 flex-1">
-                        <p className="text-sm font-bold text-primary">{fullValidData.length} Valid Records Ready</p>
-                        {validationErrors.length > 0 && <p className="text-xs text-destructive">{validationErrors.length} invalid rows will be skipped.</p>}
-                      </div>
-                      <div className="flex gap-3">
-                        <Button variant="outline" onClick={() => { resetImport(); }}>Cancel</Button>
-                        <Button className="bg-[#0E7A96] hover:bg-[#0B5E75]" onClick={executeImport}>
-                          Import {fullValidData.length} Suppliers
-                        </Button>
-                      </div>
+                <>
+                  <div className="px-6 py-6 overflow-y-auto flex-1 min-h-0">
+                    {(() => {
+                      const COL_WIDTHS: Record<string, number> = {
+                        "#": 50,
+                        "Company Name": 180,
+                        "Country": 100,
+                        "Nature of Business": 150,
+                        "Price Tier": 120,
+                        "Record Status": 120,
+                        "Specialized Products": 200,
+                        "Notes": 200,
+                        "Important / Specific Notes": 200,
+                        "Strategic Notes (GCC/KSA)": 200,
+                        "Top 5 Products": 200,
+                        "Top 5 Best-Selling Products": 200,
+                      };
+                      const getColWidth = (k: string) => COL_WIDTHS[k] ?? 160;
+                      const truncate = (s: string) => (s.length > 30 ? s.slice(0, 30) + "…" : s);
+                      const headers = previewData.length > 0 ? Object.keys(previewData[0] || {}) : [];
+                      return (
+                        <div className="border rounded-lg overflow-x-auto">
+                          <table className="text-sm" style={{ minWidth: 800, tableLayout: "fixed" }}>
+                            <colgroup>
+                              {headers.map(k => (
+                                <col key={k} style={{ width: `${getColWidth(k)}px` }} />
+                              ))}
+                            </colgroup>
+                            <thead className="sticky top-0 bg-background border-b z-10">
+                              <tr>
+                                {headers.map(k => (
+                                  <th
+                                    key={k}
+                                    className="text-[10px] uppercase font-semibold text-muted-foreground px-4 py-3 text-left truncate"
+                                    title={k}
+                                  >
+                                    {k}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {previewData.map((row, i) => (
+                                <tr key={i} className="border-b hover:bg-muted/50">
+                                  {headers.map((k, j) => {
+                                    const raw = row[k];
+                                    const str = raw === null || raw === undefined ? "" : String(raw);
+                                    return (
+                                      <td
+                                        key={j}
+                                        className="text-[11px] px-4 py-2.5 truncate"
+                                        title={str}
+                                      >
+                                        {truncate(str)}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                    <div className="mt-4 space-y-1">
+                      <p className="text-sm font-bold text-primary">{fullValidData.length} Valid Records Ready</p>
+                      {validationErrors.length > 0 && (
+                        <p className="text-xs text-destructive">{validationErrors.length} invalid rows will be skipped.</p>
+                      )}
                     </div>
                   </div>
-                </div>
+                  <div className="flex items-center justify-between gap-4 px-6 py-4 border-t bg-background shrink-0">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Assign to Market</label>
+                      <Select value={importMarket} onValueChange={setImportMarket}>
+                        <SelectTrigger className="w-[220px] h-9"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None (Manual Later)</SelectItem>
+                          <SelectItem value="chocolate_market">Chocolate Market</SelectItem>
+                          <SelectItem value="cosmetics_market">Cosmetics Market</SelectItem>
+                          <SelectItem value="detergents_market">Detergents Market</SelectItem>
+                          <SelectItem value="all">All Markets</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-3">
+                      <Button variant="outline" onClick={() => { resetImport(); setIsImportModalOpen(false); }}>
+                        Cancel
+                      </Button>
+                      <Button
+                        className="bg-[#0B5E75] hover:bg-[#0E7A96] text-white"
+                        onClick={executeImport}
+                        disabled={fullValidData.length === 0}
+                      >
+                        Import {fullValidData.length} Suppliers
+                      </Button>
+                    </div>
+                  </div>
+                </>
               )}
 
               {importStep === "importing" && (
-                <div className="py-20 flex flex-col items-center gap-4">
+                <div className="py-20 px-6 flex flex-col items-center gap-4 flex-1">
                   <Loader2 className="h-12 w-12 text-primary animate-spin" />
                   <Progress value={importProgress} className="w-full max-w-xs h-2" />
                   <p className="text-sm">Importing {Math.max(1, Math.round((importProgress / 100) * fullValidData.length))} of {fullValidData.length}...</p>
@@ -614,7 +664,7 @@ export default function SuppliersPage() {
               )}
 
               {importStep === "success" && (
-                <div className="py-12 text-center space-y-4">
+                <div className="py-12 px-6 text-center space-y-4 flex-1">
                   <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
                   <h3 className="text-xl font-bold">Import Complete</h3>
                   <p className="text-sm text-muted-foreground">
