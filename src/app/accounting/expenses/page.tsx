@@ -113,7 +113,6 @@ export default function ExpensesPage() {
 
   // Vendor autocomplete state
   const [vendorInput, setVendorInput] = useState('');
-  const [vendorSuggestions, setVendorSuggestions] = useState<any[]>([]);
   const [showVendorSuggestions, setShowVendorSuggestions] = useState(false);
   const vendorRef = useRef<HTMLDivElement>(null);
 
@@ -215,22 +214,22 @@ export default function ExpensesPage() {
   const { data: expensesData, isLoading: loadingExpenses } = useCollection(expensesQuery);
   const { data: templatesData, isLoading: loadingTemplates } = useCollection(recurringQuery);
 
-  const suppliers = suppliersData || [];
-  const customers = customersData || [];
-  const expenses = expensesData || [];
-  const templates = templatesData || [];
+  // Memoize derived collections so their reference is stable across renders.
+  // Using `x || []` inline in render creates a fresh array every render, which
+  // causes any effect/memo depending on it to fire in a loop (React error #185).
+  const suppliers = useMemo(() => suppliersData || [], [suppliersData]);
+  const customers = useMemo(() => customersData || [], [customersData]);
+  const expenses = useMemo(() => expensesData || [], [expensesData]);
+  const templates = useMemo(() => templatesData || [], [templatesData]);
 
-  // Vendor autocomplete: filter suppliers client-side
-  useEffect(() => {
-    if (!vendorInput.trim()) {
-      setVendorSuggestions([]);
-      return;
-    }
-    const lower = vendorInput.toLowerCase();
-    const matches = suppliers.filter((s: any) =>
-      s.name?.toLowerCase().includes(lower)
-    ).slice(0, 8);
-    setVendorSuggestions(matches);
+  // Vendor autocomplete: derive filtered suggestions with useMemo instead of
+  // useState+useEffect. This avoids the render→setState→render infinite loop.
+  const vendorSuggestions = useMemo(() => {
+    const input = vendorInput.trim().toLowerCase();
+    if (!input) return [];
+    return suppliers
+      .filter((s: any) => typeof s?.name === 'string' && s.name.toLowerCase().includes(input))
+      .slice(0, 8);
   }, [vendorInput, suppliers]);
 
   // Close vendor suggestions on outside click
