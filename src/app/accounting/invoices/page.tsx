@@ -92,35 +92,73 @@ export default function InvoicesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [creationStep, setCreationStep] = useState<"choice" | "auto" | "manual">("choice");
+
+  // Parse demo user from localStorage once on client mount only. Previously
+  // the localStorage read lived in a combined useEffect whose state updates
+  // could ripple into the Firestore query deps and trigger repeated
+  // re-subscriptions.
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
+  const currentUserLoadedRef = useRef(false);
+  useEffect(() => {
+    if (currentUserLoadedRef.current) return;
+    currentUserLoadedRef.current = true;
+    try {
+      const saved = window.localStorage.getItem("demoUser");
+      if (saved) setCurrentUser(JSON.parse(saved));
+    } catch {
+      // ignore malformed localStorage
+    }
+    // run exactly once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // --- Multi-Currency State ---
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null);
+
+  // Fetch exchange rates once on mount. Guarded with a ref so React Strict
+  // Mode's double-invoke in dev can't trigger two parallel network fetches
+  // and two parallel Firestore writes (the fetch also persists to Firestore).
+  const ratesFetchedRef = useRef(false);
+  useEffect(() => {
+    if (ratesFetchedRef.current) return;
+    ratesFetchedRef.current = true;
+    let cancelled = false;
+    currencyService.fetchLatestRates(db).then((rates) => {
+      if (!cancelled) setExchangeRates(rates);
+    });
+    return () => { cancelled = true; };
+    // db is stable (singleton from provider); rates should only fetch once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>('USD');
 
-  useEffect(() => {
-    const saved = localStorage.getItem("demoUser");
-    if (saved) setCurrentUser(JSON.parse(saved));
-    
-    // Fetch latest rates for conversion previews
-    currencyService.fetchLatestRates(db).then(setExchangeRates);
-  }, [db]);
-
   // --- Fetch Data ---
+  // Keep a ref to currentUser so the query factory can read department
+  // without forcing a new query (and re-subscription) every time
+  // currentUser's object ref changes.
+  const currentUserDept = currentUser?.department ?? null;
+
   const invoicesQuery = useMemoFirebase(() => {
-    if (!user || !currentUser) return null;
+    if (!user || !currentUserDept) return null;
     const colRef = collection(db, "invoices");
-    return currentUser.department === 'all' 
+    return currentUserDept === 'all'
       ? query(colRef, orderBy("createdAt", "desc"))
-      : query(colRef, where("department", "==", currentUser.department), orderBy("createdAt", "desc"));
-  }, [db, user, currentUser]);
+      : query(colRef, where("department", "==", currentUserDept), orderBy("createdAt", "desc"));
+  }, [db, user, currentUserDept]);
 
   const customersQuery = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
   const productsQuery = useMemoFirebase(() => user ? collection(db, "products") : null, [db, user]);
 
-  const { data: invoices, isLoading } = useCollection(invoicesQuery);
-  const { data: customers } = useCollection(customersQuery);
-  const { data: products } = useCollection(productsQuery);
+  const { data: invoicesData, isLoading } = useCollection(invoicesQuery);
+  const { data: customersData } = useCollection(customersQuery);
+  const { data: productsData } = useCollection(productsQuery);
+
+  // Stabilize array references so downstream useMemo/filters don't see a
+  // fresh [] on every render when the underlying data is still null.
+  const invoices = useMemo(() => invoicesData || [], [invoicesData]);
+  const customers = useMemo(() => customersData || [], [customersData]);
+  const products = useMemo(() => productsData || [], [productsData]);
 
   // --- Manual/Auto Form State ---
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -130,9 +168,8 @@ export default function InvoicesPage() {
   const [generatedNumber, setGeneratedNumber] = useState("");
 
   const filteredInvoices = useMemo(() => {
-    const safeInvoices = invoices || [];
-    return safeInvoices.filter(inv => {
-      const matchesSearch = (inv.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    return invoices.filter((inv: any) => {
+      const matchesSearch = (inv.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                            (inv.number || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'all' || inv.status === statusFilter;
       return matchesSearch && matchesStatus;
@@ -140,7 +177,10 @@ export default function InvoicesPage() {
   }, [invoices, searchTerm, statusFilter]);
 
   // --- Calculations with Conversion ---
-  const manualSubtotal = manualLineItems.reduce((acc, l) => acc + (l.total || 0), 0);
+  const manualSubtotal = useMemo(
+    () => manualLineItems.reduce((acc, l) => acc + (l.total || 0), 0),
+    [manualLineItems]
+  );
   const manualUSDTotal = useMemo(() => {
     if (!exchangeRates) return manualSubtotal;
     return currencyService.convert(manualSubtotal, selectedCurrency, 'USD', exchangeRates.rates);
@@ -150,7 +190,9 @@ export default function InvoicesPage() {
     if (isAddModalOpen && creationStep !== "choice") {
       invoiceService.generateSequenceNumber(db, invoiceType).then(setGeneratedNumber);
     }
-  }, [isAddModalOpen, creationStep, invoiceType, db]);
+    // db is stable; intentionally excluded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAddModalOpen, creationStep, invoiceType]);
 
   const handleAutoGenerate = async () => {
     const customer = customers?.find(c => c.id === selectedCustomerId);
