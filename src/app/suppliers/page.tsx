@@ -106,6 +106,7 @@ export default function SuppliersPage() {
   const [tierFilter, setPriceTier] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [natureFilter, setNatureFilter] = useState("all");
+  const [marketFilter, setMarketFilter] = useState("all");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
@@ -203,7 +204,13 @@ export default function SuppliersPage() {
       const matchesTier = tierFilter === "all" || (s.priceTier || s.pricing?.tier) === tierFilter;
       const matchesStatus = statusFilter === "all" || s.recordStatus === statusFilter;
       const matchesNature = natureFilter === "all" || s.natureOfBusiness === natureFilter;
-      return matchesSearch && matchesCountry && matchesTier && matchesStatus && matchesNature;
+      const supplierMarkets = Array.isArray(s.markets) ? s.markets : [];
+      const matchesMarket =
+        marketFilter === "all" ||
+        (marketFilter === "unassigned"
+          ? supplierMarkets.length === 0
+          : supplierMarkets.includes(marketFilter));
+      return matchesSearch && matchesCountry && matchesTier && matchesStatus && matchesNature && matchesMarket;
     });
     // Maintain createdAt desc order; push docs missing createdAt to the bottom
     return filtered.sort((a, b) => {
@@ -211,7 +218,7 @@ export default function SuppliersPage() {
       const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return bDate - aDate;
     });
-  }, [suppliers, searchTerm, countryFilter, tierFilter, statusFilter, natureFilter]);
+  }, [suppliers, searchTerm, countryFilter, tierFilter, statusFilter, natureFilter, marketFilter]);
 
   const countries = Array.from(new Set(suppliers?.map(s => s.country).filter(Boolean) || [])).sort();
   const natures = Array.from(new Set(suppliers?.map(s => s.natureOfBusiness).filter(Boolean) || [])).sort();
@@ -688,7 +695,7 @@ export default function SuppliersPage() {
       </div>
 
       <Card className="bg-secondary/10 border-none shadow-none">
-        <CardContent className="p-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <CardContent className="p-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <div className="relative lg:col-span-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
@@ -726,6 +733,16 @@ export default function SuppliersPage() {
               {natures.map(n => <SelectItem key={n} value={n}>{n}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Select value={marketFilter} onValueChange={setMarketFilter}>
+            <SelectTrigger className="h-9"><SelectValue placeholder="All Markets" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Markets</SelectItem>
+              <SelectItem value="chocolate_market">Chocolate Market</SelectItem>
+              <SelectItem value="cosmetics_market">Cosmetics Market</SelectItem>
+              <SelectItem value="detergents_market">Detergents Market</SelectItem>
+              <SelectItem value="unassigned">Unassigned</SelectItem>
+            </SelectContent>
+          </Select>
         </CardContent>
       </Card>
 
@@ -736,6 +753,7 @@ export default function SuppliersPage() {
               <TableHead className="w-[200px]">Company Name</TableHead>
               <TableHead>Country</TableHead>
               <TableHead>Nature of Business</TableHead>
+              <TableHead>Markets</TableHead>
               <TableHead>Specialized Products</TableHead>
               <TableHead>Price Tier</TableHead>
               <TableHead className="max-w-[180px]">Strategic Notes</TableHead>
@@ -747,7 +765,7 @@ export default function SuppliersPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-12">
+                <TableCell colSpan={10} className="text-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">Loading suppliers...</p>
                 </TableCell>
@@ -766,6 +784,30 @@ export default function SuppliersPage() {
                 </TableCell>
                 <TableCell>
                   <span className="text-xs">{supplier.natureOfBusiness || "—"}</span>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1 max-w-[180px]">
+                    {Array.isArray(supplier.markets) && supplier.markets.length > 0 ? (
+                      supplier.markets.map((m: string) => {
+                        const label =
+                          m === "chocolate_market" ? "Chocolate" :
+                          m === "cosmetics_market" ? "Cosmetics" :
+                          m === "detergents_market" ? "Detergents" : m;
+                        const cls =
+                          m === "chocolate_market" ? "bg-amber-700/15 text-amber-700 border-amber-700/30" :
+                          m === "cosmetics_market" ? "bg-pink-500/15 text-pink-500 border-pink-500/30" :
+                          m === "detergents_market" ? "bg-teal-500/15 text-teal-500 border-teal-500/30" :
+                          "bg-muted text-muted-foreground border-muted";
+                        return (
+                          <Badge key={m} variant="outline" className={cn("text-[9px] h-4 font-bold", cls)}>
+                            {label}
+                          </Badge>
+                        );
+                      })
+                    ) : (
+                      <span className="text-[10px] italic text-muted-foreground">Unassigned</span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1 max-w-[200px]">
