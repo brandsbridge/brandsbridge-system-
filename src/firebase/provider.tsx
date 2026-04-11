@@ -108,7 +108,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
           } catch (err) {
             console.error("Profile sync error:", err);
             const appUser = Object.assign(firebaseUser, { profile: null });
-            setUserAuthState((prevState) => ({ ...prevState, user: appUser, isUserLoading: false, userError: err }));
+            setUserAuthState((prevState) => ({ ...prevState, user: appUser, isUserLoading: false, userError: err instanceof Error ? err : new Error(String(err)) }));
           }
         } else {
           if (unsubscribeProfile) unsubscribeProfile();

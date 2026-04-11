@@ -395,7 +395,7 @@ export default function SuppliersPage() {
         if (existing && existing.id) {
           if (duplicateMode === "update") {
             const docRef = doc(db, "suppliers", existing.id);
-            batch.update(docRef, cleanData);
+            batch.update(docRef, cleanData as { [x: string]: any });
             updates++;
           } else {
             console.log(`[Import] Skipping duplicate (duplicateMode=skip): ${name}`);

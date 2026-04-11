@@ -110,7 +110,7 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
     return products.map(p => {
       const pStocks = stocks.filter(s => s.productId === p.id).sort((a, b) => a.price - b.price);
       const bestDeal = pStocks[0];
-      const sellingPrice = bestDeal ? bestDeal.price * (1 + (p.margin || 10) / 100) : 0;
+      const sellingPrice = bestDeal ? bestDeal.price * (1 + ((p as any).margin || 10) / 100) : 0;
       
       return {
         ...p,
@@ -332,7 +332,7 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
                                 <Share2 className="h-3 w-3 text-accent" />
                               </TooltipTrigger>
                               <TooltipContent>
-                                <p className="text-[10px]">Shared with: {s.departments.filter(d => d !== departmentId).join(", ")}</p>
+                                <p className="text-[10px]">Shared with: {s.departments.filter((d: string) => d !== departmentId).join(", ")}</p>
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -414,7 +414,7 @@ export function DepartmentPage({ departmentId, name, manager }: Props) {
                     <div>
                       <CardTitle className="text-sm">{p.name}</CardTitle>
                     </div>
-                    {p.isFeatured && <Badge className="bg-primary animate-pulse">Best Deal</Badge>}
+                    {(p as any).isFeatured && <Badge className="bg-primary animate-pulse">Best Deal</Badge>}
                   </div>
                 </CardHeader>
                 <CardContent className="p-4">

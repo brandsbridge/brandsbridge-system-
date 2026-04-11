@@ -48,9 +48,9 @@ export default function InventoryPage() {
   const stocksCol = useMemoFirebase(() => collection(db, "stocks"), []);
   const suppliersCol = useMemoFirebase(() => collection(db, "suppliers"), []);
 
-  const { data: fbProducts, loading: loadingProducts } = useCollection(productsCol);
-  const { data: fbStocks, loading: loadingStocks } = useCollection(stocksCol);
-  const { data: fbSuppliers, loading: loadingSuppliers } = useCollection(suppliersCol);
+  const { data: fbProducts, isLoading: loadingProducts } = useCollection(productsCol);
+  const { data: fbStocks, isLoading: loadingStocks } = useCollection(stocksCol);
+  const { data: fbSuppliers, isLoading: loadingSuppliers } = useCollection(suppliersCol);
 
   const products = (fbProducts && fbProducts.length > 0) ? fbProducts : MOCK_PRODUCTS;
   const stocks = (fbStocks && fbStocks.length > 0) ? fbStocks : MOCK_STOCKS;
