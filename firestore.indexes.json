@@ -41,6 +41,14 @@
       ]
     },
     {
+      "collectionGroup": "expenses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "costCenter", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "supplier_attachments",
       "queryScope": "COLLECTION",
       "fields": [

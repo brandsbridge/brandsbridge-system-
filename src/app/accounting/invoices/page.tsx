@@ -78,7 +78,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where, orderBy, doc, getDoc } from "firebase/firestore";
+import { collection, query, orderBy, doc, getDoc } from "firebase/firestore";
 import { invoiceService } from "@/services/invoice-service";
 import { currencyService, SUPPORTED_CURRENCIES, type CurrencyCode, type ExchangeRates } from "@/services/currency-service";
 import { toast } from "@/hooks/use-toast";
@@ -140,12 +140,9 @@ export default function InvoicesPage() {
   const currentUserDept = currentUser?.department ?? null;
 
   const invoicesQuery = useMemoFirebase(() => {
-    if (!user || !currentUserDept) return null;
-    const colRef = collection(db, "invoices");
-    return currentUserDept === 'all'
-      ? query(colRef, orderBy("createdAt", "desc"))
-      : query(colRef, where("department", "==", currentUserDept), orderBy("createdAt", "desc"));
-  }, [db, user, currentUserDept]);
+    if (!user) return null;
+    return query(collection(db, "invoices"), orderBy("createdAt", "desc"));
+  }, [db, user]);
 
   const customersQuery = useMemoFirebase(() => user ? collection(db, "customers") : null, [db, user]);
   const productsQuery = useMemoFirebase(() => user ? collection(db, "products") : null, [db, user]);
