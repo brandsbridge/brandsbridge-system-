@@ -68,6 +68,28 @@ const BUILTIN_COST_CENTERS = [
   "Logistics & Shipping", "Other",
 ];
 
+// Safely coerce any value to a string for rendering in JSX.
+// Guards against React error #185 when legacy rows stored objects in text fields.
+function safeText(value: any, fallback: string = ''): string {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'object') {
+    // Common object shapes saved by older versions of the form
+    if (typeof value.name === 'string') return value.name;
+    if (typeof value.label === 'string') return value.label;
+    if (typeof value.value === 'string') return value.value;
+    return fallback;
+  }
+  return fallback;
+}
+
+function safeAmount(value: any): string {
+  const n = typeof value === 'number' ? value : parseFloat(value);
+  if (isNaN(n)) return '0.00';
+  return n.toLocaleString();
+}
+
 // Built-in expense accounts
 const BUILTIN_EXPENSE_ACCOUNTS = [
   ...CHART_OF_ACCOUNTS.filter(a => a.group === 'Expenses'),
@@ -488,7 +510,7 @@ export default function ExpensesPage() {
       reference: formData.get('reference'),
       notes: formData.get('notes'),
       customerId: formData.get('customerId'),
-      customerName: customers?.find(c => c.id === formData.get('customerId'))?.name,
+      customerName: safeText(customers?.find((c: any) => c.id === formData.get('customerId'))?.name) || null,
       isBillable: formData.get('isBillable') === 'on',
       costCenter: selectedCostCenter || null,
       date: Timestamp.fromDate(new Date(expenseDate)),
@@ -706,19 +728,22 @@ export default function ExpensesPage() {
                             />
                             {showVendorSuggestions && vendorSuggestions.length > 0 && (
                               <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
-                                {vendorSuggestions.map((s: any) => (
-                                  <button
-                                    key={s.id}
-                                    type="button"
-                                    className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
-                                    onClick={() => {
-                                      setVendorInput(s.name);
-                                      setShowVendorSuggestions(false);
-                                    }}
-                                  >
-                                    {s.name}
-                                  </button>
-                                ))}
+                                {vendorSuggestions.map((s: any) => {
+                                  const supplierName = safeText(s.name);
+                                  return (
+                                    <button
+                                      key={s.id}
+                                      type="button"
+                                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors"
+                                      onClick={() => {
+                                        setVendorInput(supplierName);
+                                        setShowVendorSuggestions(false);
+                                      }}
+                                    >
+                                      {supplierName}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -874,8 +899,8 @@ export default function ExpensesPage() {
                             <Select name="customerId">
                               <SelectTrigger><SelectValue placeholder="Choose customer..." /></SelectTrigger>
                               <SelectContent>
-                                {customers?.map(c => (
-                                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                {customers?.map((c: any) => (
+                                  <SelectItem key={c.id} value={c.id}>{safeText(c.name)}</SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -920,49 +945,61 @@ export default function ExpensesPage() {
                 </TableHeader>
                 <TableBody>
                   {expenses
-                    .filter((e: any) => costCenterFilter === 'all' || e.costCenter === costCenterFilter)
-                    .map(e => (
-                    <TableRow key={e.id}>
-                      <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(e.date)}</TableCell>
-                      <TableCell>
-                        <div className="font-bold text-sm">{e.vendorName || 'General Expense'}</div>
-                        <div className="text-[10px] text-muted-foreground uppercase">{e.accountName}</div>
-                      </TableCell>
-                      <TableCell>
-                        {e.costCenter ? (
-                          <Badge variant="secondary" className="text-[10px] bg-purple-500/10 text-purple-500 border-purple-500/20">{e.costCenter}</Badge>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        <div className="flex items-center gap-1">
-                          {e.reference || '-'}
-                          {(e.attachments?.length > 0 || e.invoiceUrl) && (
-                            <span className="text-primary flex items-center gap-0.5">
-                              <Paperclip className="h-3 w-3" />
-                              {e.attachments?.length > 1 && <span className="text-[10px]">{e.attachments.length}</span>}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {e.isBillable ? (
-                          <Badge variant="secondary" className="bg-blue-500/10 text-blue-500 text-[10px]">Billable</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px]">Non-Billable</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-bold">
-                        {e.currency === 'AED' ? 'د.إ' : '$'}{e.amount?.toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditExpense(e)}>
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                    .filter((e: any) => {
+                      const cc = safeText(e.costCenter);
+                      return costCenterFilter === 'all' || cc === costCenterFilter;
+                    })
+                    .map((e: any) => {
+                      const costCenterText = safeText(e.costCenter);
+                      const vendorText = safeText(e.vendorName, 'General Expense');
+                      const accountText = safeText(e.accountName);
+                      const referenceText = safeText(e.reference, '-');
+                      const attachmentCount = Array.isArray(e.attachments) ? e.attachments.length : 0;
+                      const hasAttachment = attachmentCount > 0 || !!e.invoiceUrl;
+                      const currencySymbol = e.currency === 'AED' ? 'د.إ' : '$';
+                      return (
+                        <TableRow key={e.id}>
+                          <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(e.date)}</TableCell>
+                          <TableCell>
+                            <div className="font-bold text-sm">{vendorText}</div>
+                            <div className="text-[10px] text-muted-foreground uppercase">{accountText}</div>
+                          </TableCell>
+                          <TableCell>
+                            {costCenterText ? (
+                              <Badge variant="secondary" className="text-[10px] bg-purple-500/10 text-purple-500 border-purple-500/20">{costCenterText}</Badge>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            <div className="flex items-center gap-1">
+                              {referenceText}
+                              {hasAttachment && (
+                                <span className="text-primary flex items-center gap-0.5">
+                                  <Paperclip className="h-3 w-3" />
+                                  {attachmentCount > 1 && <span className="text-[10px]">{attachmentCount}</span>}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {e.isBillable ? (
+                              <Badge variant="secondary" className="bg-blue-500/10 text-blue-500 text-[10px]">Billable</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px]">Non-Billable</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-bold">
+                            {currencySymbol}{safeAmount(e.amount)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditExpense(e)}>
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   {expenses.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-12 text-muted-foreground italic">No expense records found.</TableCell>
@@ -1044,15 +1081,15 @@ export default function ExpensesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {templates.map(t => (
+                  {templates.map((t: any) => (
                     <TableRow key={t.id}>
-                      <TableCell className="font-medium">{t.templateName}</TableCell>
-                      <TableCell>{t.customerName}</TableCell>
-                      <TableCell className="capitalize"><Badge variant="outline">{t.frequency}</Badge></TableCell>
+                      <TableCell className="font-medium">{safeText(t.templateName)}</TableCell>
+                      <TableCell>{safeText(t.customerName)}</TableCell>
+                      <TableCell className="capitalize"><Badge variant="outline">{safeText(t.frequency)}</Badge></TableCell>
                       <TableCell>
-                        <Badge className={t.status === 'active' ? 'bg-green-500' : 'bg-yellow-500'}>{t.status}</Badge>
+                        <Badge className={t.status === 'active' ? 'bg-green-500' : 'bg-yellow-500'}>{safeText(t.status)}</Badge>
                       </TableCell>
-                      <TableCell className="text-right font-bold">${t.amount?.toLocaleString()}</TableCell>
+                      <TableCell className="text-right font-bold">${safeAmount(t.amount)}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
                       </TableCell>
