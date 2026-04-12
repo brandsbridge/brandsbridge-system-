@@ -18,7 +18,9 @@ import {
   CheckCircle2,
   XCircle,
   RefreshCw,
-  Eye
+  Eye,
+  Pencil,
+  ExternalLink,
 } from "lucide-react";
 import {
   Table,
@@ -52,6 +54,19 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection, query, where, doc, setDoc, getDocs, orderBy, Timestamp } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
@@ -164,6 +179,9 @@ export default function ExpensesPage() {
 
   // Edit mode state
   const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+
+  // View details state
+  const [viewingExpense, setViewingExpense] = useState<any>(null);
 
   // All accounts = built-in + custom
   const allExpenseAccounts = useMemo(() => {
@@ -1010,9 +1028,21 @@ export default function ExpensesPage() {
                             {currencySymbol}{safeAmount(e.amount)}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditExpense(e)}>
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setViewingExpense(e)}>
+                                  <Eye className="mr-2 h-4 w-4" /> View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEditExpense(e)}>
+                                  <Pencil className="mr-2 h-4 w-4" /> Edit
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       );
@@ -1123,6 +1153,104 @@ export default function ExpensesPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* VIEW DETAILS SHEET */}
+      <Sheet open={!!viewingExpense} onOpenChange={(open) => { if (!open) setViewingExpense(null); }}>
+        <SheetContent className="sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Expense Details</SheetTitle>
+            <SheetDescription>Full record of this expense entry.</SheetDescription>
+          </SheetHeader>
+          {viewingExpense && (() => {
+            const exp = viewingExpense;
+            const dateStr = exp.date
+              ? (typeof exp.date.toDate === 'function' ? exp.date.toDate().toLocaleDateString() : new Date(exp.date).toLocaleDateString())
+              : '-';
+            const createdAtStr = exp.createdAt
+              ? (typeof exp.createdAt.toDate === 'function' ? exp.createdAt.toDate().toLocaleString() : new Date(exp.createdAt).toLocaleString())
+              : '-';
+            const atts: any[] = Array.isArray(exp.attachments) ? exp.attachments : [];
+            // Include legacy single attachment
+            if (exp.invoiceUrl && atts.length === 0) {
+              atts.push({ fileName: exp.invoiceFileName || 'Invoice', url: exp.invoiceUrl, fileType: exp.invoiceFileName?.match(/\.pdf$/i) ? 'pdf' : 'image' });
+            }
+
+            return (
+              <div className="space-y-6 py-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <DetailField label="Date" value={dateStr} />
+                  <DetailField label="Expense Account" value={safeText(exp.accountName) || safeText(exp.accountCode) || '-'} />
+                  <DetailField label="Paid Through" value={safeText(exp.paidThrough) || safeText(exp.paidFromAccount) || '-'} />
+                  <DetailField label="Cost Center" value={safeText(exp.costCenter) || '-'} />
+                  <DetailField label="Vendor / Supplier" value={safeText(exp.vendorName) || '-'} />
+                  <DetailField label="Reference #" value={safeText(exp.reference) || '-'} />
+                  <DetailField label="Amount" value={`${exp.currency === 'AED' ? 'د.إ' : '$'}${safeAmount(exp.amount)} ${exp.currency || 'USD'}`} />
+                  <DetailField label="Status" value={exp.isBillable ? 'Billable' : 'Non-Billable'} badge badgeClass={exp.isBillable ? 'bg-blue-500/10 text-blue-500' : ''} />
+                  {exp.customerName && <DetailField label="Customer" value={safeText(exp.customerName)} />}
+                  <DetailField label="Created By" value={safeText(exp.createdBy) || '-'} />
+                  <DetailField label="Created At" value={createdAtStr} />
+                </div>
+
+                {safeText(exp.notes) && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Notes</p>
+                    <p className="text-sm whitespace-pre-wrap bg-secondary/30 rounded-lg p-3">{safeText(exp.notes)}</p>
+                  </div>
+                )}
+
+                {atts.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Attachments ({atts.length})</p>
+                    <div className="space-y-2">
+                      {atts.map((att: any, i: number) => (
+                        <a
+                          key={i}
+                          href={att.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-2 rounded-lg border hover:bg-accent/50 transition-colors"
+                        >
+                          {att.fileType === 'image' ? (
+                            <img src={att.url} alt={att.fileName} className="h-12 w-12 object-cover rounded" />
+                          ) : (
+                            <div className="h-12 w-12 bg-red-500/10 rounded flex items-center justify-center">
+                              <FileIcon className="h-6 w-6 text-red-500" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{att.fileName}</p>
+                            {att.documentType && <p className="text-[10px] text-muted-foreground capitalize">{att.documentType}</p>}
+                          </div>
+                          <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" size="sm" onClick={() => { setViewingExpense(null); openEditExpense(exp); }}>
+                    <Pencil className="mr-2 h-4 w-4" /> Edit This Expense
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}
+
+function DetailField({ label, value, badge, badgeClass }: { label: string; value: string; badge?: boolean; badgeClass?: string }) {
+  return (
+    <div>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{label}</p>
+      {badge ? (
+        <Badge variant="secondary" className={badgeClass}>{value}</Badge>
+      ) : (
+        <p className="text-sm font-medium mt-0.5">{value}</p>
+      )}
     </div>
   );
 }
