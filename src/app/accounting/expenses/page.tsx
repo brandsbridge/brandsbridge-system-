@@ -395,7 +395,7 @@ export default function ExpensesPage() {
     setVendorInput(expense.vendorName || '');
     setSelectedAccountCode(expense.accountCode || '');
     setSelectedCostCenter(expense.costCenter || '');
-    setPaidFromAccount(expense.paidFromAccount || '');
+    setPaidFromAccount(expense.paidFromAccount || expense.paidThrough || '');
 
     // Load existing attachments
     const existing: AttachmentItem[] = (expense.attachments || []).map((att: any, i: number) => ({
@@ -516,7 +516,7 @@ export default function ExpensesPage() {
     const data: any = {
       accountCode,
       accountName: matchedAccount?.name || accountCode,
-      paidThrough: formData.get('paidThrough'),
+      paidThrough: paidFromAccount || null,
       paidFromAccount: paidFromAccount || null,
       amount: parseFloat(formData.get('amount') as string),
       currency: formData.get('currency') || 'USD',
@@ -665,26 +665,13 @@ export default function ExpensesPage() {
 
                         <div className="space-y-2">
                           <Label className="text-[10px] font-bold uppercase tracking-widest">Paid Through</Label>
-                          <Select name="paidThrough" defaultValue="Cash">
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="Cash">Petty Cash</SelectItem>
-                              <SelectItem value="Bank Account">Corporate Bank Account</SelectItem>
-                              <SelectItem value="Credit Card">Business Credit Card</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* PAID FROM ACCOUNT */}
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-bold uppercase tracking-widest">Paid From Account</Label>
                           <Select value={paidFromAccount || "_none_"} onValueChange={(v) => setPaidFromAccount(v === "_none_" ? "" : v)}>
-                            <SelectTrigger><SelectValue placeholder="Select account..." /></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder="Select payment account..." /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="_none_">None</SelectItem>
+                              <SelectItem value="_none_">Select Account</SelectItem>
                               {activePaymentAccounts.map((acc: any) => (
                                 <SelectItem key={acc.id} value={acc.accountName}>
-                                  {acc.accountName} ({acc.owner})
+                                  {acc.accountName}
                                 </SelectItem>
                               ))}
                             </SelectContent>
