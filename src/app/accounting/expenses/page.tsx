@@ -616,15 +616,17 @@ export default function ExpensesPage() {
       updatedAt: new Date().toISOString(),
     };
 
-    if (editingExpenseId) {
-      // Update existing expense
-      const { setDoc: _, ...updateData } = data;
-      await setDoc(doc(db, "expenses", expenseId), data, { merge: true });
-      toast({ title: "Expense Updated", description: "The expense record has been updated." });
-    } else {
-      data.createdAt = new Date().toISOString();
-      await setDoc(doc(db, "expenses", expenseId), data);
-      toast({ title: "Expense Recorded", description: "The transaction has been logged." });
+    try {
+      if (editingExpenseId) {
+        await setDoc(doc(db, "expenses", expenseId), data, { merge: true });
+        toast({ title: "Expense Updated", description: "The expense record has been updated." });
+      } else {
+        data.createdAt = new Date().toISOString();
+        await setDoc(doc(db, "expenses", expenseId), data);
+        toast({ title: "Expense Recorded", description: "The transaction has been logged." });
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Save failed", description: err.message });
     }
 
     setIsAddModalOpen(false);
@@ -1099,15 +1101,15 @@ export default function ExpensesPage() {
                                   <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setViewingExpense(e)}>
+                              <DropdownMenuContent align="end" onCloseAutoFocus={(ev) => ev.preventDefault()}>
+                                <DropdownMenuItem onSelect={() => setTimeout(() => setViewingExpense(e), 0)}>
                                   <Eye className="mr-2 h-4 w-4" /> View Details
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openEditExpense(e)}>
+                                <DropdownMenuItem onSelect={() => setTimeout(() => openEditExpense(e), 0)}>
                                   <Pencil className="mr-2 h-4 w-4" /> Edit
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeletingExpense(e)}>
+                                <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setTimeout(() => setDeletingExpense(e), 0)}>
                                   <Trash2 className="mr-2 h-4 w-4" /> Delete
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -1233,8 +1235,14 @@ export default function ExpensesPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => deletingExpense && handleDeleteExpense(deletingExpense)}>
+            <AlertDialogCancel onClick={() => setDeletingExpense(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (deletingExpense) handleDeleteExpense(deletingExpense);
+              }}
+            >
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1316,7 +1324,7 @@ export default function ExpensesPage() {
                 )}
 
                 <div className="flex gap-2 pt-2">
-                  <Button variant="outline" size="sm" onClick={() => { setViewingExpense(null); openEditExpense(exp); }}>
+                  <Button variant="outline" size="sm" onClick={() => { const e = exp; setViewingExpense(null); setTimeout(() => openEditExpense(e), 150); }}>
                     <Pencil className="mr-2 h-4 w-4" /> Edit This Expense
                   </Button>
                 </div>
