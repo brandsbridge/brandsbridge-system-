@@ -21,6 +21,7 @@ import {
   Eye,
   Pencil,
   ExternalLink,
+  Trash2,
 } from "lucide-react";
 import {
   Table,
@@ -58,8 +59,19 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Sheet,
   SheetContent,
@@ -68,7 +80,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, query, where, doc, setDoc, getDocs, orderBy, Timestamp } from "firebase/firestore";
+import { collection, query, where, doc, setDoc, getDocs, orderBy, Timestamp, deleteDoc } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { expenseService } from "@/services/expense-service";
 import { accountingService } from "@/services/accounting-service";
@@ -183,6 +195,17 @@ export default function ExpensesPage() {
   // View details state
   const [viewingExpense, setViewingExpense] = useState<any>(null);
 
+  // Delete confirmation state
+  const [deletingExpense, setDeletingExpense] = useState<any>(null);
+
+  // Edit pre-fill states for uncontrolled fields
+  const [editAmount, setEditAmount] = useState('');
+  const [editCurrency, setEditCurrency] = useState('USD');
+  const [editReference, setEditReference] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editIsBillable, setEditIsBillable] = useState(false);
+  const [editCustomerId, setEditCustomerId] = useState('');
+
   // All accounts = built-in + custom
   const allExpenseAccounts = useMemo(() => {
     return [...BUILTIN_EXPENSE_ACCOUNTS, ...customAccounts.map(c => ({ ...c, group: 'Expenses' }))];
@@ -219,7 +242,7 @@ export default function ExpensesPage() {
 
   const expensesQuery = useMemoFirebase(() => {
     if (!user) return null;
-    return collection(db, "expenses");
+    return query(collection(db, "expenses"), orderBy("createdAt", "desc"));
   }, [db, user]);
 
   const recurringQuery = useMemoFirebase(() => {
@@ -414,6 +437,12 @@ export default function ExpensesPage() {
     setSelectedAccountCode(expense.accountCode || '');
     setSelectedCostCenter(expense.costCenter || '');
     setPaidFromAccount(expense.paidFromAccount || expense.paidThrough || '');
+    setEditAmount(expense.amount != null ? String(expense.amount) : '');
+    setEditCurrency(expense.currency || 'USD');
+    setEditReference(expense.reference || '');
+    setEditNotes(expense.notes || '');
+    setEditIsBillable(!!expense.isBillable);
+    setEditCustomerId(expense.customerId || '');
 
     // Load existing attachments
     const existing: AttachmentItem[] = (expense.attachments || []).map((att: any, i: number) => ({
@@ -443,6 +472,36 @@ export default function ExpensesPage() {
     setAttachments(existing);
     setAttachmentError(null);
     setIsAddModalOpen(true);
+  };
+
+  // Delete expense + its storage attachments
+  const handleDeleteExpense = async (expense: any) => {
+    try {
+      // Delete attachments from Storage
+      const atts: any[] = Array.isArray(expense.attachments) ? expense.attachments : [];
+      for (const att of atts) {
+        try {
+          const storageRef = ref(storage, `expenses/${expense.id}/attachments/${att.fileName}`);
+          await deleteObject(storageRef);
+        } catch {
+          // file may already be gone
+        }
+      }
+      // Delete legacy single attachment
+      if (expense.invoiceUrl) {
+        try {
+          const storageRef = ref(storage, `expenses/${expense.id}/attachments/${expense.invoiceFileName || 'invoice'}`);
+          await deleteObject(storageRef);
+        } catch {
+          // ignore
+        }
+      }
+      await deleteDoc(doc(db, "expenses", expense.id));
+      toast({ title: "Expense deleted successfully" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Delete failed", description: err.message });
+    }
+    setDeletingExpense(null);
   };
 
   // Handle adding a new custom expense account
@@ -487,12 +546,17 @@ export default function ExpensesPage() {
       setNewAccountName('');
       setEditingExpenseId(null);
       setPaidFromAccount('');
+      setEditAmount('');
+      setEditCurrency('USD');
+      setEditReference('');
+      setEditNotes('');
+      setEditIsBillable(false);
+      setEditCustomerId('');
     }
   }, [isAddModalOpen]);
 
   const handleRecordExpense = async (e: React.FormEvent) => {
     e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
 
     const accountCode = selectedAccountCode;
     const matchedAccount = allExpenseAccounts.find(a => a.code === accountCode);
@@ -536,14 +600,14 @@ export default function ExpensesPage() {
       accountName: matchedAccount?.name || accountCode,
       paidThrough: paidFromAccount || null,
       paidFromAccount: paidFromAccount || null,
-      amount: parseFloat(formData.get('amount') as string),
-      currency: formData.get('currency') || 'USD',
+      amount: parseFloat(editAmount) || 0,
+      currency: editCurrency || 'USD',
       vendorName: vendorInput.trim() || null,
-      reference: formData.get('reference'),
-      notes: formData.get('notes'),
-      customerId: formData.get('customerId'),
-      customerName: safeText(customers?.find((c: any) => c.id === formData.get('customerId'))?.name) || null,
-      isBillable: formData.get('isBillable') === 'on',
+      reference: editReference || null,
+      notes: editNotes || null,
+      customerId: editCustomerId || null,
+      customerName: safeText(customers?.find((c: any) => c.id === editCustomerId)?.name) || null,
+      isBillable: editIsBillable,
       costCenter: selectedCostCenter || null,
       date: Timestamp.fromDate(new Date(expenseDate)),
       department: 'all',
@@ -787,11 +851,11 @@ export default function ExpensesPage() {
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-2">
                             <Label className="text-[10px] font-bold uppercase tracking-widest">Amount</Label>
-                            <Input name="amount" type="number" step="0.01" required placeholder="0.00" />
+                            <Input name="amount" type="number" step="0.01" required placeholder="0.00" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} />
                           </div>
                           <div className="space-y-2">
                             <Label className="text-[10px] font-bold uppercase tracking-widest">Currency</Label>
-                            <Select name="currency" defaultValue="USD">
+                            <Select value={editCurrency} onValueChange={setEditCurrency}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="USD">USD ($)</SelectItem>
@@ -806,12 +870,12 @@ export default function ExpensesPage() {
                       <div className="space-y-4">
                         <div className="space-y-2">
                           <Label className="text-[10px] font-bold uppercase tracking-widest">Reference #</Label>
-                          <Input name="reference" placeholder="Receipt or Invoice #" />
+                          <Input name="reference" placeholder="Receipt or Invoice #" value={editReference} onChange={(e) => setEditReference(e.target.value)} />
                         </div>
 
                         <div className="space-y-2">
                           <Label className="text-[10px] font-bold uppercase tracking-widest">Notes</Label>
-                          <Textarea name="notes" className="h-20" placeholder="Purpose of this expense..." />
+                          <Textarea name="notes" className="h-20" placeholder="Purpose of this expense..." value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
                         </div>
 
                         {/* MULTI-FILE ATTACHMENTS */}
@@ -928,12 +992,13 @@ export default function ExpensesPage() {
                         <div className="p-4 bg-secondary/30 rounded-lg border space-y-4">
                           <div className="flex items-center justify-between">
                             <Label className="text-[10px] font-bold uppercase">Bill to Customer</Label>
-                            <Switch name="isBillable" />
+                            <Switch checked={editIsBillable} onCheckedChange={setEditIsBillable} />
                           </div>
                           <div className="space-y-2">
-                            <Select name="customerId">
+                            <Select value={editCustomerId || "_none_"} onValueChange={(v) => setEditCustomerId(v === "_none_" ? "" : v)}>
                               <SelectTrigger><SelectValue placeholder="Choose customer..." /></SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="_none_">None</SelectItem>
                                 {customers?.map((c: any) => (
                                   <SelectItem key={c.id} value={c.id}>{safeText(c.name)}</SelectItem>
                                 ))}
@@ -1040,6 +1105,10 @@ export default function ExpensesPage() {
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => openEditExpense(e)}>
                                   <Pencil className="mr-2 h-4 w-4" /> Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeletingExpense(e)}>
+                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -1153,6 +1222,24 @@ export default function ExpensesPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* DELETE CONFIRMATION */}
+      <AlertDialog open={!!deletingExpense} onOpenChange={(open) => { if (!open) setDeletingExpense(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Expense</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this expense? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => deletingExpense && handleDeleteExpense(deletingExpense)}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* VIEW DETAILS SHEET */}
       <Sheet open={!!viewingExpense} onOpenChange={(open) => { if (!open) setViewingExpense(null); }}>
