@@ -881,6 +881,7 @@ export default function PaymentsPage() {
                           <Select name="currency" defaultValue="USD">
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="QAR">QAR (ر.ق)</SelectItem>
                               <SelectItem value="USD">USD ($)</SelectItem>
                               <SelectItem value="AED">AED (د.إ)</SelectItem>
                               <SelectItem value="EUR">EUR (€)</SelectItem>

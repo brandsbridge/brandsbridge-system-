@@ -409,6 +409,7 @@ export default function PaymentAccountsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="QAR">QAR</SelectItem>
                       <SelectItem value="USD">USD</SelectItem>
                       <SelectItem value="AED">AED</SelectItem>
                       <SelectItem value="EUR">EUR</SelectItem>

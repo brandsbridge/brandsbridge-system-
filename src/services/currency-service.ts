@@ -3,7 +3,7 @@
 import { Firestore, doc, setDoc, getDoc, collection, query, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
 import { dbService } from './db';
 
-export const SUPPORTED_CURRENCIES = ['USD', 'AED', 'SAR', 'EUR', 'GBP', 'EGP', 'TRY', 'PLN', 'CNY', 'JPY'] as const;
+export const SUPPORTED_CURRENCIES = ['QAR', 'USD', 'AED', 'SAR', 'EUR', 'GBP', 'EGP', 'TRY', 'PLN', 'CNY', 'JPY'] as const;
 export type CurrencyCode = typeof SUPPORTED_CURRENCIES[number];
 
 export interface ExchangeRates {

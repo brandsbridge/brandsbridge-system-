@@ -868,6 +868,7 @@ export default function ExpensesPage() {
                             <Select value={editCurrency} onValueChange={setEditCurrency}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
+                                <SelectItem value="QAR">QAR (ر.ق)</SelectItem>
                                 <SelectItem value="USD">USD ($)</SelectItem>
                                 <SelectItem value="AED">AED (د.إ)</SelectItem>
                                 <SelectItem value="EUR">EUR (€)</SelectItem>
@@ -1070,7 +1071,7 @@ export default function ExpensesPage() {
                       const referenceText = safeText(e.reference, '-');
                       const attachmentCount = Array.isArray(e.attachments) ? e.attachments.length : 0;
                       const hasAttachment = attachmentCount > 0 || !!e.invoiceUrl;
-                      const currencySymbol = e.currency === 'AED' ? 'د.إ' : '$';
+                      const currencySymbol = e.currency === 'QAR' ? 'ر.ق' : e.currency === 'AED' ? 'د.إ' : e.currency === 'EUR' ? '€' : '$';
                       return (
                         <TableRow key={e.id}>
                           <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(e.date)}</TableCell>
@@ -1291,7 +1292,7 @@ export default function ExpensesPage() {
                   <DetailField label="Cost Center" value={safeText(exp.costCenter) || '-'} />
                   <DetailField label="Vendor / Supplier" value={safeText(exp.vendorName) || '-'} />
                   <DetailField label="Reference #" value={safeText(exp.reference) || '-'} />
-                  <DetailField label="Amount" value={`${exp.currency === 'AED' ? 'د.إ' : '$'}${safeAmount(exp.amount)} ${exp.currency || 'USD'}`} />
+                  <DetailField label="Amount" value={`${exp.currency === 'QAR' ? 'ر.ق' : exp.currency === 'AED' ? 'د.إ' : exp.currency === 'EUR' ? '€' : '$'}${safeAmount(exp.amount)} ${exp.currency || 'USD'}`} />
                   <DetailField label="Status" value={exp.isBillable ? 'Billable' : 'Non-Billable'} badge badgeClass={exp.isBillable ? 'bg-blue-500/10 text-blue-500' : ''} />
                   {exp.customerName && <DetailField label="Customer" value={safeText(exp.customerName)} />}
                   <DetailField label="Created By" value={safeText(exp.createdBy) || '-'} />
