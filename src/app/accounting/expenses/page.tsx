@@ -670,7 +670,7 @@ export default function ExpensesPage() {
             <div className="flex items-center gap-3">
               <div className="relative w-full max-w-sm">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search expenses..." className="pl-9 h-9" />
+                <Input id="search-expenses" name="search" placeholder="Search expenses..." className="pl-9 h-9" />
               </div>
               <Select value={costCenterFilter} onValueChange={setCostCenterFilter}>
                 <SelectTrigger className="w-[180px] h-9">
@@ -703,6 +703,8 @@ export default function ExpensesPage() {
                         <div className="space-y-2">
                           <Label className="text-[10px] font-bold uppercase tracking-widest">Date</Label>
                           <Input
+                            id="expenseDate"
+                            name="expenseDate"
                             type="date"
                             value={expenseDate}
                             onChange={(e) => setExpenseDate(e.target.value)}
@@ -734,6 +736,8 @@ export default function ExpensesPage() {
                           ) : (
                             <div className="flex gap-2">
                               <Input
+                                id="newAccountName"
+                                name="newAccountName"
                                 value={newAccountName}
                                 onChange={(e) => setNewAccountName(e.target.value)}
                                 placeholder="New account name..."
@@ -787,6 +791,8 @@ export default function ExpensesPage() {
                           ) : (
                             <div className="flex gap-2">
                               <Input
+                                id="newCostCenter"
+                                name="newCostCenter"
                                 value={newCostCenterName}
                                 onChange={(e) => setNewCostCenterName(e.target.value)}
                                 placeholder="New cost center..."
@@ -819,6 +825,8 @@ export default function ExpensesPage() {
                           <Label className="text-[10px] font-bold uppercase tracking-widest">Vendor / Supplier</Label>
                           <div className="relative">
                             <Input
+                              id="vendor"
+                              name="vendor"
                               value={vendorInput}
                               onChange={(e) => {
                                 setVendorInput(e.target.value);
@@ -887,6 +895,8 @@ export default function ExpensesPage() {
                           </Label>
                           <input
                             ref={fileInputRef}
+                            id="attachments"
+                            name="attachments"
                             type="file"
                             multiple
                             accept=".jpg,.jpeg,.png,.pdf"
@@ -937,6 +947,8 @@ export default function ExpensesPage() {
                                       <p className="text-xs truncate font-medium">{att.fileName}</p>
                                       <div className="flex items-center gap-1.5 mt-0.5">
                                         <select
+                                          id={`docType-${att.id}`}
+                                          name="documentType"
                                           className="text-[10px] bg-secondary/50 border rounded px-1 py-0.5 cursor-pointer"
                                           value={att.documentType}
                                           onChange={(e) => setAttachments(prev => prev.map(a =>
