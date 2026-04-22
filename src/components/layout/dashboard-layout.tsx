@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -30,6 +30,11 @@ import {
   CreditCard as CreditCardIcon,
   Landmark,
   Wallet,
+  Bell,
+  CalendarCheck,
+  Handshake,
+  Coins,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -42,11 +47,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { auth } from "@/lib/firebase";
-import { useUser } from "@/firebase";
+import { useUser, useCollection, useMemoFirebase, useFirestore } from "@/firebase";
+import { collection, query, where, orderBy } from "firebase/firestore";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, isUserLoading } = useUser();
+  const db = useFirestore();
 
   // Redirect to login only if user is NOT authenticated AND loading is complete AND not already on login
   useEffect(() => {
@@ -85,10 +92,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { name: "Offers Tracking", href: "/offers-tracking", icon: Target },
     { name: "Purchase History", href: "/purchases", icon: CreditCard },
     { name: "Bulk Uploads", href: "/uploads", icon: Upload },
+    { type: 'separator', label: 'HR & Commissions' },
+    { name: "Employees", href: "/employees", icon: Briefcase },
+    { name: "Attendance", href: "/hr/attendance", icon: CalendarCheck },
+    { name: "Deals", href: "/hr/deals", icon: Handshake },
+    { name: "Commissions", href: "/hr/commissions", icon: Coins },
+    { name: "Payroll", href: "/hr/payroll", icon: DollarSign },
     { type: 'separator', label: 'Admin' },
     { name: "Shared Clients", href: "/admin/shared-clients", icon: ShieldCheck },
     { name: "Permissions", href: "/admin/permissions", icon: ShieldAlert },
-    { name: "Employees", href: "/employees", icon: Briefcase },
     { name: "Projects (Tasks)", href: "/projects", icon: Kanban },
     { name: "System Hub", href: "/admin/system", icon: Settings },
     { name: "Automation", href: "/automation", icon: Terminal },
@@ -152,6 +164,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <NotificationBell db={db} userId={user?.uid} />
             {user?.profile && (() => {
               const profile = user.profile!;
               const roleBadge: Record<string, string> = {
@@ -189,5 +202,28 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       
       <Toaster />
     </div>
+  );
+}
+
+/* ─── Notification Bell ─── */
+function NotificationBell({ db, userId }: { db: any; userId?: string }) {
+  const notifQuery = useMemoFirebase(() => {
+    if (!userId || !db) return null;
+    return query(collection(db, "notifications"), where("userId", "==", userId), where("read", "==", false), orderBy("createdAt", "desc"));
+  }, [db, userId]);
+  const { data: unread } = useCollection(notifQuery);
+  const count = unread?.length || 0;
+
+  return (
+    <Link href="/hr/deals" className="relative">
+      <Button variant="ghost" size="icon" className="h-9 w-9">
+        <Bell className="h-5 w-5" />
+        {count > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+            {count > 9 ? "9+" : count}
+          </span>
+        )}
+      </Button>
+    </Link>
   );
 }
