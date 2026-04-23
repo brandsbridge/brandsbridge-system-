@@ -4,11 +4,12 @@ export const dynamic = 'force-dynamic';
 
 import React, { useState, useMemo, useRef } from "react";
 import Link from "next/link";
-import { 
-  Plus, Search, Trash2, Edit, ExternalLink, 
-  Download, Star, HeartPulse, 
+import {
+  Plus, Search, Trash2, Edit, ExternalLink,
+  Download, Star, HeartPulse,
   FileText, Upload, CheckCircle2, Loader2, FileSpreadsheet,
-  FileDown, AlertTriangle, Mail, X, FileX, Tags
+  FileDown, AlertTriangle, Mail, X, FileX, Tags,
+  MoreVertical,
 } from "lucide-react";
 import { 
   Table, 
@@ -39,8 +40,26 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, writeBatch, doc, updateDoc, setDoc, query, where } from "firebase/firestore";
+import { collection, writeBatch, doc, updateDoc, setDoc, deleteDoc, query, where } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { MOCK_CUSTOMERS } from "@/lib/mock-data";
@@ -77,6 +96,13 @@ export default function CustomersPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [marketAssignTarget, setMarketAssignTarget] = useState<any>(null);
+
+  // Delete state
+  const [deletingCustomer, setDeletingCustomer] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
 
   const handleCreateCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,6 +222,51 @@ export default function CustomersPage() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Customers");
     XLSX.writeFile(workbook, `customers-${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const handleDeleteCustomer = async (customer: any) => {
+    setIsDeleting(true);
+    try {
+      await deleteDoc(doc(db, "customers", customer.id));
+      toast({ title: "Customer Deleted", description: `${customer.name || 'Customer'} has been removed.` });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Delete Failed", description: err.message });
+    }
+    setIsDeleting(false);
+    setDeletingCustomer(null);
+  };
+
+  const handleBulkDelete = async () => {
+    setIsDeleting(true);
+    let deleted = 0;
+    try {
+      for (const id of selectedIds) {
+        await deleteDoc(doc(db, "customers", id));
+        deleted++;
+      }
+      toast({ title: "Customers Deleted", description: `${deleted} customer(s) removed.` });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Bulk Delete Failed", description: `${deleted} deleted before error: ${err.message}` });
+    }
+    setIsDeleting(false);
+    setIsBulkDeleteOpen(false);
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredCustomers.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredCustomers.map((c: any) => c.id)));
+    }
   };
 
   const downloadTemplate = (type: "csv" | "xlsx") => {
@@ -706,10 +777,25 @@ export default function CustomersPage() {
         </CardContent>
       </Card>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3">
+          <Button variant="destructive" size="sm" onClick={() => setIsBulkDeleteOpen(true)}>
+            <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({selectedIds.size})
+          </Button>
+          <button className="text-xs text-muted-foreground hover:underline" onClick={() => setSelectedIds(new Set())}>Clear selection</button>
+        </div>
+      )}
+
       <Card>
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]">
+                <Checkbox
+                  checked={filteredCustomers.length > 0 && selectedIds.size === filteredCustomers.length}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </TableHead>
               <TableHead>Company Name</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Status</TableHead>
@@ -724,13 +810,19 @@ export default function CustomersPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12">
+                <TableCell colSpan={10} className="text-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">Loading customers...</p>
                 </TableCell>
               </TableRow>
             ) : filteredCustomers.map((customer) => (
               <TableRow key={customer.id} className="group">
+                <TableCell>
+                  <Checkbox
+                    checked={selectedIds.has(customer.id)}
+                    onCheckedChange={() => toggleSelect(customer.id)}
+                  />
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <div className="h-8 w-8 rounded bg-accent/10 flex items-center justify-center text-xs font-bold text-accent">
@@ -806,21 +898,33 @@ export default function CustomersPage() {
                   <div className="text-[8px] text-muted-foreground">Lifetime Value</div>
                 </TableCell>
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => setMarketAssignTarget(customer)} title="Assign Market">
-                      <Tags className="h-4 w-4" />
-                    </Button>
-                    <Link href={`/customers/${customer.id}`}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8"><ExternalLink className="h-4 w-4" /></Button>
-                    </Link>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Mail className="h-4 w-4" /></Button>
-                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" onCloseAutoFocus={(ev) => ev.preventDefault()}>
+                      <DropdownMenuItem asChild>
+                        <Link href={`/customers/${customer.id}`} className="cursor-pointer">
+                          <ExternalLink className="mr-2 h-4 w-4" /> View Details
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setTimeout(() => setMarketAssignTarget(customer), 0)}>
+                        <Tags className="mr-2 h-4 w-4" /> Assign Markets
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setTimeout(() => setDeletingCustomer(customer), 0)}>
+                        <Trash2 className="mr-2 h-4 w-4" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
             ))}
             {!loading && filteredCustomers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
                   No customers found. Use the import tool to populate the database.
                 </TableCell>
               </TableRow>
@@ -828,6 +932,52 @@ export default function CustomersPage() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Single Delete Confirmation */}
+      <AlertDialog open={!!deletingCustomer} onOpenChange={(open) => { if (!open) setDeletingCustomer(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Customer</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <span className="font-bold">{deletingCustomer?.name}</span>?
+              This will permanently remove the customer and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+              onClick={(e) => { e.preventDefault(); handleDeleteCustomer(deletingCustomer); }}
+            >
+              {isDeleting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} Customer{selectedIds.size > 1 ? 's' : ''}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedIds.size} selected customer{selectedIds.size > 1 ? 's' : ''}?
+              This action cannot be undone. Linked deals or invoices will show as &ldquo;Unknown Customer&rdquo;.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+              onClick={(e) => { e.preventDefault(); handleBulkDelete(); }}
+            >
+              {isDeleting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : `Delete ${selectedIds.size} Customer${selectedIds.size > 1 ? 's' : ''}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={!!marketAssignTarget} onOpenChange={(open) => !open && setMarketAssignTarget(null)}>
         <DialogContent>
