@@ -75,7 +75,7 @@ export default function ChocolateDepartmentPage() {
   const departmentId = "chocolate";
   const marketId = "chocolate_market";
   const name = "Chocolate Market";
-  const manager = "DIA Manager";
+  const manager = "Musaed Manager";
 
   const [activeTab, setActiveTab] = useState("suppliers");
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
