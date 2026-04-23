@@ -22,6 +22,8 @@ import {
   Pencil,
   ExternalLink,
   Trash2,
+  Filter,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   Table,
@@ -114,6 +116,17 @@ function formatDateDMY(timestamp: any): string {
   return `${day}/${month}/${year}`;
 }
 
+// Convert any Firestore timestamp variant to a JS Date (or null).
+function toDateObj(timestamp: any): Date | null {
+  if (!timestamp) return null;
+  let d: Date;
+  if (typeof timestamp === 'object' && typeof timestamp.toDate === 'function') d = timestamp.toDate();
+  else if (typeof timestamp === 'object' && timestamp.seconds !== undefined) d = new Date(timestamp.seconds * 1000);
+  else if (timestamp instanceof Date) d = timestamp;
+  else d = new Date(timestamp);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 // Safely coerce any value to a string for rendering in JSX.
 // Guards against React error #185 when legacy rows stored objects in text fields.
 function safeText(value: any, fallback: string = ''): string {
@@ -174,6 +187,38 @@ export default function ExpensesPage() {
   const [isAddingCostCenter, setIsAddingCostCenter] = useState(false);
   const [newCostCenterName, setNewCostCenterName] = useState('');
   const [costCenterFilter, setCostCenterFilter] = useState('all');
+
+  // Advanced filters state
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [fDateFrom, setFDateFrom] = useState('');
+  const [fDateTo, setFDateTo] = useState('');
+  const [fEntryFrom, setFEntryFrom] = useState('');
+  const [fEntryTo, setFEntryTo] = useState('');
+  const [fVendors, setFVendors] = useState<string[]>([]);
+  const [fCostCenters, setFCostCenters] = useState<string[]>([]);
+  const [fBillable, setFBillable] = useState('all');
+  const [fAmountMin, setFAmountMin] = useState('');
+  const [fAmountMax, setFAmountMax] = useState('');
+  const [fCurrencies, setFCurrencies] = useState<string[]>([]);
+
+  const clearAllFilters = () => {
+    setFDateFrom(''); setFDateTo('');
+    setFEntryFrom(''); setFEntryTo('');
+    setFVendors([]); setFCostCenters([]);
+    setFBillable('all');
+    setFAmountMin(''); setFAmountMax('');
+    setFCurrencies([]);
+  };
+
+  const activeFilterCount = [
+    fDateFrom || fDateTo,
+    fEntryFrom || fEntryTo,
+    fVendors.length > 0,
+    fCostCenters.length > 0,
+    fBillable !== 'all',
+    fAmountMin || fAmountMax,
+    fCurrencies.length > 0,
+  ].filter(Boolean).length;
 
   const allCostCenters = useMemo(() => {
     const merged = [...BUILTIN_COST_CENTERS, ...customCostCenters];
@@ -305,6 +350,54 @@ export default function ExpensesPage() {
     return map;
   }, [expenses]);
   const templates = useMemo(() => templatesData || [], [templatesData]);
+
+  // Unique values for filter dropdowns
+  const uniqueVendors = useMemo(() => {
+    const set = new Set<string>();
+    expenses.forEach((e: any) => { const v = safeText(e.vendorName); if (v) set.add(v); });
+    return [...set].sort();
+  }, [expenses]);
+  const uniqueCurrencies = useMemo(() => {
+    const set = new Set<string>();
+    expenses.forEach((e: any) => { const c = e.currency || 'USD'; set.add(c); });
+    return [...set].sort();
+  }, [expenses]);
+
+  // Apply all advanced filters
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((e: any) => {
+      // Cost center dropdown (existing)
+      if (costCenterFilter !== 'all' && safeText(e.costCenter) !== costCenterFilter) return false;
+      // Expense date range
+      if (fDateFrom || fDateTo) {
+        const d = toDateObj(e.date);
+        if (!d) return false;
+        if (fDateFrom && d < new Date(fDateFrom)) return false;
+        if (fDateTo && d > new Date(fDateTo + 'T23:59:59')) return false;
+      }
+      // Entry date range
+      if (fEntryFrom || fEntryTo) {
+        const d = toDateObj(e.createdAt);
+        if (!d) return false;
+        if (fEntryFrom && d < new Date(fEntryFrom)) return false;
+        if (fEntryTo && d > new Date(fEntryTo + 'T23:59:59')) return false;
+      }
+      // Vendor multi-select
+      if (fVendors.length > 0 && !fVendors.includes(safeText(e.vendorName))) return false;
+      // Cost center multi-select
+      if (fCostCenters.length > 0 && !fCostCenters.includes(safeText(e.costCenter))) return false;
+      // Billable status
+      if (fBillable === 'billable' && !e.isBillable) return false;
+      if (fBillable === 'non-billable' && e.isBillable) return false;
+      // Amount range
+      const amt = typeof e.amount === 'number' ? e.amount : parseFloat(e.amount) || 0;
+      if (fAmountMin && amt < parseFloat(fAmountMin)) return false;
+      if (fAmountMax && amt > parseFloat(fAmountMax)) return false;
+      // Currency multi-select
+      if (fCurrencies.length > 0 && !fCurrencies.includes(e.currency || 'USD')) return false;
+      return true;
+    });
+  }, [expenses, costCenterFilter, fDateFrom, fDateTo, fEntryFrom, fEntryTo, fVendors, fCostCenters, fBillable, fAmountMin, fAmountMax, fCurrencies]);
 
   // Vendor autocomplete: derive filtered suggestions with useMemo instead of
   // useState+useEffect. This avoids the render→setState→render infinite loop.
@@ -714,6 +807,12 @@ export default function ExpensesPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Button variant="outline" size="sm" className="h-9 relative" onClick={() => setIsFilterOpen(true)}>
+                <SlidersHorizontal className="mr-2 h-4 w-4" /> Filters
+                {activeFilterCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">{activeFilterCount}</span>
+                )}
+              </Button>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm"><Download className="mr-2 h-4 w-4" /> Export</Button>
@@ -1073,6 +1172,56 @@ export default function ExpensesPage() {
             </div>
           </div>
 
+          {/* Active filter chips */}
+          {activeFilterCount > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">{filteredExpenses.length} of {expenses.length} expenses</span>
+              {(fDateFrom || fDateTo) && (
+                <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                  Expense Date: {fDateFrom ? formatDateDMY(fDateFrom) : '...'} – {fDateTo ? formatDateDMY(fDateTo) : '...'}
+                  <button onClick={() => { setFDateFrom(''); setFDateTo(''); }} className="ml-1 hover:text-destructive"><X className="h-3 w-3" /></button>
+                </Badge>
+              )}
+              {(fEntryFrom || fEntryTo) && (
+                <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                  Entry Date: {fEntryFrom ? formatDateDMY(fEntryFrom) : '...'} – {fEntryTo ? formatDateDMY(fEntryTo) : '...'}
+                  <button onClick={() => { setFEntryFrom(''); setFEntryTo(''); }} className="ml-1 hover:text-destructive"><X className="h-3 w-3" /></button>
+                </Badge>
+              )}
+              {fVendors.map(v => (
+                <Badge key={v} variant="secondary" className="text-xs gap-1 pr-1">
+                  Vendor: {v}
+                  <button onClick={() => setFVendors(prev => prev.filter(x => x !== v))} className="ml-1 hover:text-destructive"><X className="h-3 w-3" /></button>
+                </Badge>
+              ))}
+              {fCostCenters.map(cc => (
+                <Badge key={cc} variant="secondary" className="text-xs gap-1 pr-1">
+                  Cost Center: {cc}
+                  <button onClick={() => setFCostCenters(prev => prev.filter(x => x !== cc))} className="ml-1 hover:text-destructive"><X className="h-3 w-3" /></button>
+                </Badge>
+              ))}
+              {fBillable !== 'all' && (
+                <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                  {fBillable === 'billable' ? 'Billable' : 'Non-Billable'}
+                  <button onClick={() => setFBillable('all')} className="ml-1 hover:text-destructive"><X className="h-3 w-3" /></button>
+                </Badge>
+              )}
+              {(fAmountMin || fAmountMax) && (
+                <Badge variant="secondary" className="text-xs gap-1 pr-1">
+                  Amount: {fAmountMin || '0'} – {fAmountMax || '∞'}
+                  <button onClick={() => { setFAmountMin(''); setFAmountMax(''); }} className="ml-1 hover:text-destructive"><X className="h-3 w-3" /></button>
+                </Badge>
+              )}
+              {fCurrencies.map(c => (
+                <Badge key={c} variant="secondary" className="text-xs gap-1 pr-1">
+                  {c}
+                  <button onClick={() => setFCurrencies(prev => prev.filter(x => x !== c))} className="ml-1 hover:text-destructive"><X className="h-3 w-3" /></button>
+                </Badge>
+              ))}
+              <button onClick={clearAllFilters} className="text-xs text-destructive hover:underline">Clear all</button>
+            </div>
+          )}
+
           <Card>
             {loadingExpenses ? (
               <div className="py-20 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
@@ -1091,11 +1240,7 @@ export default function ExpensesPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {expenses
-                    .filter((e: any) => {
-                      const cc = safeText(e.costCenter);
-                      return costCenterFilter === 'all' || cc === costCenterFilter;
-                    })
+                  {filteredExpenses
                     .map((e: any) => {
                       const costCenterText = safeText(e.costCenter);
                       const vendorText = safeText(e.vendorName, 'General Expense');
@@ -1164,9 +1309,11 @@ export default function ExpensesPage() {
                         </TableRow>
                       );
                     })}
-                  {expenses.length === 0 && (
+                  {filteredExpenses.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground italic">No expense records found.</TableCell>
+                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground italic">
+                        {expenses.length === 0 ? 'No expense records found.' : 'No expenses match the current filters.'}
+                      </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
@@ -1374,6 +1521,104 @@ export default function ExpensesPage() {
               </div>
             );
           })()}
+        </SheetContent>
+      </Sheet>
+
+      {/* Advanced Filters Sheet */}
+      <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2"><SlidersHorizontal className="h-5 w-5" /> Advanced Filters</span>
+              {activeFilterCount > 0 && (
+                <Button variant="ghost" size="sm" className="text-xs text-destructive" onClick={clearAllFilters}>Clear All</Button>
+              )}
+            </SheetTitle>
+          </SheetHeader>
+          <div className="space-y-6 py-6">
+            {/* Expense Date */}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Expense Date</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="date" value={fDateFrom} onChange={(e) => setFDateFrom(e.target.value)} placeholder="From" className="h-9 text-xs" />
+                <Input type="date" value={fDateTo} onChange={(e) => setFDateTo(e.target.value)} placeholder="To" className="h-9 text-xs" />
+              </div>
+            </div>
+            {/* Entry Date */}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Entry Date (Added to system)</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="date" value={fEntryFrom} onChange={(e) => setFEntryFrom(e.target.value)} placeholder="From" className="h-9 text-xs" />
+                <Input type="date" value={fEntryTo} onChange={(e) => setFEntryTo(e.target.value)} placeholder="To" className="h-9 text-xs" />
+              </div>
+            </div>
+            {/* Vendor multi-select */}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Vendor / Account</Label>
+              <div className="rounded-md border p-2 max-h-[160px] overflow-y-auto space-y-1">
+                {uniqueVendors.length === 0 && <p className="text-xs text-muted-foreground italic">No vendors</p>}
+                {uniqueVendors.map(v => (
+                  <label key={v} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5">
+                    <input type="checkbox" checked={fVendors.includes(v)} onChange={(ev) => {
+                      if (ev.target.checked) setFVendors(prev => [...prev, v]);
+                      else setFVendors(prev => prev.filter(x => x !== v));
+                    }} className="rounded border-border" />
+                    {v}
+                  </label>
+                ))}
+              </div>
+            </div>
+            {/* Cost Center multi-select */}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Cost Center</Label>
+              <div className="rounded-md border p-2 max-h-[160px] overflow-y-auto space-y-1">
+                {allCostCenters.map(cc => (
+                  <label key={cc} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5">
+                    <input type="checkbox" checked={fCostCenters.includes(cc)} onChange={(ev) => {
+                      if (ev.target.checked) setFCostCenters(prev => [...prev, cc]);
+                      else setFCostCenters(prev => prev.filter(x => x !== cc));
+                    }} className="rounded border-border" />
+                    {cc}
+                  </label>
+                ))}
+              </div>
+            </div>
+            {/* Billable Status */}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Billable Status</Label>
+              <Select value={fBillable} onValueChange={setFBillable}>
+                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="billable">Billable</SelectItem>
+                  <SelectItem value="non-billable">Non-Billable</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Amount Range */}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Amount Range</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="number" step="0.01" value={fAmountMin} onChange={(e) => setFAmountMin(e.target.value)} placeholder="Min" className="h-9 text-xs" />
+                <Input type="number" step="0.01" value={fAmountMax} onChange={(e) => setFAmountMax(e.target.value)} placeholder="Max" className="h-9 text-xs" />
+              </div>
+            </div>
+            {/* Currency multi-select */}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-bold uppercase tracking-widest">Currency</Label>
+              <div className="flex flex-wrap gap-2">
+                {uniqueCurrencies.map(c => (
+                  <label key={c} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input type="checkbox" checked={fCurrencies.includes(c)} onChange={(ev) => {
+                      if (ev.target.checked) setFCurrencies(prev => [...prev, c]);
+                      else setFCurrencies(prev => prev.filter(x => x !== c));
+                    }} className="rounded border-border" />
+                    {c}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
         </SheetContent>
       </Sheet>
     </div>
