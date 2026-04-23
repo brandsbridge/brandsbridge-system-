@@ -383,6 +383,7 @@ export default function CosmeticsDepartmentPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[250px]">Company Name</TableHead>
+                  <TableHead>Country</TableHead>
                   <TableHead>Nature</TableHead>
                   <TableHead>Markets</TableHead>
                   <TableHead>Products</TableHead>
@@ -393,7 +394,7 @@ export default function CosmeticsDepartmentPage() {
               </TableHeader>
               <TableBody>
                 {loadingSuppliers ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
                 ) : suppliers.map(s => (
                   <TableRow key={s.id} className="group">
                     <TableCell>
@@ -403,13 +404,19 @@ export default function CosmeticsDepartmentPage() {
                           {s.name}
                           <ExternalLink className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
                         </Link>
-                        <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
-                          <span className="font-bold">{s.contacts?.sales?.name || 'No Contact'}</span>
-                          <span>•</span>
-                          <span>{s.country || "Global"}</span>
-                        </div>
+                        {(!s.contacts?.sales?.name) && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            <span className="font-bold">No Contact</span>
+                          </div>
+                        )}
+                        {s.contacts?.sales?.name && (
+                          <div className="text-[10px] text-muted-foreground mt-0.5">
+                            <span className="font-bold">{s.contacts.sales.name}</span>
+                          </div>
+                        )}
                       </div>
                     </TableCell>
+                    <TableCell><span className="text-xs">{s.country || "—"}</span></TableCell>
                     <TableCell><span className="text-xs">{s.natureOfBusiness}</span></TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1 max-w-[150px]">
@@ -454,7 +461,7 @@ export default function CosmeticsDepartmentPage() {
                   </TableRow>
                 ))}
                 {!loadingSuppliers && suppliers.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground italic">No suppliers linked to this market segment.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground italic">No suppliers linked to this market segment.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
