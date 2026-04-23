@@ -370,7 +370,7 @@ export default function ExpensesPage() {
       if (costCenterFilter !== 'all' && safeText(e.costCenter) !== costCenterFilter) return false;
       // Expense date range
       if (fDateFrom || fDateTo) {
-        const d = toDateObj(e.date);
+        const d = toDateObj(e.expenseDate || e.date);
         if (!d) return false;
         if (fDateFrom && d < new Date(fDateFrom)) return false;
         if (fDateTo && d > new Date(fDateTo + 'T23:59:59')) return false;
@@ -556,7 +556,8 @@ export default function ExpensesPage() {
   // Open edit mode for an existing expense
   const openEditExpense = (expense: any) => {
     setEditingExpenseId(expense.id);
-    setExpenseDate(expense.date ? (typeof expense.date.toDate === 'function' ? expense.date.toDate().toISOString().split('T')[0] : new Date(expense.date).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]);
+    const srcDate = expense.expenseDate || expense.date;
+    setExpenseDate(srcDate ? (typeof srcDate.toDate === 'function' ? srcDate.toDate().toISOString().split('T')[0] : new Date(srcDate).toISOString().split('T')[0]) : new Date().toISOString().split('T')[0]);
     setVendorInput(expense.vendorName || '');
     setSelectedAccountCode(expense.accountCode || '');
     setSelectedCostCenter(expense.costCenter || '');
@@ -734,6 +735,7 @@ export default function ExpensesPage() {
       isBillable: editIsBillable,
       costCenter: selectedCostCenter || null,
       date: Timestamp.fromDate(new Date(expenseDate)),
+      expenseDate: Timestamp.fromDate(new Date(expenseDate)),
       department: 'all',
       createdBy: user?.profile?.name || 'System',
       attachments: attachmentData,
@@ -829,9 +831,9 @@ export default function ExpensesPage() {
 
                     <div className="grid grid-cols-2 gap-6 py-6">
                       <div className="space-y-4">
-                        {/* DATE FIELD */}
+                        {/* EXPENSE DATE FIELD */}
                         <div className="space-y-2">
-                          <Label className="text-[10px] font-bold uppercase tracking-widest">Date</Label>
+                          <Label className="text-[10px] font-bold uppercase tracking-widest">Expense Date</Label>
                           <Input
                             id="expenseDate"
                             name="expenseDate"
@@ -1230,7 +1232,8 @@ export default function ExpensesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[50px]">#</TableHead>
-                    <TableHead>Date</TableHead>
+                    <TableHead>Expense Date</TableHead>
+                    <TableHead>Entry Date</TableHead>
                     <TableHead>Vendor / Account</TableHead>
                     <TableHead>Cost Center</TableHead>
                     <TableHead>Reference</TableHead>
@@ -1252,7 +1255,8 @@ export default function ExpensesPage() {
                       return (
                         <TableRow key={e.id}>
                           <TableCell className="text-xs text-muted-foreground font-mono">#{entryNumberMap[e.id] || '-'}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{formatDateDMY(e.date)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{formatDateDMY(e.expenseDate || e.date)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{formatDateDMY(e.createdAt)}</TableCell>
                           <TableCell>
                             <div className="font-bold text-sm">{vendorText}</div>
                             <div className="text-[10px] text-muted-foreground uppercase">{accountText}</div>
@@ -1311,7 +1315,7 @@ export default function ExpensesPage() {
                     })}
                   {filteredExpenses.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-12 text-muted-foreground italic">
+                      <TableCell colSpan={9} className="text-center py-12 text-muted-foreground italic">
                         {expenses.length === 0 ? 'No expense records found.' : 'No expenses match the current filters.'}
                       </TableCell>
                     </TableRow>
@@ -1451,8 +1455,8 @@ export default function ExpensesPage() {
           </SheetHeader>
           {viewingExpense && (() => {
             const exp = viewingExpense;
-            const dateStr = formatDateDMY(exp.date);
-            const createdAtStr = formatDateDMY(exp.createdAt);
+            const expDateStr = formatDateDMY(exp.expenseDate || exp.date);
+            const entryDateStr = formatDateDMY(exp.createdAt);
             const atts: any[] = Array.isArray(exp.attachments) ? exp.attachments : [];
             // Include legacy single attachment
             if (exp.invoiceUrl && atts.length === 0) {
@@ -1463,7 +1467,7 @@ export default function ExpensesPage() {
               <div className="space-y-6 py-6">
                 <div className="grid grid-cols-2 gap-4">
                   <DetailField label="Entry #" value={`#${entryNumberMap[exp.id] || '-'}`} />
-                  <DetailField label="Date" value={dateStr} />
+                  <DetailField label="Expense Date" value={expDateStr} />
                   <DetailField label="Expense Account" value={safeText(exp.accountName) || safeText(exp.accountCode) || '-'} />
                   <DetailField label="Paid Through" value={safeText(exp.paidThrough) || safeText(exp.paidFromAccount) || '-'} />
                   <DetailField label="Cost Center" value={safeText(exp.costCenter) || '-'} />
@@ -1473,7 +1477,7 @@ export default function ExpensesPage() {
                   <DetailField label="Status" value={exp.isBillable ? 'Billable' : 'Non-Billable'} badge badgeClass={exp.isBillable ? 'bg-blue-500/10 text-blue-500' : ''} />
                   {exp.customerName && <DetailField label="Customer" value={safeText(exp.customerName)} />}
                   <DetailField label="Created By" value={safeText(exp.createdBy) || '-'} />
-                  <DetailField label="Created At" value={createdAtStr} />
+                  <DetailField label="Entry Date" value={entryDateStr} />
                 </div>
 
                 {safeText(exp.notes) && (
