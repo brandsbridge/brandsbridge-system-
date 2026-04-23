@@ -339,16 +339,6 @@ export default function ExpensesPage() {
   const expenses = useMemo(() => expensesData || [], [expensesData]);
 
   // Build a map of expense id → sequential entry number (1-based, oldest first).
-  const entryNumberMap = useMemo(() => {
-    const map: Record<string, number> = {};
-    const sorted = [...expenses].sort((a: any, b: any) => {
-      const tA = a.createdAt?.seconds ?? a.createdAt?.toDate?.()?.getTime?.() ?? new Date(a.createdAt || 0).getTime();
-      const tB = b.createdAt?.seconds ?? b.createdAt?.toDate?.()?.getTime?.() ?? new Date(b.createdAt || 0).getTime();
-      return tA - tB;
-    });
-    sorted.forEach((e: any, i: number) => { map[e.id] = i + 1; });
-    return map;
-  }, [expenses]);
   const templates = useMemo(() => templatesData || [], [templatesData]);
 
   // Unique values for filter dropdowns
@@ -1244,7 +1234,7 @@ export default function ExpensesPage() {
                 </TableHeader>
                 <TableBody>
                   {filteredExpenses
-                    .map((e: any) => {
+                    .map((e: any, idx: number) => {
                       const costCenterText = safeText(e.costCenter);
                       const vendorText = safeText(e.vendorName, 'General Expense');
                       const accountText = safeText(e.accountName);
@@ -1254,7 +1244,7 @@ export default function ExpensesPage() {
                       const currencySymbol = e.currency === 'QAR' ? 'ر.ق' : e.currency === 'AED' ? 'د.إ' : e.currency === 'EUR' ? '€' : '$';
                       return (
                         <TableRow key={e.id}>
-                          <TableCell className="text-xs text-muted-foreground font-mono">#{entryNumberMap[e.id] || '-'}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground font-mono">#{idx + 1}</TableCell>
                           <TableCell className="text-xs text-muted-foreground">{formatDateDMY(e.expenseDate || e.date)}</TableCell>
                           <TableCell className="text-xs text-muted-foreground">{formatDateDMY(e.createdAt)}</TableCell>
                           <TableCell>
@@ -1466,7 +1456,7 @@ export default function ExpensesPage() {
             return (
               <div className="space-y-6 py-6">
                 <div className="grid grid-cols-2 gap-4">
-                  <DetailField label="Entry #" value={`#${entryNumberMap[exp.id] || '-'}`} />
+                  <DetailField label="Entry #" value={`#${(filteredExpenses.findIndex((x: any) => x.id === exp.id) + 1) || '-'}`} />
                   <DetailField label="Expense Date" value={expDateStr} />
                   <DetailField label="Expense Account" value={safeText(exp.accountName) || safeText(exp.accountCode) || '-'} />
                   <DetailField label="Paid Through" value={safeText(exp.paidThrough) || safeText(exp.paidFromAccount) || '-'} />
