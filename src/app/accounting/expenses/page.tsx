@@ -85,7 +85,6 @@ import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebas
 import { expenseService } from "@/services/expense-service";
 import { accountingService } from "@/services/accounting-service";
 import { CHART_OF_ACCOUNTS } from "@/lib/mock-data";
-import { formatFirebaseTimestamp } from "@/lib/db-utils";
 import { toast } from "@/hooks/use-toast";
 import { app, storage } from "@/lib/firebase";
 
@@ -94,6 +93,26 @@ const BUILTIN_COST_CENTERS = [
   "Rent & Facilities", "Human Resources", "Technology & IT",
   "Logistics & Shipping", "Other",
 ];
+
+// Format a Firestore timestamp / Date / string to DD/MM/YYYY.
+function formatDateDMY(timestamp: any): string {
+  if (!timestamp) return "N/A";
+  let d: Date;
+  if (typeof timestamp === 'object' && typeof timestamp.toDate === 'function') {
+    d = timestamp.toDate();
+  } else if (typeof timestamp === 'object' && timestamp.seconds !== undefined) {
+    d = new Date(timestamp.seconds * 1000);
+  } else if (timestamp instanceof Date) {
+    d = timestamp;
+  } else {
+    d = new Date(timestamp);
+  }
+  if (isNaN(d.getTime())) return "N/A";
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
 
 // Safely coerce any value to a string for rendering in JSX.
 // Guards against React error #185 when legacy rows stored objects in text fields.
@@ -1074,7 +1093,7 @@ export default function ExpensesPage() {
                       const currencySymbol = e.currency === 'QAR' ? 'ر.ق' : e.currency === 'AED' ? 'د.إ' : e.currency === 'EUR' ? '€' : '$';
                       return (
                         <TableRow key={e.id}>
-                          <TableCell className="text-xs text-muted-foreground">{formatFirebaseTimestamp(e.date)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{formatDateDMY(e.date)}</TableCell>
                           <TableCell>
                             <div className="font-bold text-sm">{vendorText}</div>
                             <div className="text-[10px] text-muted-foreground uppercase">{accountText}</div>
@@ -1271,12 +1290,8 @@ export default function ExpensesPage() {
           </SheetHeader>
           {viewingExpense && (() => {
             const exp = viewingExpense;
-            const dateStr = exp.date
-              ? (typeof exp.date.toDate === 'function' ? exp.date.toDate().toLocaleDateString() : new Date(exp.date).toLocaleDateString())
-              : '-';
-            const createdAtStr = exp.createdAt
-              ? (typeof exp.createdAt.toDate === 'function' ? exp.createdAt.toDate().toLocaleString() : new Date(exp.createdAt).toLocaleString())
-              : '-';
+            const dateStr = formatDateDMY(exp.date);
+            const createdAtStr = formatDateDMY(exp.createdAt);
             const atts: any[] = Array.isArray(exp.attachments) ? exp.attachments : [];
             // Include legacy single attachment
             if (exp.invoiceUrl && atts.length === 0) {
