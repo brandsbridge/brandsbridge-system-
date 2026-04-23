@@ -292,6 +292,18 @@ export default function ExpensesPage() {
   const suppliers = useMemo(() => suppliersData || [], [suppliersData]);
   const customers = useMemo(() => customersData || [], [customersData]);
   const expenses = useMemo(() => expensesData || [], [expensesData]);
+
+  // Build a map of expense id → sequential entry number (1-based, oldest first).
+  const entryNumberMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    const sorted = [...expenses].sort((a: any, b: any) => {
+      const tA = a.createdAt?.seconds ?? a.createdAt?.toDate?.()?.getTime?.() ?? new Date(a.createdAt || 0).getTime();
+      const tB = b.createdAt?.seconds ?? b.createdAt?.toDate?.()?.getTime?.() ?? new Date(b.createdAt || 0).getTime();
+      return tA - tB;
+    });
+    sorted.forEach((e: any, i: number) => { map[e.id] = i + 1; });
+    return map;
+  }, [expenses]);
   const templates = useMemo(() => templatesData || [], [templatesData]);
 
   // Vendor autocomplete: derive filtered suggestions with useMemo instead of
@@ -1068,6 +1080,7 @@ export default function ExpensesPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]">#</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Vendor / Account</TableHead>
                     <TableHead>Cost Center</TableHead>
@@ -1093,6 +1106,7 @@ export default function ExpensesPage() {
                       const currencySymbol = e.currency === 'QAR' ? 'ر.ق' : e.currency === 'AED' ? 'د.إ' : e.currency === 'EUR' ? '€' : '$';
                       return (
                         <TableRow key={e.id}>
+                          <TableCell className="text-xs text-muted-foreground font-mono">#{entryNumberMap[e.id] || '-'}</TableCell>
                           <TableCell className="text-xs text-muted-foreground">{formatDateDMY(e.date)}</TableCell>
                           <TableCell>
                             <div className="font-bold text-sm">{vendorText}</div>
@@ -1301,6 +1315,7 @@ export default function ExpensesPage() {
             return (
               <div className="space-y-6 py-6">
                 <div className="grid grid-cols-2 gap-4">
+                  <DetailField label="Entry #" value={`#${entryNumberMap[exp.id] || '-'}`} />
                   <DetailField label="Date" value={dateStr} />
                   <DetailField label="Expense Account" value={safeText(exp.accountName) || safeText(exp.accountCode) || '-'} />
                   <DetailField label="Paid Through" value={safeText(exp.paidThrough) || safeText(exp.paidFromAccount) || '-'} />
