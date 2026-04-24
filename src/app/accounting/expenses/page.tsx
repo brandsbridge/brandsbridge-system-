@@ -1667,17 +1667,48 @@ function DetailField({ label, value, badge, badgeClass }: { label: string; value
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FINANCIAL REPORTS TAB COMPONENT
+// FINANCIAL REPORTS TAB COMPONENT  (per-currency)
 // ═══════════════════════════════════════════════════════════════════════════
 
 const FR_PIE_COLORS = ["#0B5E75", "#12A0C3", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#EC4899", "#6366F1", "#14B8A6", "#F97316"];
 
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: "$", QAR: "ر.ق", AED: "د.إ", SAR: "ر.س", EUR: "€", GBP: "£", INR: "₹", PKR: "Rs", BDT: "৳", EGP: "E£", TRY: "₺", CNY: "¥",
+};
+
+type CurrencyTotals = Record<string, number>;
+
+function sumByCurrency(items: any[], amountKey: string, currencyKey = "currency", fallbackCurrency = "USD"): CurrencyTotals {
+  const map: CurrencyTotals = {};
+  items.forEach((item) => {
+    const cur = item[currencyKey] || fallbackCurrency;
+    map[cur] = (map[cur] || 0) + (Number(item[amountKey]) || 0);
+  });
+  return map;
+}
+
+function frFmtAmt(amount: number, currency: string): string {
+  const sym = CURRENCY_SYMBOLS[currency] || currency + " ";
+  const sign = amount >= 0 ? "+" : "-";
+  const formatted = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(amount));
+  return `${sign}${sym}${formatted}`;
+}
+
+function frFmtAmtUnsigned(amount: number, currency: string): string {
+  const sym = CURRENCY_SYMBOLS[currency] || currency + " ";
+  return `${sym}${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(amount))}`;
+}
+
 function frFmtCurrency(amount: number, currency = "USD"): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+  return frFmtAmtUnsigned(amount, currency);
 }
 
 function frFmtNum(n: number): string {
   return new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
+function currencyTotalsEntries(ct: CurrencyTotals): [string, number][] {
+  return Object.entries(ct).filter(([, v]) => v !== 0).sort(([a], [b]) => a.localeCompare(b));
 }
 
 function frGetMonthKey(d: Date): string {
@@ -1724,6 +1755,7 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
   const [subTab, setSubTab] = useState("overview");
   const [expGroupBy, setExpGroupBy] = useState("none");
   const [revGroupBy, setRevGroupBy] = useState("none");
+  const [chartCurrency, setChartCurrency] = useState("");
 
   const rangeFrom = useMemo(() => { const d = new Date(dateFrom); d.setHours(0, 0, 0, 0); return d; }, [dateFrom]);
   const rangeTo = useMemo(() => { const d = new Date(dateTo); d.setHours(23, 59, 59, 999); return d; }, [dateTo]);
@@ -1746,168 +1778,231 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
   const payments = useMemo(() => paymentsData.filter((p: any) => inRange(p.date || p.createdAt)), [paymentsData, inRange]);
   const purchaseOrders = useMemo(() => purchaseOrdersData.filter((po: any) => inRange(po.date || po.createdAt)), [purchaseOrdersData, inRange]);
 
-  // ── Metrics ────────────────────────────────────────────────────────────
-  const metrics = useMemo(() => {
-    const totalExpenses = expenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0);
-    const paidInvoices = invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid");
-    const totalRevenue = paidInvoices.reduce((s: number, inv: any) => s + (Number(inv.totalUSD) || Number(inv.total) || 0), 0);
-    const allInvoiceTotal = invoices.reduce((s: number, inv: any) => s + (Number(inv.totalUSD) || Number(inv.total) || 0), 0);
-    const paymentsReceived = payments.filter((p: any) => p.type === "received");
-    const paymentsMade = payments.filter((p: any) => p.type !== "received");
-    const totalReceived = paymentsReceived.reduce((s: number, p: any) => s + (Number(p.totalUSD) || Number(p.amount) || 0), 0);
-    const totalPaid = paymentsMade.reduce((s: number, p: any) => s + (Number(p.totalUSD) || Number(p.amount) || 0), 0);
-    const outstanding = allInvoiceTotal - totalRevenue;
-    return {
-      totalExpenses, totalRevenue, allInvoiceTotal, totalReceived, totalPaid, outstanding,
-      netProfit: totalRevenue - totalExpenses,
-      expenseCount: expenses.length, invoiceCount: invoices.length,
-      paidInvoiceCount: paidInvoices.length, paymentCount: payments.length,
-    };
-  }, [expenses, invoices, payments]);
+  // ── Per-currency metrics ──────────────────────────────────────────────
+  const paidInvoices = useMemo(() => invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid"), [invoices]);
+  const paymentsReceived = useMemo(() => payments.filter((p: any) => p.type === "received"), [payments]);
+  const paymentsMade = useMemo(() => payments.filter((p: any) => p.type !== "received"), [payments]);
 
-  // ── Chart Data ─────────────────────────────────────────────────────────
+  const expByCur = useMemo(() => sumByCurrency(expenses, "amount", "currency", "USD"), [expenses]);
+  const revByCur = useMemo(() => sumByCurrency(paidInvoices, "total", "currency", "USD"), [paidInvoices]);
+  const invByCur = useMemo(() => sumByCurrency(invoices, "total", "currency", "USD"), [invoices]);
+  const recvByCur = useMemo(() => sumByCurrency(paymentsReceived, "amount", "currency", "USD"), [paymentsReceived]);
+  const paidOutByCur = useMemo(() => sumByCurrency(paymentsMade, "amount", "currency", "USD"), [paymentsMade]);
+
+  const netByCur = useMemo(() => {
+    const all = new Set([...Object.keys(revByCur), ...Object.keys(expByCur)]);
+    const m: CurrencyTotals = {};
+    all.forEach((c) => { m[c] = (revByCur[c] || 0) - (expByCur[c] || 0); });
+    return m;
+  }, [revByCur, expByCur]);
+
+  const outstandingByCur = useMemo(() => {
+    const all = new Set([...Object.keys(invByCur), ...Object.keys(revByCur)]);
+    const m: CurrencyTotals = {};
+    all.forEach((c) => { m[c] = (invByCur[c] || 0) - (revByCur[c] || 0); });
+    return m;
+  }, [invByCur, revByCur]);
+
+  // All currencies present
+  const allCurrencies = useMemo(() => {
+    const s = new Set([...Object.keys(expByCur), ...Object.keys(revByCur), ...Object.keys(invByCur), ...Object.keys(recvByCur), ...Object.keys(paidOutByCur)]);
+    return Array.from(s).sort();
+  }, [expByCur, revByCur, invByCur, recvByCur, paidOutByCur]);
+
+  // Default chart currency to the most-used currency
+  const activeCurrency = chartCurrency || allCurrencies[0] || "USD";
+
+  const metrics = useMemo(() => ({
+    expenseCount: expenses.length,
+    invoiceCount: invoices.length,
+    paidInvoiceCount: paidInvoices.length,
+    paymentCount: payments.length,
+  }), [expenses, invoices, paidInvoices, payments]);
+
+  // ── Chart Data (filtered by activeCurrency) ────────────────────────────
   const revenueVsExpenseChart = useMemo(() => {
     const map: Record<string, { revenue: number; expenses: number }> = {};
-    expenses.forEach((e: any) => {
+    expenses.filter((e: any) => (e.currency || "USD") === activeCurrency).forEach((e: any) => {
       const d = toDateObj(e.expenseDate || e.date || e.createdAt);
       if (!d) return;
       const k = frGetMonthKey(d);
       if (!map[k]) map[k] = { revenue: 0, expenses: 0 };
       map[k].expenses += Number(e.amount) || 0;
     });
-    invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid").forEach((inv: any) => {
+    paidInvoices.filter((inv: any) => (inv.currency || "USD") === activeCurrency).forEach((inv: any) => {
       const d = toDateObj(inv.dateIssue || inv.createdAt);
       if (!d) return;
       const k = frGetMonthKey(d);
       if (!map[k]) map[k] = { revenue: 0, expenses: 0 };
-      map[k].revenue += Number(inv.totalUSD) || Number(inv.total) || 0;
+      map[k].revenue += Number(inv.total) || 0;
     });
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => ({ month: frGetMonthLabel(k), ...v }));
-  }, [expenses, invoices]);
+  }, [expenses, paidInvoices, activeCurrency]);
 
   const expenseByCostCenter = useMemo(() => {
     const map: Record<string, number> = {};
-    expenses.forEach((e: any) => { const cc = safeText(e.costCenter) || "Uncategorized"; map[cc] = (map[cc] || 0) + (Number(e.amount) || 0); });
+    expenses.filter((e: any) => (e.currency || "USD") === activeCurrency).forEach((e: any) => {
+      const cc = safeText(e.costCenter) || "Uncategorized"; map[cc] = (map[cc] || 0) + (Number(e.amount) || 0);
+    });
     return Object.entries(map).sort(([, a], [, b]) => b - a).map(([name, value]) => ({ name, value }));
-  }, [expenses]);
+  }, [expenses, activeCurrency]);
 
   const topVendors = useMemo(() => {
     const map: Record<string, number> = {};
-    expenses.forEach((e: any) => { const v = safeText(e.vendorName) || safeText(e.accountName) || "Unknown"; map[v] = (map[v] || 0) + (Number(e.amount) || 0); });
+    expenses.filter((e: any) => (e.currency || "USD") === activeCurrency).forEach((e: any) => {
+      const v = safeText(e.vendorName) || safeText(e.accountName) || "Unknown"; map[v] = (map[v] || 0) + (Number(e.amount) || 0);
+    });
     return Object.entries(map).sort(([, a], [, b]) => b - a).slice(0, 5).map(([name, total]) => ({ name: name.length > 18 ? name.slice(0, 16) + "…" : name, total }));
-  }, [expenses]);
+  }, [expenses, activeCurrency]);
 
-  // Cash flow
-  const cashFlowData = useMemo(() => {
-    const map: Record<string, { inflow: number; outflow: number }> = {};
-    payments.filter((p: any) => p.type === "received").forEach((p: any) => {
+  // Cash flow per currency
+  const cashFlowByCurrency = useMemo(() => {
+    const result: Record<string, Record<string, { inflow: number; outflow: number }>> = {};
+    paymentsReceived.forEach((p: any) => {
+      const cur = p.currency || "USD";
       const d = toDateObj(p.date || p.createdAt); if (!d) return;
-      const k = frGetMonthKey(d); if (!map[k]) map[k] = { inflow: 0, outflow: 0 };
-      map[k].inflow += Number(p.totalUSD) || Number(p.amount) || 0;
+      const k = frGetMonthKey(d);
+      if (!result[cur]) result[cur] = {};
+      if (!result[cur][k]) result[cur][k] = { inflow: 0, outflow: 0 };
+      result[cur][k].inflow += Number(p.amount) || 0;
     });
     expenses.forEach((e: any) => {
+      const cur = e.currency || "USD";
       const d = toDateObj(e.expenseDate || e.date || e.createdAt); if (!d) return;
-      const k = frGetMonthKey(d); if (!map[k]) map[k] = { inflow: 0, outflow: 0 };
-      map[k].outflow += Number(e.amount) || 0;
+      const k = frGetMonthKey(d);
+      if (!result[cur]) result[cur] = {};
+      if (!result[cur][k]) result[cur][k] = { inflow: 0, outflow: 0 };
+      result[cur][k].outflow += Number(e.amount) || 0;
     });
-    payments.filter((p: any) => p.type !== "received").forEach((p: any) => {
+    paymentsMade.forEach((p: any) => {
+      const cur = p.currency || "USD";
       const d = toDateObj(p.date || p.createdAt); if (!d) return;
-      const k = frGetMonthKey(d); if (!map[k]) map[k] = { inflow: 0, outflow: 0 };
-      map[k].outflow += Number(p.totalUSD) || Number(p.amount) || 0;
+      const k = frGetMonthKey(d);
+      if (!result[cur]) result[cur] = {};
+      if (!result[cur][k]) result[cur][k] = { inflow: 0, outflow: 0 };
+      result[cur][k].outflow += Number(p.amount) || 0;
     });
-    let balance = 0;
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => {
-      const net = v.inflow - v.outflow; balance += net;
-      return { month: frGetMonthLabel(k), ...v, net, balance };
+    // Convert to sorted arrays with running balance
+    const out: Record<string, { month: string; inflow: number; outflow: number; net: number; balance: number }[]> = {};
+    Object.entries(result).forEach(([cur, months]) => {
+      let balance = 0;
+      out[cur] = Object.entries(months).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => {
+        const net = v.inflow - v.outflow; balance += net;
+        return { month: frGetMonthLabel(k), ...v, net, balance };
+      });
     });
-  }, [expenses, payments]);
+    return out;
+  }, [expenses, paymentsReceived, paymentsMade]);
 
-  // Grouped expenses
+  const cashFlowData = cashFlowByCurrency[activeCurrency] || [];
+
+  // Grouped expenses (per-currency totals)
   const groupedExpenses = useMemo(() => {
     if (expGroupBy === "none") return null;
-    const map: Record<string, { items: any[]; total: number }> = {};
+    const map: Record<string, { items: any[]; totals: CurrencyTotals }> = {};
     expenses.forEach((e: any) => {
       let key = "Other";
       if (expGroupBy === "costCenter") key = safeText(e.costCenter) || "Uncategorized";
       else if (expGroupBy === "vendor") key = safeText(e.vendorName) || safeText(e.accountName) || "Unknown";
       else if (expGroupBy === "month") { const d = toDateObj(e.expenseDate || e.date || e.createdAt); key = d ? frGetMonthLabel(frGetMonthKey(d)) : "Unknown"; }
-      if (!map[key]) map[key] = { items: [], total: 0 };
+      if (!map[key]) map[key] = { items: [], totals: {} };
       map[key].items.push(e);
-      map[key].total += Number(e.amount) || 0;
+      const cur = e.currency || "USD";
+      map[key].totals[cur] = (map[key].totals[cur] || 0) + (Number(e.amount) || 0);
     });
-    return Object.entries(map).sort(([, a], [, b]) => b.total - a.total);
+    return Object.entries(map).sort(([, a], [, b]) => {
+      const aMax = Math.max(...Object.values(a.totals), 0);
+      const bMax = Math.max(...Object.values(b.totals), 0);
+      return bMax - aMax;
+    });
   }, [expenses, expGroupBy]);
 
-  // Grouped revenue
+  // Grouped revenue (per-currency totals)
   const groupedRevenue = useMemo(() => {
     if (revGroupBy === "none") return null;
-    const paidInvs = invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid");
-    const map: Record<string, { items: any[]; total: number }> = {};
-    paidInvs.forEach((inv: any) => {
+    const map: Record<string, { items: any[]; totals: CurrencyTotals }> = {};
+    paidInvoices.forEach((inv: any) => {
       let key = "Other";
       if (revGroupBy === "market") key = inv.department || "Unassigned";
       else if (revGroupBy === "customer") key = inv.customerName || "Unknown";
       else if (revGroupBy === "month") { const d = toDateObj(inv.dateIssue || inv.createdAt); key = d ? frGetMonthLabel(frGetMonthKey(d)) : "Unknown"; }
-      if (!map[key]) map[key] = { items: [], total: 0 };
+      if (!map[key]) map[key] = { items: [], totals: {} };
       map[key].items.push(inv);
-      map[key].total += Number(inv.totalUSD) || Number(inv.total) || 0;
+      const cur = inv.currency || "USD";
+      map[key].totals[cur] = (map[key].totals[cur] || 0) + (Number(inv.total) || 0);
     });
-    return Object.entries(map).sort(([, a], [, b]) => b.total - a.total);
-  }, [invoices, revGroupBy]);
+    return Object.entries(map).sort(([, a], [, b]) => {
+      const aMax = Math.max(...Object.values(a.totals), 0);
+      const bMax = Math.max(...Object.values(b.totals), 0);
+      return bMax - aMax;
+    });
+  }, [paidInvoices, revGroupBy]);
 
-  // Payments grouped by account
+  // Payments grouped by account (per-currency totals)
   const paymentsByAccount = useMemo(() => {
-    const map: Record<string, { items: any[]; total: number }> = {};
+    const map: Record<string, { items: any[]; totals: CurrencyTotals }> = {};
     payments.forEach((p: any) => {
       const acct = p.paymentAccount || p.department || "Unassigned";
-      if (!map[acct]) map[acct] = { items: [], total: 0 };
+      if (!map[acct]) map[acct] = { items: [], totals: {} };
       map[acct].items.push(p);
-      map[acct].total += Number(p.totalUSD) || Number(p.amount) || 0;
+      const cur = p.currency || "USD";
+      map[acct].totals[cur] = (map[acct].totals[cur] || 0) + (Number(p.amount) || 0);
     });
-    return Object.entries(map).sort(([, a], [, b]) => b.total - a.total);
+    return Object.entries(map).sort(([, a], [, b]) => {
+      const aMax = Math.max(...Object.values(a.totals), 0);
+      const bMax = Math.max(...Object.values(b.totals), 0);
+      return bMax - aMax;
+    });
   }, [payments]);
 
-  // ── Export ─────────────────────────────────────────────────────────────
+  // ── Export (per-currency) ───────────────────────────────────────────────
   const exportExcel = useCallback(() => {
     const wb = XLSX.utils.book_new();
+    // Summary by Currency sheet (always included)
+    const sumRows: any[][] = [["Currency", "Total Expenses", "Total Revenue", "Net"]];
+    allCurrencies.forEach((cur) => {
+      sumRows.push([cur, expByCur[cur] || 0, revByCur[cur] || 0, (revByCur[cur] || 0) - (expByCur[cur] || 0)]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sumRows), "Summary by Currency");
+
     if (subTab === "overview") {
-      const sum = [["Metric", "Value"], ["Total Revenue", metrics.totalRevenue], ["Total Expenses", metrics.totalExpenses], ["Net Profit", metrics.netProfit], ["Total Invoiced", metrics.allInvoiceTotal], ["Payments Received", metrics.totalReceived], ["Outstanding", metrics.outstanding]];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sum), "Summary");
-      if (revenueVsExpenseChart.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(revenueVsExpenseChart), "Rev vs Exp");
-      if (expenseByCostCenter.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(expenseByCostCenter), "By Cost Center");
-      if (topVendors.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(topVendors), "Top Vendors");
+      if (revenueVsExpenseChart.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(revenueVsExpenseChart), `Rev vs Exp (${activeCurrency})`);
+      if (expenseByCostCenter.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(expenseByCostCenter), `By Cost Center (${activeCurrency})`);
+      if (topVendors.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(topVendors), `Top Vendors (${activeCurrency})`);
     } else if (subTab === "expenses") {
-      const rows = expenses.map((e: any, i: number) => ({ "#": i + 1, "Date": formatDateDMY(e.expenseDate || e.date), Vendor: safeText(e.vendorName) || safeText(e.accountName), "Cost Center": safeText(e.costCenter), Reference: safeText(e.reference), Currency: e.currency || "USD", Amount: Number(e.amount) || 0 }));
+      const rows = expenses.map((e: any, i: number) => ({ "#": i + 1, Date: formatDateDMY(e.expenseDate || e.date), Vendor: safeText(e.vendorName) || safeText(e.accountName), "Cost Center": safeText(e.costCenter), Reference: safeText(e.reference), Currency: e.currency || "USD", Amount: Number(e.amount) || 0 }));
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Expenses");
     } else if (subTab === "revenue") {
-      const rows = invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid").map((inv: any, i: number) => ({ "#": i + 1, "Invoice #": inv.number || "", Date: formatDateDMY(inv.dateIssue || inv.createdAt), Customer: inv.customerName || "", Department: inv.department || "", Currency: inv.currency || "USD", "Total (USD)": Number(inv.totalUSD) || Number(inv.total) || 0 }));
+      const rows = paidInvoices.map((inv: any, i: number) => ({ "#": i + 1, "Invoice #": inv.number || "", Date: formatDateDMY(inv.dateIssue || inv.createdAt), Customer: inv.customerName || "", Department: inv.department || "", Currency: inv.currency || "USD", Total: Number(inv.total) || 0 }));
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Revenue");
     } else if (subTab === "invoices") {
-      const rows = invoices.map((inv: any, i: number) => ({ "#": i + 1, "Invoice #": inv.number || "", Date: formatDateDMY(inv.dateIssue || inv.createdAt), Customer: inv.customerName || "", Status: inv.status || "", "Total (USD)": Number(inv.totalUSD) || Number(inv.total) || 0 }));
+      const rows = invoices.map((inv: any, i: number) => ({ "#": i + 1, "Invoice #": inv.number || "", Date: formatDateDMY(inv.dateIssue || inv.createdAt), Customer: inv.customerName || "", Status: inv.status || "", Currency: inv.currency || "USD", Total: Number(inv.total) || 0 }));
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Invoices");
     } else if (subTab === "payments") {
-      const rows = payments.map((p: any, i: number) => ({ "#": i + 1, Date: formatDateDMY(p.date || p.createdAt), Party: p.partyName || "", Type: p.type || "", Amount: Number(p.amount) || 0, "Total (USD)": Number(p.totalUSD) || Number(p.amount) || 0 }));
+      const rows = payments.map((p: any, i: number) => ({ "#": i + 1, Date: formatDateDMY(p.date || p.createdAt), Party: p.partyName || "", Type: p.type || "", Currency: p.currency || "USD", Amount: Number(p.amount) || 0 }));
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Payments");
     } else if (subTab === "cashflow") {
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cashFlowData), "Cash Flow");
+      Object.entries(cashFlowByCurrency).forEach(([cur, data]) => {
+        if (data.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(data), `Cash Flow (${cur})`);
+      });
     }
     XLSX.writeFile(wb, `Financial_Report_${dateFrom}_to_${dateTo}.xlsx`);
-  }, [subTab, expenses, invoices, payments, cashFlowData, metrics, revenueVsExpenseChart, expenseByCostCenter, topVendors, dateFrom, dateTo]);
+  }, [subTab, expenses, invoices, paidInvoices, payments, cashFlowByCurrency, revenueVsExpenseChart, expenseByCostCenter, topVendors, dateFrom, dateTo, allCurrencies, expByCur, revByCur, activeCurrency]);
 
   const exportCSV = useCallback(() => {
     let rows: Record<string, unknown>[] = [];
     if (subTab === "expenses") rows = expenses.map((e: any, i: number) => ({ "#": i + 1, Date: formatDateDMY(e.expenseDate || e.date), Vendor: safeText(e.vendorName), "Cost Center": safeText(e.costCenter), Currency: e.currency || "USD", Amount: Number(e.amount) || 0 }));
-    else if (subTab === "revenue") rows = invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid").map((inv: any, i: number) => ({ "#": i + 1, "Invoice #": inv.number || "", Customer: inv.customerName || "", "Total (USD)": Number(inv.totalUSD) || Number(inv.total) || 0 }));
-    else if (subTab === "invoices") rows = invoices.map((inv: any, i: number) => ({ "#": i + 1, "Invoice #": inv.number || "", Status: inv.status || "", "Total (USD)": Number(inv.totalUSD) || Number(inv.total) || 0 }));
-    else if (subTab === "payments") rows = payments.map((p: any, i: number) => ({ "#": i + 1, Party: p.partyName || "", Type: p.type || "", Amount: Number(p.amount) || 0 }));
+    else if (subTab === "revenue") rows = paidInvoices.map((inv: any, i: number) => ({ "#": i + 1, "Invoice #": inv.number || "", Customer: inv.customerName || "", Currency: inv.currency || "USD", Total: Number(inv.total) || 0 }));
+    else if (subTab === "invoices") rows = invoices.map((inv: any, i: number) => ({ "#": i + 1, "Invoice #": inv.number || "", Status: inv.status || "", Currency: inv.currency || "USD", Total: Number(inv.total) || 0 }));
+    else if (subTab === "payments") rows = payments.map((p: any, i: number) => ({ "#": i + 1, Party: p.partyName || "", Type: p.type || "", Currency: p.currency || "USD", Amount: Number(p.amount) || 0 }));
     else if (subTab === "cashflow") rows = cashFlowData as Record<string, unknown>[];
-    else rows = [{ Metric: "Total Revenue", Value: metrics.totalRevenue }, { Metric: "Total Expenses", Value: metrics.totalExpenses }, { Metric: "Net Profit", Value: metrics.netProfit }];
+    else rows = allCurrencies.map((cur) => ({ Currency: cur, "Total Expenses": expByCur[cur] || 0, "Total Revenue": revByCur[cur] || 0, Net: (revByCur[cur] || 0) - (expByCur[cur] || 0) }));
     const csv = Papa.unparse(rows);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `Financial_Report_${dateFrom}_to_${dateTo}.csv`; a.click();
     URL.revokeObjectURL(url);
-  }, [subTab, expenses, invoices, payments, cashFlowData, metrics, dateFrom, dateTo]);
+  }, [subTab, expenses, invoices, paidInvoices, payments, cashFlowData, dateFrom, dateTo, allCurrencies, expByCur, revByCur]);
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -1966,24 +2061,37 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
         {/* ── OVERVIEW ── */}
         <TabsContent value="overview" className="space-y-6 mt-4">
           <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-            <FRCard label="Total Revenue" value={frFmtCurrency(metrics.totalRevenue)} sub={`${metrics.paidInvoiceCount} paid invoices`} color="text-green-600" />
-            <FRCard label="Total Expenses" value={frFmtCurrency(metrics.totalExpenses)} sub={`${metrics.expenseCount} entries`} color="text-red-500" />
-            <FRCard label="Net Profit / Loss" value={frFmtCurrency(metrics.netProfit)} color={metrics.netProfit >= 0 ? "text-green-600" : "text-red-500"} />
-            <FRCard label="Total Invoiced" value={frFmtCurrency(metrics.allInvoiceTotal)} sub={`${metrics.invoiceCount} invoices`} />
-            <FRCard label="Payments Received" value={frFmtCurrency(metrics.totalReceived)} color="text-green-600" />
-            <FRCard label="Outstanding" value={frFmtCurrency(metrics.outstanding)} color="text-amber-500" />
+            <FRCurrencyCard label="Total Revenue" totals={revByCur} sub={`${metrics.paidInvoiceCount} paid invoices`} color="text-green-600" />
+            <FRCurrencyCard label="Total Expenses" totals={expByCur} sub={`${metrics.expenseCount} entries`} color="text-red-500" />
+            <FRCurrencyCard label="Net Profit / Loss" totals={netByCur} colorFn={(v) => v >= 0 ? "text-green-600" : "text-red-500"} />
+            <FRCurrencyCard label="Total Invoiced" totals={invByCur} sub={`${metrics.invoiceCount} invoices`} />
+            <FRCurrencyCard label="Payments Received" totals={recvByCur} color="text-green-600" />
+            <FRCurrencyCard label="Outstanding" totals={outstandingByCur} color="text-amber-500" />
           </div>
+
+          {/* Currency selector for charts */}
+          {allCurrencies.length > 1 && (
+            <div className="flex items-center gap-2">
+              <Label className="text-xs font-medium">Chart currency:</Label>
+              <Select value={activeCurrency} onValueChange={setChartCurrency}>
+                <SelectTrigger className="w-[120px] h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {allCurrencies.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {revenueVsExpenseChart.length > 0 && (
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Revenue vs Expenses</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Revenue vs Expenses ({activeCurrency})</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={revenueVsExpenseChart}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
-                    <RechartsTooltip formatter={(v: number) => frFmtCurrency(v)} />
+                    <RechartsTooltip formatter={(v: number) => frFmtAmtUnsigned(v, activeCurrency)} />
                     <Legend />
                     <Line type="monotone" dataKey="revenue" stroke="#10B981" strokeWidth={2} name="Revenue" />
                     <Line type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} name="Expenses" />
@@ -1996,14 +2104,14 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
           <div className="grid gap-4 md:grid-cols-2">
             {expenseByCostCenter.length > 0 && (
               <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Expenses by Cost Center</CardTitle></CardHeader>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Expenses by Cost Center ({activeCurrency})</CardTitle></CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={260}>
                     <PieChart>
                       <Pie data={expenseByCostCenter} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
                         {expenseByCostCenter.map((_, i) => <Cell key={i} fill={FR_PIE_COLORS[i % FR_PIE_COLORS.length]} />)}
                       </Pie>
-                      <RechartsTooltip formatter={(v: number) => frFmtCurrency(v)} />
+                      <RechartsTooltip formatter={(v: number) => frFmtAmtUnsigned(v, activeCurrency)} />
                     </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -2011,14 +2119,14 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
             )}
             {topVendors.length > 0 && (
               <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Top 5 Vendors by Spend</CardTitle></CardHeader>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Top 5 Vendors by Spend ({activeCurrency})</CardTitle></CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={topVendors} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" tick={{ fontSize: 11 }} />
                       <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11 }} />
-                      <RechartsTooltip formatter={(v: number) => frFmtCurrency(v)} />
+                      <RechartsTooltip formatter={(v: number) => frFmtAmtUnsigned(v, activeCurrency)} />
                       <Bar dataKey="total" fill="#0B5E75" radius={[0, 4, 4, 0]} name="Total Spend" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -2030,11 +2138,10 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
 
         {/* ── EXPENSES REPORT ── */}
         <TabsContent value="expenses" className="space-y-4 mt-4">
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-            <FRCard label="Total" value={frFmtCurrency(metrics.totalExpenses)} />
+          <FRCurrencyCard label="Total Expenses" totals={expByCur} color="text-red-500" />
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
             <FRCard label="Count" value={String(metrics.expenseCount)} />
-            <FRCard label="Average" value={metrics.expenseCount ? frFmtCurrency(metrics.totalExpenses / metrics.expenseCount) : "$0.00"} />
-            <FRCard label="Largest" value={frFmtCurrency(expenses.length ? Math.max(...expenses.map((e: any) => Number(e.amount) || 0)) : 0)} />
+            <FRCard label="Largest" value={expenses.length ? (() => { const mx = expenses.reduce((a: any, b: any) => (Number(b.amount) || 0) > (Number(a.amount) || 0) ? b : a, expenses[0]); return frFmtAmtUnsigned(Number(mx.amount) || 0, mx.currency || "USD"); })() : "—"} />
           </div>
           <div className="flex items-center gap-2">
             <Label className="text-xs font-medium">Group by:</Label>
@@ -2053,9 +2160,12 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
               {groupedExpenses.map(([group, data]) => (
                 <Card key={group}>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex justify-between">
+                    <CardTitle className="text-sm font-medium flex justify-between items-start">
                       <span>{group}</span>
-                      <span className="text-muted-foreground">{frFmtCurrency(data.total)} ({data.items.length})</span>
+                      <span className="text-muted-foreground text-right text-xs">
+                        {currencyTotalsEntries(data.totals).map(([c, v]) => <span key={c} className="block">{frFmtAmtUnsigned(v, c)}</span>)}
+                        <span className="text-[10px]">({data.items.length})</span>
+                      </span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0">
@@ -2071,11 +2181,10 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
 
         {/* ── REVENUE REPORT ── */}
         <TabsContent value="revenue" className="space-y-4 mt-4">
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-            <FRCard label="Total Revenue" value={frFmtCurrency(metrics.totalRevenue)} color="text-green-600" />
+          <FRCurrencyCard label="Total Revenue" totals={revByCur} color="text-green-600" />
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
             <FRCard label="Paid Invoices" value={String(metrics.paidInvoiceCount)} />
-            <FRCard label="Avg Invoice" value={metrics.paidInvoiceCount ? frFmtCurrency(metrics.totalRevenue / metrics.paidInvoiceCount) : "$0.00"} />
-            <FRCard label="Departments" value={String(new Set(invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid").map((inv: any) => inv.department)).size)} />
+            <FRCard label="Departments" value={String(new Set(paidInvoices.map((inv: any) => inv.department)).size)} />
           </div>
           <div className="flex items-center gap-2">
             <Label className="text-xs font-medium">Group by:</Label>
@@ -2094,9 +2203,12 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
               {groupedRevenue.map(([group, data]) => (
                 <Card key={group}>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex justify-between">
+                    <CardTitle className="text-sm font-medium flex justify-between items-start">
                       <span>{group}</span>
-                      <span className="text-muted-foreground">{frFmtCurrency(data.total)} ({data.items.length})</span>
+                      <span className="text-muted-foreground text-right text-xs">
+                        {currencyTotalsEntries(data.totals).map(([c, v]) => <span key={c} className="block">{frFmtAmtUnsigned(v, c)}</span>)}
+                        <span className="text-[10px]">({data.items.length})</span>
+                      </span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0"><FRInvoiceTable rows={data.items} /></CardContent>
@@ -2104,16 +2216,16 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
               ))}
             </div>
           ) : (
-            <Card><CardContent className="pt-4"><FRInvoiceTable rows={invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid")} /></CardContent></Card>
+            <Card><CardContent className="pt-4"><FRInvoiceTable rows={paidInvoices} /></CardContent></Card>
           )}
         </TabsContent>
 
         {/* ── INVOICES REPORT ── */}
         <TabsContent value="invoices" className="space-y-4 mt-4">
           <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-            <FRCard label="All Invoiced" value={frFmtCurrency(metrics.allInvoiceTotal)} />
-            <FRCard label="Paid" value={frFmtCurrency(metrics.totalRevenue)} color="text-green-600" />
-            <FRCard label="Outstanding" value={frFmtCurrency(metrics.outstanding)} color="text-amber-500" />
+            <FRCurrencyCard label="All Invoiced" totals={invByCur} />
+            <FRCurrencyCard label="Paid" totals={revByCur} color="text-green-600" />
+            <FRCurrencyCard label="Outstanding" totals={outstandingByCur} color="text-amber-500" />
             <FRCard label="Count" value={String(metrics.invoiceCount)} />
           </div>
           <Card>
@@ -2128,12 +2240,13 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
                       <TableHead>Customer</TableHead>
                       <TableHead>Department</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Total (USD)</TableHead>
+                      <TableHead>Currency</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {invoices.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No invoices in this range</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No invoices in this range</TableCell></TableRow>
                     ) : invoices.map((inv: any, i: number) => (
                       <TableRow key={inv.id}>
                         <TableCell className="text-muted-foreground">{i + 1}</TableCell>
@@ -2146,7 +2259,8 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
                             {inv.status || "draft"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-mono">{frFmtNum(Number(inv.totalUSD) || Number(inv.total) || 0)}</TableCell>
+                        <TableCell><Badge variant="outline" className="text-xs">{inv.currency || "USD"}</Badge></TableCell>
+                        <TableCell className="text-right font-mono">{frFmtNum(Number(inv.total) || 0)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -2159,9 +2273,9 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
         {/* ── PAYMENTS REPORT ── */}
         <TabsContent value="payments" className="space-y-4 mt-4">
           <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-            <FRCard label="Received" value={frFmtCurrency(metrics.totalReceived)} color="text-green-600" />
-            <FRCard label="Paid Out" value={frFmtCurrency(metrics.totalPaid)} color="text-red-500" />
-            <FRCard label="Net" value={frFmtCurrency(metrics.totalReceived - metrics.totalPaid)} color={metrics.totalReceived - metrics.totalPaid >= 0 ? "text-green-600" : "text-red-500"} />
+            <FRCurrencyCard label="Received" totals={recvByCur} color="text-green-600" />
+            <FRCurrencyCard label="Paid Out" totals={paidOutByCur} color="text-red-500" />
+            <FRCurrencyCard label="Net" totals={(() => { const all = new Set([...Object.keys(recvByCur), ...Object.keys(paidOutByCur)]); const m: CurrencyTotals = {}; all.forEach((c) => { m[c] = (recvByCur[c] || 0) - (paidOutByCur[c] || 0); }); return m; })()} colorFn={(v) => v >= 0 ? "text-green-600" : "text-red-500"} />
             <FRCard label="Transactions" value={String(metrics.paymentCount)} />
           </div>
           {paymentsByAccount.length > 0 ? (
@@ -2169,9 +2283,12 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
               {paymentsByAccount.map(([acct, data]) => (
                 <Card key={acct}>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex justify-between">
+                    <CardTitle className="text-sm font-medium flex justify-between items-start">
                       <span>{acct}</span>
-                      <span className="text-muted-foreground">{frFmtCurrency(data.total)} ({data.items.length})</span>
+                      <span className="text-muted-foreground text-right text-xs">
+                        {currencyTotalsEntries(data.totals).map(([c, v]) => <span key={c} className="block">{frFmtAmtUnsigned(v, c)}</span>)}
+                        <span className="text-[10px]">({data.items.length})</span>
+                      </span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-0"><FRPaymentTable rows={data.items} /></CardContent>
@@ -2185,23 +2302,36 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
 
         {/* ── CASH FLOW ── */}
         <TabsContent value="cashflow" className="space-y-4 mt-4">
+          {/* Currency selector for cash flow */}
+          {Object.keys(cashFlowByCurrency).length > 1 && (
+            <div className="flex items-center gap-2">
+              <Label className="text-xs font-medium">Currency:</Label>
+              <Select value={activeCurrency} onValueChange={setChartCurrency}>
+                <SelectTrigger className="w-[120px] h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.keys(cashFlowByCurrency).sort().map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-            <FRCard label="Total Inflow" value={frFmtCurrency(cashFlowData.reduce((s, r) => s + r.inflow, 0))} color="text-green-600" />
-            <FRCard label="Total Outflow" value={frFmtCurrency(cashFlowData.reduce((s, r) => s + r.outflow, 0))} color="text-red-500" />
-            <FRCard label="Net Cash Flow" value={frFmtCurrency(cashFlowData.reduce((s, r) => s + r.net, 0))} color={cashFlowData.reduce((s, r) => s + r.net, 0) >= 0 ? "text-green-600" : "text-red-500"} />
-            <FRCard label="Closing Balance" value={cashFlowData.length ? frFmtCurrency(cashFlowData[cashFlowData.length - 1].balance) : "$0.00"} />
+            <FRCard label="Total Inflow" value={frFmtAmtUnsigned(cashFlowData.reduce((s, r) => s + r.inflow, 0), activeCurrency)} color="text-green-600" />
+            <FRCard label="Total Outflow" value={frFmtAmtUnsigned(cashFlowData.reduce((s, r) => s + r.outflow, 0), activeCurrency)} color="text-red-500" />
+            <FRCard label="Net Cash Flow" value={frFmtAmtUnsigned(Math.abs(cashFlowData.reduce((s, r) => s + r.net, 0)), activeCurrency)} color={cashFlowData.reduce((s, r) => s + r.net, 0) >= 0 ? "text-green-600" : "text-red-500"} />
+            <FRCard label="Closing Balance" value={cashFlowData.length ? frFmtAmtUnsigned(cashFlowData[cashFlowData.length - 1].balance, activeCurrency) : "—"} />
           </div>
 
           {cashFlowData.length > 0 && (
             <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Cash Flow Over Time</CardTitle></CardHeader>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Cash Flow Over Time ({activeCurrency})</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={cashFlowData}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
-                    <RechartsTooltip formatter={(v: number) => frFmtCurrency(v)} />
+                    <RechartsTooltip formatter={(v: number) => frFmtAmtUnsigned(v, activeCurrency)} />
                     <Legend />
                     <Bar dataKey="inflow" fill="#10B981" name="Inflow" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="outflow" fill="#EF4444" name="Outflow" radius={[4, 4, 0, 0]} />
@@ -2211,36 +2341,40 @@ function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchas
             </Card>
           )}
 
-          <Card>
-            <CardContent className="pt-4">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Month</TableHead>
-                      <TableHead className="text-right">Inflow</TableHead>
-                      <TableHead className="text-right">Outflow</TableHead>
-                      <TableHead className="text-right">Net</TableHead>
-                      <TableHead className="text-right">Balance</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {cashFlowData.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No data in this range</TableCell></TableRow>
-                    ) : cashFlowData.map((r, i) => (
-                      <TableRow key={i}>
-                        <TableCell className="font-medium">{r.month}</TableCell>
-                        <TableCell className="text-right font-mono text-green-600">{frFmtNum(r.inflow)}</TableCell>
-                        <TableCell className="text-right font-mono text-red-500">{frFmtNum(r.outflow)}</TableCell>
-                        <TableCell className={`text-right font-mono ${r.net >= 0 ? "text-green-600" : "text-red-500"}`}>{frFmtNum(r.net)}</TableCell>
-                        <TableCell className="text-right font-mono font-bold">{frFmtNum(r.balance)}</TableCell>
+          {/* Per-currency cash flow tables */}
+          {Object.entries(cashFlowByCurrency).sort(([a], [b]) => a.localeCompare(b)).map(([cur, rows]) => (
+            <Card key={cur}>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Cash Flow — {cur}</CardTitle></CardHeader>
+              <CardContent className="pt-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Month</TableHead>
+                        <TableHead className="text-right">Inflow</TableHead>
+                        <TableHead className="text-right">Outflow</TableHead>
+                        <TableHead className="text-right">Net</TableHead>
+                        <TableHead className="text-right">Balance</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.length === 0 ? (
+                        <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No data</TableCell></TableRow>
+                      ) : rows.map((r, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium">{r.month}</TableCell>
+                          <TableCell className="text-right font-mono text-green-600">{frFmtAmtUnsigned(r.inflow, cur)}</TableCell>
+                          <TableCell className="text-right font-mono text-red-500">{frFmtAmtUnsigned(r.outflow, cur)}</TableCell>
+                          <TableCell className={`text-right font-mono ${r.net >= 0 ? "text-green-600" : "text-red-500"}`}>{frFmtAmt(r.net, cur)}</TableCell>
+                          <TableCell className="text-right font-mono font-bold">{frFmtAmtUnsigned(r.balance, cur)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </TabsContent>
       </Tabs>
     </div>
@@ -2256,6 +2390,36 @@ function FRCard({ label, value, sub, color }: { label: string; value: string; su
         <p className="text-xs text-muted-foreground">{label}</p>
         <p className={`text-xl font-bold ${color || ""}`}>{value}</p>
         {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function FRCurrencyCard({ label, totals, sub, color, colorFn }: { label: string; totals: CurrencyTotals; sub?: string; color?: string; colorFn?: (v: number) => string }) {
+  const entries = currencyTotalsEntries(totals);
+  if (entries.length === 0) {
+    return (
+      <Card>
+        <CardContent className="pt-4 pb-4">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="text-xl font-bold text-muted-foreground">—</p>
+          {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-4">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="space-y-0.5 mt-1">
+          {entries.map(([cur, val]) => (
+            <p key={cur} className={`text-lg font-bold ${colorFn ? colorFn(val) : color || ""}`}>
+              {frFmtAmtUnsigned(val, cur)}
+            </p>
+          ))}
+        </div>
+        {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
       </CardContent>
     </Card>
   );
@@ -2305,12 +2469,13 @@ function FRInvoiceTable({ rows }: { rows: any[] }) {
             <TableHead>Date</TableHead>
             <TableHead>Customer</TableHead>
             <TableHead>Department</TableHead>
-            <TableHead className="text-right">Total (USD)</TableHead>
+            <TableHead>Currency</TableHead>
+            <TableHead className="text-right">Total</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.length === 0 ? (
-            <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No invoices</TableCell></TableRow>
+            <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">No invoices</TableCell></TableRow>
           ) : rows.map((inv: any, i: number) => (
             <TableRow key={inv.id}>
               <TableCell className="text-muted-foreground">{i + 1}</TableCell>
@@ -2318,7 +2483,8 @@ function FRInvoiceTable({ rows }: { rows: any[] }) {
               <TableCell>{formatDateDMY(inv.dateIssue || inv.createdAt)}</TableCell>
               <TableCell>{inv.customerName || "—"}</TableCell>
               <TableCell>{inv.department || "—"}</TableCell>
-              <TableCell className="text-right font-mono">{frFmtNum(Number(inv.totalUSD) || Number(inv.total) || 0)}</TableCell>
+              <TableCell><Badge variant="outline" className="text-xs">{inv.currency || "USD"}</Badge></TableCell>
+              <TableCell className="text-right font-mono">{frFmtNum(Number(inv.total) || 0)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -2339,12 +2505,11 @@ function FRPaymentTable({ rows }: { rows: any[] }) {
             <TableHead>Type</TableHead>
             <TableHead>Currency</TableHead>
             <TableHead className="text-right">Amount</TableHead>
-            <TableHead className="text-right">Total (USD)</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.length === 0 ? (
-            <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">No payments</TableCell></TableRow>
+            <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No payments</TableCell></TableRow>
           ) : rows.map((p: any, i: number) => (
             <TableRow key={p.id}>
               <TableCell className="text-muted-foreground">{i + 1}</TableCell>
@@ -2357,7 +2522,6 @@ function FRPaymentTable({ rows }: { rows: any[] }) {
               </TableCell>
               <TableCell><Badge variant="outline" className="text-xs">{p.currency || "USD"}</Badge></TableCell>
               <TableCell className="text-right font-mono">{frFmtNum(Number(p.amount) || 0)}</TableCell>
-              <TableCell className="text-right font-mono">{frFmtNum(Number(p.totalUSD) || Number(p.amount) || 0)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
