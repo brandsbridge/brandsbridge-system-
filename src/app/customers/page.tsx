@@ -9,11 +9,7 @@ import {
   Download, Star, HeartPulse,
   FileText, Upload, CheckCircle2, Loader2, FileSpreadsheet,
   FileDown, AlertTriangle, X, FileX, Tags,
-  MoreVertical, ChevronDown, ChevronRight,
-  Globe, Phone, Mail, MessageSquare,
-  Building2, Users, Briefcase, Brain,
-  StickyNote, MapPin, Pencil, Eye,
-  FileUp,
+  MoreVertical, Eye,
 } from "lucide-react";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
@@ -38,14 +34,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
-} from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Separator } from "@/components/ui/separator";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection, writeBatch, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
@@ -83,34 +75,6 @@ const activeBadge = (active: any) => {
     <Badge className={cn("text-[9px]", isActive ? "bg-green-500 text-white border-none" : "bg-gray-500/20 text-gray-400 border-gray-500/30")}>
       {isActive ? "Active" : "Inactive"}
     </Badge>
-  );
-};
-
-const DetailField = ({ label, value, href, type }: { label: string; value?: string; href?: string; type?: "tel" | "email" | "link" | "whatsapp" }) => {
-  const display = value || "";
-  if (!display) return (
-    <div className="flex justify-between items-start py-1.5">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-xs text-muted-foreground/50 italic">Not provided</span>
-    </div>
-  );
-  let link = href;
-  if (!link && type === "tel") link = `tel:${display}`;
-  if (!link && type === "email") link = `mailto:${display}`;
-  if (!link && type === "whatsapp") link = `https://wa.me/${display.replace(/[^0-9+]/g, "")}`;
-  if (!link && type === "link") link = display.startsWith("http") ? display : `https://${display}`;
-
-  return (
-    <div className="flex justify-between items-start py-1.5">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      {link ? (
-        <a href={link} target={type === "tel" || type === "email" ? undefined : "_blank"} rel="noopener noreferrer" className="text-xs font-medium text-primary hover:underline max-w-[220px] text-right truncate">
-          {display}
-        </a>
-      ) : (
-        <span className="text-xs font-medium max-w-[220px] text-right truncate">{display}</span>
-      )}
-    </div>
   );
 };
 
@@ -188,29 +152,6 @@ const IMPORT_EXAMPLE_ROW = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
-// COLLAPSIBLE SECTION
-// ═══════════════════════════════════════════════════════════════
-
-function CollapsibleSection({ title, icon, children, defaultOpen = true }: { title: string; icon: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border rounded-lg">
-      <button
-        type="button"
-        className="flex items-center justify-between w-full p-3 hover:bg-muted/50 transition-colors"
-        onClick={() => setOpen(!open)}
-      >
-        <span className="flex items-center gap-2 text-sm font-semibold">
-          {icon} {title}
-        </span>
-        {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-      </button>
-      {open && <div className="px-3 pb-3 border-t">{children}</div>}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════
 
@@ -222,12 +163,6 @@ export default function CustomersPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [marketAssignTarget, setMarketAssignTarget] = useState<any>(null);
-
-  // Detail drawer
-  const [detailCustomer, setDetailCustomer] = useState<any>(null);
-  const [detailEditing, setDetailEditing] = useState(false);
-  const [detailEditData, setDetailEditData] = useState<any>({});
-  const [detailSaving, setDetailSaving] = useState(false);
 
   // Delete state
   const [deletingCustomer, setDeletingCustomer] = useState<any>(null);
@@ -328,37 +263,6 @@ export default function CustomersPage() {
     }
   };
 
-  // ─── DETAIL DRAWER ────────────────────────────────────────
-  const openDetail = (customer: any) => {
-    setDetailCustomer(customer);
-    setDetailEditing(false);
-    setDetailEditData({});
-  };
-
-  const startEditing = () => {
-    setDetailEditData({ ...detailCustomer });
-    setDetailEditing(true);
-  };
-
-  const saveDetail = async () => {
-    if (!detailCustomer?.id) return;
-    setDetailSaving(true);
-    try {
-      const docRef = doc(db, "customers", detailCustomer.id);
-      const { id, ...saveData } = detailEditData;
-      await setDoc(docRef, { ...saveData, updatedAt: new Date().toISOString() }, { merge: true });
-      setDetailCustomer({ ...detailCustomer, ...saveData });
-      setDetailEditing(false);
-      toast({ title: "Saved", description: "Customer updated successfully." });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Error", description: err.message || "Failed to save." });
-    }
-    setDetailSaving(false);
-  };
-
-  const detailField = (key: string) => detailEditing ? (detailEditData[key] ?? "") : (detailCustomer?.[key] ?? "");
-  const setDetailField = (key: string, val: string) => setDetailEditData((prev: any) => ({ ...prev, [key]: val }));
-
   // ─── ASSIGN MARKETS ───────────────────────────────────────
   const handleAssignMarkets = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -388,7 +292,6 @@ export default function CustomersPage() {
     try {
       await deleteDoc(doc(db, "customers", customer.id));
       toast({ title: "Customer Deleted", description: `${customer.name || 'Customer'} has been removed.` });
-      if (detailCustomer?.id === customer.id) setDetailCustomer(null);
     } catch (err: any) {
       toast({ variant: "destructive", title: "Delete Failed", description: err.message });
     }
@@ -1119,16 +1022,16 @@ export default function CustomersPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">{idx + 1}</TableCell>
                   <TableCell>
-                    <button
+                    <Link
+                      href={`/customers/${customer.id}`}
                       className="font-bold hover:text-primary flex items-center gap-2 group/link text-left"
-                      onClick={() => openDetail(customer)}
                     >
                       <div className="h-7 w-7 rounded bg-accent/10 flex items-center justify-center text-[10px] font-bold text-accent shrink-0">
                         {(customer.name || 'C')[0]}
                       </div>
                       <span className="truncate max-w-[180px]">{customer.name}</span>
                       <Eye className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity text-muted-foreground shrink-0" />
-                    </button>
+                    </Link>
                   </TableCell>
                   <TableCell className="text-xs">{customer.country || "—"}</TableCell>
                   <TableCell>{activeBadge(customer.active ?? customer.accountStatus)}</TableCell>
@@ -1165,11 +1068,8 @@ export default function CustomersPage() {
                         <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" onCloseAutoFocus={(ev) => ev.preventDefault()}>
-                        <DropdownMenuItem onSelect={() => setTimeout(() => openDetail(customer), 0)}>
-                          <Eye className="mr-2 h-4 w-4" /> View Details
-                        </DropdownMenuItem>
                         <DropdownMenuItem asChild>
-                          <Link href={`/customers/${customer.id}`} className="cursor-pointer"><ExternalLink className="mr-2 h-4 w-4" /> Full Page</Link>
+                          <Link href={`/customers/${customer.id}`} className="cursor-pointer"><Eye className="mr-2 h-4 w-4" /> View Details</Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem onSelect={() => setTimeout(() => setMarketAssignTarget(customer), 0)}>
                           <Tags className="mr-2 h-4 w-4" /> Assign Markets
@@ -1194,206 +1094,6 @@ export default function CustomersPage() {
           </TableBody>
         </Table>
       </Card>
-
-      {/* ═══ DETAIL DRAWER ═══ */}
-      <Sheet open={!!detailCustomer} onOpenChange={(open) => { if (!open) { setDetailCustomer(null); setDetailEditing(false); } }}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto p-0">
-          {detailCustomer && (
-            <div className="flex flex-col h-full">
-              {/* Header */}
-              <div className="p-6 border-b bg-gradient-to-r from-[#073D4E]/5 to-transparent">
-                <SheetHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-xl bg-accent/10 flex items-center justify-center text-xl font-bold text-accent border-2 border-accent/20">
-                        {(detailCustomer.name || 'C')[0]}
-                      </div>
-                      <div>
-                        <SheetTitle className="text-xl">{detailCustomer.name}</SheetTitle>
-                        <SheetDescription className="flex items-center gap-2 mt-1">
-                          <MapPin className="h-3 w-3" /> {detailCustomer.country || "Global"}
-                          {detailCustomer.governorateCity && ` \u2022 ${detailCustomer.governorateCity}`}
-                        </SheetDescription>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {detailEditing ? (
-                        <>
-                          <Button size="sm" variant="outline" onClick={() => setDetailEditing(false)} disabled={detailSaving}>Cancel</Button>
-                          <Button size="sm" onClick={saveDetail} disabled={detailSaving}>
-                            {detailSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null} Save
-                          </Button>
-                        </>
-                      ) : (
-                        <Button size="sm" variant="outline" onClick={startEditing}><Pencil className="h-3 w-3 mr-1" /> Edit</Button>
-                      )}
-                    </div>
-                  </div>
-                </SheetHeader>
-
-                {/* Summary badges */}
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {activeBadge(detailCustomer.active ?? detailCustomer.accountStatus)}
-                  {healthBadge(detailCustomer.accountHealth || "healthy")}
-                  <Badge variant="outline" className="text-xs">{detailCustomer.natureOfBusiness || detailCustomer.companyType || "N/A"}</Badge>
-                  <div className="flex items-center gap-1">
-                    <StarRating rating={detailCustomer.internalRating || 0} size="md" />
-                  </div>
-                  <Badge className="bg-primary/10 text-primary border-primary/30 text-xs">${(detailCustomer.totalRevenue || 0).toLocaleString()}</Badge>
-                </div>
-                {detailCustomer.specializedProducts && (
-                  <p className="text-xs text-muted-foreground mt-2">Products: {detailCustomer.specializedProducts}</p>
-                )}
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {Array.isArray(detailCustomer.markets) && detailCustomer.markets.map((m: string) => (
-                    <Badge key={m} variant="outline" className="text-[9px] capitalize">{m.replace('_', ' ')}</Badge>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sections */}
-              <div className="p-6 space-y-4 flex-1">
-                {/* SECTION 1: AI INSIGHTS */}
-                <CollapsibleSection title="AI Insights" icon={<Brain className="h-4 w-4 text-purple-500" />}>
-                  <div className="space-y-1 pt-2">
-                    {detailEditing ? (
-                      <div className="space-y-3">
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">Best Product Price by AI</Label>
-                          <Input value={detailField("bestProductPriceAI")} onChange={(e) => setDetailField("bestProductPriceAI", e.target.value)} placeholder="e.g. $5.50/kg" /></div>
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">Notes from n8n</Label>
-                          <Textarea value={detailField("notesFromAI")} onChange={(e) => setDetailField("notesFromAI", e.target.value)} rows={2} /></div>
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">Notes from Staff</Label>
-                          <Textarea value={detailField("notesFromStaff")} onChange={(e) => setDetailField("notesFromStaff", e.target.value)} rows={2} /></div>
-                      </div>
-                    ) : (
-                      <>
-                        <DetailField label="Best Product Price by AI" value={detailCustomer.bestProductPriceAI} />
-                        <DetailField label="Notes from n8n" value={detailCustomer.notesFromAI} />
-                        <DetailField label="Notes from Staff" value={detailCustomer.notesFromStaff} />
-                      </>
-                    )}
-                  </div>
-                </CollapsibleSection>
-
-                {/* SECTION 2: LOCATION & CONTACT */}
-                <CollapsibleSection title="Location & Contact" icon={<Globe className="h-4 w-4 text-blue-500" />}>
-                  <div className="space-y-1 pt-2">
-                    {detailEditing ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">Governorate / City</Label>
-                          <Input value={detailField("governorateCity")} onChange={(e) => setDetailField("governorateCity", e.target.value)} /></div>
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">Website</Label>
-                          <Input value={detailField("website")} onChange={(e) => setDetailField("website", e.target.value)} /></div>
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">Facebook</Label>
-                          <Input value={detailField("socialFacebook")} onChange={(e) => setDetailField("socialFacebook", e.target.value)} /></div>
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">Instagram</Label>
-                          <Input value={detailField("socialInstagram")} onChange={(e) => setDetailField("socialInstagram", e.target.value)} /></div>
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">LinkedIn</Label>
-                          <Input value={detailField("socialLinkedin")} onChange={(e) => setDetailField("socialLinkedin", e.target.value)} /></div>
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">WhatsApp</Label>
-                          <Input value={detailField("whatsapp")} onChange={(e) => setDetailField("whatsapp", e.target.value)} /></div>
-                      </div>
-                    ) : (
-                      <>
-                        <DetailField label="Governorate / City" value={detailCustomer.governorateCity} />
-                        <DetailField label="Website" value={detailCustomer.website} type="link" />
-                        <Separator className="my-2" />
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground pt-1">Social Media</p>
-                        <DetailField label="Facebook" value={detailCustomer.socialFacebook} type="link" />
-                        <DetailField label="Instagram" value={detailCustomer.socialInstagram} type="link" />
-                        <DetailField label="LinkedIn" value={detailCustomer.socialLinkedin} type="link" />
-                        <Separator className="my-2" />
-                        <DetailField label="WhatsApp" value={detailCustomer.whatsapp} type="whatsapp" />
-                      </>
-                    )}
-                  </div>
-                </CollapsibleSection>
-
-                {/* SECTION 3: KEY CONTACTS */}
-                <CollapsibleSection title="Key Contacts" icon={<Users className="h-4 w-4 text-green-500" />}>
-                  <div className="space-y-1 pt-2">
-                    {detailEditing ? (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">Sales Manager</Label>
-                          <Input value={detailField("salesManager")} onChange={(e) => setDetailField("salesManager", e.target.value)} /></div>
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">Export Manager</Label>
-                          <Input value={detailField("exportManager")} onChange={(e) => setDetailField("exportManager", e.target.value)} /></div>
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">CS Number</Label>
-                          <Input value={detailField("customerServiceNumber")} onChange={(e) => setDetailField("customerServiceNumber", e.target.value)} /></div>
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">CS Email</Label>
-                          <Input value={detailField("customerServiceEmail")} onChange={(e) => setDetailField("customerServiceEmail", e.target.value)} /></div>
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">Contact Person</Label>
-                          <Input value={detailField("contactPerson")} onChange={(e) => setDetailField("contactPerson", e.target.value)} /></div>
-                        <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">Consignee</Label>
-                          <Input value={detailField("consignee")} onChange={(e) => setDetailField("consignee", e.target.value)} /></div>
-                      </div>
-                    ) : (
-                      <>
-                        <DetailField label="Sales Manager" value={detailCustomer.salesManager} />
-                        <DetailField label="Export Manager" value={detailCustomer.exportManager} />
-                        <DetailField label="Customer Service Number" value={detailCustomer.customerServiceNumber} type="tel" />
-                        <DetailField label="Customer Service Email" value={detailCustomer.customerServiceEmail} type="email" />
-                        <DetailField label="Contact Person" value={detailCustomer.contactPerson} />
-                        <DetailField label="Consignee" value={detailCustomer.consignee} />
-                      </>
-                    )}
-                  </div>
-                </CollapsibleSection>
-
-                {/* SECTION 4: COMPANY INFO */}
-                <CollapsibleSection title="Company Info & Documents" icon={<Building2 className="h-4 w-4 text-orange-500" />}>
-                  <div className="space-y-3 pt-2">
-                    {detailEditing ? (
-                      <div className="space-y-1"><Label className="text-[10px] uppercase text-muted-foreground">Company Overview</Label>
-                        <Textarea value={detailField("companyOverview")} onChange={(e) => setDetailField("companyOverview", e.target.value)} rows={4} /></div>
-                    ) : (
-                      <div>
-                        <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Company Overview</p>
-                        <p className="text-xs leading-relaxed">{detailCustomer.companyOverview || <span className="text-muted-foreground/50 italic">Not provided</span>}</p>
-                      </div>
-                    )}
-                    <Separator />
-                    <div>
-                      <p className="text-[10px] font-bold uppercase text-muted-foreground mb-2">Company Documents</p>
-                      {Array.isArray(detailCustomer.companyDocs) && detailCustomer.companyDocs.length > 0 ? (
-                        <div className="space-y-1">
-                          {detailCustomer.companyDocs.map((docUrl: string, i: number) => (
-                            <a key={i} href={docUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs text-primary hover:underline">
-                              <FileText className="h-3 w-3" /> Document {i + 1}
-                            </a>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-muted-foreground/50 italic">No documents uploaded</p>
-                      )}
-                    </div>
-                  </div>
-                </CollapsibleSection>
-
-                {/* SECTION 5: PRIORITY & NOTES */}
-                <CollapsibleSection title="Priority & Notes" icon={<StickyNote className="h-4 w-4 text-yellow-500" />}>
-                  <div className="pt-2">
-                    {detailEditing ? (
-                      <div className="space-y-1">
-                        <Label className="text-[10px] uppercase text-muted-foreground">Specific Notes / Priority</Label>
-                        <Textarea value={detailField("specificNotes")} onChange={(e) => setDetailField("specificNotes", e.target.value)} rows={4} className="border-yellow-500/30 bg-yellow-500/5" />
-                      </div>
-                    ) : (
-                      <div className={cn("p-3 rounded-lg text-sm", detailCustomer.specificNotes ? "bg-yellow-500/10 border border-yellow-500/20" : "")}>
-                        {detailCustomer.specificNotes ? (
-                          <p className="text-xs leading-relaxed whitespace-pre-wrap">{detailCustomer.specificNotes}</p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground/50 italic">No priority notes</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </CollapsibleSection>
-              </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
 
       {/* ═══ DIALOGS ═══ */}
 
