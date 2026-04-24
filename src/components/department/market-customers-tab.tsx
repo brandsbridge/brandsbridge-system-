@@ -77,6 +77,7 @@ const activeBadge = (active: any) => {
 // ═══════════════════════════════════════════════════════════════
 
 const IMPORT_COLUMN_MAP: Record<string, string> = {
+  "#": "__skip__",
   "company name": "name",
   "country": "country",
   "active": "active",
@@ -177,7 +178,9 @@ export function MarketCustomersTab({ customers, loading, marketId, departmentId,
   const [validationErrors, setValidationErrors] = useState<{row: number, message: string}[]>([]);
   const [duplicateMode, setDuplicateMode] = useState<"skip" | "update">("skip");
   const [importProgress, setImportProgress] = useState(0);
+  const [importProgressLabel, setImportProgressLabel] = useState("");
   const [importResults, setImportResults] = useState({ success: 0, failed: 0, updated: 0, invalid: 0 });
+  const [showAllColumns, setShowAllColumns] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const countries = Array.from(new Set(customers.map((c: any) => c.country).filter(Boolean))).sort();
@@ -441,33 +444,73 @@ export function MarketCustomersTab({ customers, loading, marketId, departmentId,
     }
   };
 
+  const PREVIEW_KEY_COLS = ["Company Name", "Country", "Active", "Nature of Business", "Specialized Products", "Markets"];
+  const PREVIEW_ALL_COLS = [
+    "Company Name", "Country", "Active", "Nature of Business", "Specialized Products",
+    "Health", "Rating", "Total Revenue", "Markets", "Interests",
+    "Best Product Price AI", "Notes from AI", "Notes from Staff",
+    "Governorate / City", "Website", "Facebook", "Instagram", "LinkedIn",
+    "WhatsApp", "Sales Manager", "Export Manager", "CS Number", "CS Email",
+    "Company Overview", "Consignee", "Contact Person", "Specific Notes",
+  ];
+
+  const MAPPED_DISPLAY: Record<string, string> = {
+    name: "Company Name", country: "Country", active: "Active",
+    natureOfBusiness: "Nature of Business", specializedProducts: "Specialized Products",
+    accountHealth: "Health", internalRating: "Rating", totalRevenue: "Total Revenue",
+    markets: "Markets", interests: "Interests", bestProductPriceAI: "Best Product Price AI",
+    notesFromAI: "Notes from AI", notesFromStaff: "Notes from Staff",
+    governorateCity: "Governorate / City", website: "Website",
+    socialFacebook: "Facebook", socialInstagram: "Instagram", socialLinkedin: "LinkedIn",
+    whatsapp: "WhatsApp", salesManager: "Sales Manager", exportManager: "Export Manager",
+    customerServiceNumber: "CS Number", customerServiceEmail: "CS Email",
+    companyOverview: "Company Overview", consignee: "Consignee",
+    contactPerson: "Contact Person", specificNotes: "Specific Notes",
+  };
+
   const validateAndPreview = (data: any[]) => {
     const errors: {row: number, message: string}[] = [];
-    const validData = data.filter((row, idx) => {
+    const validRows: any[] = [];
+    data.forEach((row, idx) => {
       const mapped = mapImportRow(row);
       const companyName = mapped.name || row["Company Name"] || row["name"] || row["title"];
-      if (companyName === "Example Customer Ltd") return false;
+      if (companyName === "Example Customer Ltd") return;
       if (!companyName) {
         errors.push({ row: idx + 1, message: "Missing Company Name (Required)" });
-        return false;
+        return;
       }
-      return true;
+      // Build a clean mapped row with display-friendly column names
+      const clean: Record<string, string> = {};
+      Object.entries(mapped).forEach(([k, v]) => {
+        if (k === "__skip__" || k === "companyDocs" || k === "email" || k === "phone" || k === "city" ||
+            k === "accountStatus" || k === "department" || k === "assignedManager" ||
+            k === "dataCompleteness" || k === "compliance" || k === "priceTier") return;
+        const displayName = MAPPED_DISPLAY[k];
+        if (displayName) {
+          const val = v != null ? String(v).trim() : "";
+          clean[displayName] = val;
+        }
+      });
+      // Ensure key cols exist even if empty
+      PREVIEW_ALL_COLS.forEach(c => { if (!(c in clean)) clean[c] = ""; });
+      validRows.push(clean);
     });
-    const processedPreview = validData.slice(0, 15).map(row => {
-      const r: any = {};
-      const keys = ["Company Name", "Country", "Active", "Nature of Business", "Health", "Rating", "Total Revenue"];
-      keys.forEach(k => { if (row[k] !== undefined) r[k] = row[k]; });
-      Object.keys(row).forEach(k => { if (!keys.includes(k)) r[k] = row[k]; });
-      return r;
-    });
+
     setValidationErrors(errors);
-    setPreviewData(processedPreview);
-    setFullValidData(validData);
+    setPreviewData(validRows);
+    setFullValidData(data.filter((row) => {
+      const mapped = mapImportRow(row);
+      const companyName = mapped.name || row["Company Name"] || row["name"] || row["title"];
+      return companyName && companyName !== "Example Customer Ltd";
+    }));
     setImportStep("preview");
+    setShowAllColumns(false);
   };
 
   const executeImport = async () => {
     setImportStep("importing");
+    setImportProgress(0);
+    setImportProgressLabel("");
     let success = 0, updates = 0, failed = 0;
     const BATCH_SIZE = 500;
     for (let i = 0; i < fullValidData.length; i += BATCH_SIZE) {
@@ -533,7 +576,9 @@ export function MarketCustomersTab({ customers, loading, marketId, departmentId,
       }
       try {
         await batch.commit();
-        setImportProgress(Math.min(100, Math.round(((i + chunk.length) / fullValidData.length) * 100)));
+        const done = Math.min(i + chunk.length, fullValidData.length);
+        setImportProgress(Math.min(100, Math.round((done / fullValidData.length) * 100)));
+        setImportProgressLabel(`Importing customer ${done} of ${fullValidData.length}`);
       } catch { failed += chunk.length; }
     }
     setImportResults({ success, failed, updated: updates, invalid: validationErrors.length });
@@ -543,7 +588,7 @@ export function MarketCustomersTab({ customers, loading, marketId, departmentId,
 
   const resetImport = () => {
     setImportFile(null); setImportStep("upload"); setPreviewData([]); setFullValidData([]);
-    setValidationErrors([]); setImportProgress(0);
+    setValidationErrors([]); setImportProgress(0); setImportProgressLabel(""); setShowAllColumns(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -564,7 +609,7 @@ export function MarketCustomersTab({ customers, loading, marketId, departmentId,
             <DialogTrigger asChild>
               <Button variant="outline" size="sm"><Upload className="mr-2 h-4 w-4" /> Import</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-5xl">
+            <DialogContent className="max-w-6xl">
               <DialogHeader>
                 <DialogTitle>Bulk Customer Import</DialogTitle>
                 <DialogDescription>Synchronize your database with external spreadsheets. Auto-assigns to current market.</DialogDescription>
@@ -594,32 +639,61 @@ export function MarketCustomersTab({ customers, loading, marketId, departmentId,
               )}
 
               {importStep === "preview" && (
-                <div className="space-y-6">
+                <div className="space-y-5">
+                  {/* File info bar */}
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> Preview</h3>
-                    <Badge variant="outline" className="font-mono text-[10px]">{importFile?.name}</Badge>
+                    <h3 className="text-sm font-bold flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" /> Preview
+                      <span className="text-muted-foreground font-normal text-xs ml-1">(showing {Math.min(previewData.length, 10)} of {previewData.length} rows)</span>
+                    </h3>
+                    <div className="flex items-center gap-3">
+                      <button className="text-xs text-primary hover:underline font-medium" onClick={() => setShowAllColumns(!showAllColumns)}>
+                        {showAllColumns ? "Show key columns" : "Show all columns"}
+                      </button>
+                      <Badge variant="outline" className="font-mono text-[10px]">{importFile?.name}</Badge>
+                    </div>
                   </div>
-                  <div className="max-h-[350px] overflow-x-auto border rounded-xl bg-card shadow-inner custom-scrollbar">
-                    <Table className="min-w-max w-full border-collapse">
-                      <TableHeader className="sticky top-0 bg-secondary/95 backdrop-blur-sm z-20 shadow-sm">
-                        <TableRow>{previewData.length > 0 && Object.keys(previewData[0]).map(k => (
-                          <TableHead key={k} className={cn("text-[10px] whitespace-nowrap px-4 h-10 font-bold uppercase tracking-wider border-r last:border-r-0 min-w-[130px]", k === "Company Name" && "text-primary bg-primary/5 sticky left-0 z-30")}>{k}</TableHead>
-                        ))}</TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {previewData.map((row, i) => (
-                          <TableRow key={i} className="hover:bg-muted/30 border-b">
-                            {Object.entries(row).map(([key, val]: [string, any], j) => (
-                              <TableCell key={j} className={cn("text-[11px] px-4 py-2 border-r last:border-r-0 min-w-[130px]", key === "Company Name" && "font-bold bg-primary/5 sticky left-0 z-20")}>
-                                <div className="max-w-[200px] truncate" title={val ? String(val) : ""}>{val ? String(val) : <span className="text-muted-foreground/30 italic">&lt;null&gt;</span>}</div>
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  <div className="flex flex-col gap-4">
+
+                  {/* Preview table */}
+                  {(() => {
+                    const cols = showAllColumns ? PREVIEW_ALL_COLS : PREVIEW_KEY_COLS;
+                    const rows = previewData.slice(0, 10);
+                    return (
+                      <div className="max-h-[340px] overflow-auto border rounded-xl bg-card shadow-inner custom-scrollbar">
+                        <Table className="w-full border-collapse">
+                          <TableHeader className="sticky top-0 bg-secondary/95 backdrop-blur-sm z-20 shadow-sm">
+                            <TableRow>
+                              <TableHead className="text-[10px] whitespace-nowrap px-3 h-9 font-bold uppercase tracking-wider border-r w-10 text-center">#</TableHead>
+                              {cols.map(col => (
+                                <TableHead key={col} className={cn("text-[10px] whitespace-nowrap px-4 h-9 font-bold uppercase tracking-wider border-r last:border-r-0", col === "Company Name" && "text-primary bg-primary/5 sticky left-[40px] z-30")}>{col}</TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {rows.map((row, i) => {
+                              const hasName = !!(row["Company Name"] || "").trim();
+                              return (
+                                <TableRow key={i} className={cn("border-b", !hasName && "bg-destructive/5")}>
+                                  <TableCell className="text-[10px] text-muted-foreground text-center px-3 border-r">{i + 1}</TableCell>
+                                  {cols.map(col => {
+                                    const val = (row[col] ?? "").toString().trim();
+                                    return (
+                                      <TableCell key={col} className={cn("text-[11px] px-4 py-2 border-r last:border-r-0", col === "Company Name" && "font-bold bg-primary/5 sticky left-[40px] z-20")}>
+                                        <div className="max-w-[220px] truncate" title={val}>{val || <span className="text-muted-foreground/30">—</span>}</div>
+                                      </TableCell>
+                                    );
+                                  })}
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Status cards */}
+                  <div className="flex flex-col gap-3">
                     <div className="bg-primary/5 p-4 rounded-xl border border-primary/20 flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <CheckCircle2 className="h-5 w-5 text-primary" />
@@ -635,14 +709,16 @@ export function MarketCustomersTab({ customers, loading, marketId, departmentId,
                         <div className="flex gap-3">
                           <AlertTriangle className="h-5 w-5 text-destructive shrink-0" />
                           <div>
-                            <p className="text-sm font-bold text-destructive">{validationErrors.length} Invalid Rows</p>
-                            <p className="text-[10px] text-muted-foreground">Missing "Company Name".</p>
+                            <p className="text-sm font-bold text-destructive">{validationErrors.length} rows have missing required fields</p>
+                            <p className="text-[10px] text-muted-foreground">Missing "Company Name" — these rows will be skipped.</p>
                           </div>
                         </div>
                         <Button variant="outline" size="sm" className="text-destructive border-destructive/20 h-8" onClick={downloadErrorReport}><FileX className="h-3 w-3 mr-2" /> Errors</Button>
                       </div>
                     )}
                   </div>
+
+                  {/* Duplicate strategy */}
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Duplicate Strategy</label>
                     <Select value={duplicateMode} onValueChange={(v: any) => setDuplicateMode(v)}>
@@ -653,32 +729,36 @@ export function MarketCustomersTab({ customers, loading, marketId, departmentId,
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Footer buttons */}
                   <DialogFooter className="gap-3 pt-4 border-t">
-                    <Button variant="ghost" onClick={resetImport}>Choose Different File</Button>
-                    <Button onClick={executeImport} disabled={fullValidData.length === 0} className="bg-primary">Sync {fullValidData.length} Records</Button>
+                    <Button variant="ghost" onClick={resetImport}>Cancel</Button>
+                    <Button onClick={executeImport} disabled={fullValidData.length === 0} className="bg-[#0B5E75] hover:bg-[#094e63] text-white px-6">
+                      Import {fullValidData.length} Customer{fullValidData.length !== 1 ? "s" : ""}
+                    </Button>
                   </DialogFooter>
                 </div>
               )}
 
               {importStep === "importing" && (
-                <div className="py-20 flex flex-col items-center justify-center space-y-8">
-                  <Loader2 className="h-16 w-16 text-primary animate-spin" />
-                  <div className="text-center space-y-3 w-full max-w-sm">
-                    <p className="font-bold text-lg">Pushing Data to Cloud...</p>
-                    <Progress value={importProgress} className="h-2" />
-                    <p className="text-xs text-muted-foreground font-mono">{importProgress}%</p>
+                <div className="py-16 flex flex-col items-center justify-center space-y-6">
+                  <Loader2 className="h-14 w-14 text-primary animate-spin" />
+                  <div className="text-center space-y-3 w-full max-w-md">
+                    <p className="font-bold text-lg">Importing Customers...</p>
+                    <Progress value={importProgress} className="h-2.5" />
+                    <p className="text-sm text-muted-foreground">{importProgressLabel || `${importProgress}%`}</p>
                   </div>
                 </div>
               )}
 
               {importStep === "success" && (
-                <div className="py-12 text-center space-y-8">
-                  <div className="h-20 w-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto ring-8 ring-green-500/5">
-                    <CheckCircle2 className="h-12 w-12 text-green-500" />
+                <div className="py-10 text-center space-y-6">
+                  <div className="h-16 w-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto ring-8 ring-green-500/5">
+                    <CheckCircle2 className="h-10 w-10 text-green-500" />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <h3 className="text-2xl font-bold">Import Complete</h3>
-                    <p className="text-muted-foreground">Your database has been updated.</p>
+                    <p className="text-muted-foreground">Successfully imported {importResults.success} customer{importResults.success !== 1 ? "s" : ""}.</p>
                   </div>
                   <div className="grid grid-cols-4 gap-4 max-w-2xl mx-auto">
                     {[
@@ -693,9 +773,9 @@ export function MarketCustomersTab({ customers, loading, marketId, departmentId,
                       </div>
                     ))}
                   </div>
-                  <div className="flex gap-3 justify-center pt-4">
+                  <div className="flex gap-3 justify-center pt-2">
                     <Button variant="outline" onClick={resetImport}><Upload className="mr-2 h-4 w-4" /> Import Another</Button>
-                    <Button onClick={() => setIsImportModalOpen(false)}>View Records</Button>
+                    <Button onClick={() => { setIsImportModalOpen(false); resetImport(); }}>View Records</Button>
                   </div>
                 </div>
               )}
