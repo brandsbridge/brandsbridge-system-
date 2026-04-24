@@ -82,6 +82,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { name: "Purchase Orders", href: "/accounting/purchase-orders", icon: FileText },
     { name: "Bank Reconciliation", href: "/accounting/bank-reconciliation", icon: Landmark },
     { name: "Payment Accounts", href: "/accounting/payment-accounts", icon: Wallet },
+    { name: "Financial Reports", href: "/reports/financial", icon: BarChart3 },
     { type: 'separator', label: 'Marketing' },
     { name: "Campaigns", href: "/campaigns", icon: Send },
     { name: "Email Analytics", href: "/email-analytics", icon: Mail },
