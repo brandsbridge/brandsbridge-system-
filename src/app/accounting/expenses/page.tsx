@@ -24,6 +24,13 @@ import {
   Trash2,
   Filter,
   SlidersHorizontal,
+  BarChart3,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Calendar,
+  FileSpreadsheet,
+  Printer,
 } from "lucide-react";
 import {
   Table,
@@ -83,6 +90,12 @@ import {
 } from "@/components/ui/sheet";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
 import { collection, query, where, doc, setDoc, getDocs, orderBy, Timestamp, deleteDoc } from "firebase/firestore";
+import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+} from "recharts";
+import * as XLSX from "xlsx";
+import Papa from "papaparse";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { expenseService } from "@/services/expense-service";
 import { accountingService } from "@/services/accounting-service";
@@ -314,10 +327,18 @@ export default function ExpensesPage() {
     return collection(db, "recurring_invoices");
   }, [db, user]);
 
+  // Financial Reports queries
+  const invoicesQuery = useMemoFirebase(() => user ? query(collection(db, "invoices"), orderBy("createdAt", "desc")) : null, [db, user]);
+  const paymentsQuery = useMemoFirebase(() => user ? query(collection(db, "payments"), orderBy("createdAt", "desc")) : null, [db, user]);
+  const poQuery = useMemoFirebase(() => user ? query(collection(db, "purchase_orders"), orderBy("createdAt", "desc")) : null, [db, user]);
+
   const { data: suppliersData } = useCollection(suppliersQuery);
   const { data: customersData } = useCollection(customersQuery);
   const { data: expensesData, isLoading: loadingExpenses } = useCollection(expensesQuery);
   const { data: templatesData, isLoading: loadingTemplates } = useCollection(recurringQuery);
+  const { data: invoicesRaw } = useCollection(invoicesQuery);
+  const { data: paymentsRaw } = useCollection(paymentsQuery);
+  const { data: posRaw } = useCollection(poQuery);
 
   // Payment accounts for "Paid From" dropdown
   const paymentAccountsQuery = useMemoFirebase(
@@ -776,9 +797,12 @@ export default function ExpensesPage() {
       </div>
 
       <Tabs defaultValue="expenses" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 lg:w-[400px] h-12">
+        <TabsList className="grid w-full grid-cols-3 lg:w-[600px] h-12">
           <TabsTrigger value="expenses">Operational Expenses</TabsTrigger>
           <TabsTrigger value="recurring">Recurring Templates</TabsTrigger>
+          <TabsTrigger value="financial-reports" className="flex items-center gap-1.5">
+            <BarChart3 className="h-3.5 w-3.5" /> Financial Reports
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="expenses" className="space-y-6 pt-6">
@@ -1410,6 +1434,16 @@ export default function ExpensesPage() {
             )}
           </Card>
         </TabsContent>
+
+        {/* ═══════════════════ FINANCIAL REPORTS TAB ═══════════════════ */}
+        <TabsContent value="financial-reports" className="space-y-6 pt-6">
+          <FinancialReportsTab
+            expensesData={expenses}
+            invoicesData={invoicesRaw ?? []}
+            paymentsData={paymentsRaw ?? []}
+            purchaseOrdersData={posRaw ?? []}
+          />
+        </TabsContent>
       </Tabs>
 
       {/* DELETE CONFIRMATION */}
@@ -1628,6 +1662,706 @@ function DetailField({ label, value, badge, badgeClass }: { label: string; value
       ) : (
         <p className="text-sm font-medium mt-0.5">{value}</p>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FINANCIAL REPORTS TAB COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+const FR_PIE_COLORS = ["#0B5E75", "#12A0C3", "#F59E0B", "#10B981", "#EF4444", "#8B5CF6", "#EC4899", "#6366F1", "#14B8A6", "#F97316"];
+
+function frFmtCurrency(amount: number, currency = "USD"): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+}
+
+function frFmtNum(n: number): string {
+  return new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+}
+
+function frGetMonthKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function frGetMonthLabel(key: string): string {
+  const [y, m] = key.split("-");
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[parseInt(m) - 1]} ${y}`;
+}
+
+function frGetPresetRange(preset: string): { from: Date; to: Date } {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const to = new Date(today); to.setHours(23, 59, 59, 999);
+  switch (preset) {
+    case "today": return { from: today, to };
+    case "this_week": { const f = new Date(today); f.setDate(today.getDate() - today.getDay()); return { from: f, to }; }
+    case "this_month": return { from: new Date(today.getFullYear(), today.getMonth(), 1), to };
+    case "last_month": { const f = new Date(today.getFullYear(), today.getMonth() - 1, 1); const t = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999); return { from: f, to: t }; }
+    case "this_quarter": { const q = Math.floor(today.getMonth() / 3) * 3; return { from: new Date(today.getFullYear(), q, 1), to }; }
+    case "last_quarter": { const cq = Math.floor(today.getMonth() / 3); const f = new Date(today.getFullYear(), (cq - 1) * 3, 1); const t = new Date(today.getFullYear(), cq * 3, 0, 23, 59, 59, 999); return { from: f, to: t }; }
+    case "this_year": return { from: new Date(today.getFullYear(), 0, 1), to };
+    default: return { from: new Date(today.getFullYear(), today.getMonth(), 1), to };
+  }
+}
+
+function frToInputDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+interface FinancialReportsTabProps {
+  expensesData: any[];
+  invoicesData: any[];
+  paymentsData: any[];
+  purchaseOrdersData: any[];
+}
+
+function FinancialReportsTab({ expensesData, invoicesData, paymentsData, purchaseOrdersData }: FinancialReportsTabProps) {
+  const defaultRange = frGetPresetRange("this_month");
+  const [dateFrom, setDateFrom] = useState(frToInputDate(defaultRange.from));
+  const [dateTo, setDateTo] = useState(frToInputDate(defaultRange.to));
+  const [subTab, setSubTab] = useState("overview");
+  const [expGroupBy, setExpGroupBy] = useState("none");
+  const [revGroupBy, setRevGroupBy] = useState("none");
+
+  const rangeFrom = useMemo(() => { const d = new Date(dateFrom); d.setHours(0, 0, 0, 0); return d; }, [dateFrom]);
+  const rangeTo = useMemo(() => { const d = new Date(dateTo); d.setHours(23, 59, 59, 999); return d; }, [dateTo]);
+
+  const applyPreset = useCallback((p: string) => {
+    const r = frGetPresetRange(p);
+    setDateFrom(frToInputDate(r.from));
+    setDateTo(frToInputDate(r.to));
+  }, []);
+
+  const inRange = useCallback((v: unknown) => {
+    const d = toDateObj(v as any);
+    if (!d) return false;
+    return d >= rangeFrom && d <= rangeTo;
+  }, [rangeFrom, rangeTo]);
+
+  // Filter data by date range
+  const expenses = useMemo(() => expensesData.filter((e: any) => inRange(e.expenseDate || e.date || e.createdAt)), [expensesData, inRange]);
+  const invoices = useMemo(() => invoicesData.filter((inv: any) => inRange(inv.dateIssue || inv.createdAt)), [invoicesData, inRange]);
+  const payments = useMemo(() => paymentsData.filter((p: any) => inRange(p.date || p.createdAt)), [paymentsData, inRange]);
+  const purchaseOrders = useMemo(() => purchaseOrdersData.filter((po: any) => inRange(po.date || po.createdAt)), [purchaseOrdersData, inRange]);
+
+  // ── Metrics ────────────────────────────────────────────────────────────
+  const metrics = useMemo(() => {
+    const totalExpenses = expenses.reduce((s: number, e: any) => s + (Number(e.amount) || 0), 0);
+    const paidInvoices = invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid");
+    const totalRevenue = paidInvoices.reduce((s: number, inv: any) => s + (Number(inv.totalUSD) || Number(inv.total) || 0), 0);
+    const allInvoiceTotal = invoices.reduce((s: number, inv: any) => s + (Number(inv.totalUSD) || Number(inv.total) || 0), 0);
+    const paymentsReceived = payments.filter((p: any) => p.type === "received");
+    const paymentsMade = payments.filter((p: any) => p.type !== "received");
+    const totalReceived = paymentsReceived.reduce((s: number, p: any) => s + (Number(p.totalUSD) || Number(p.amount) || 0), 0);
+    const totalPaid = paymentsMade.reduce((s: number, p: any) => s + (Number(p.totalUSD) || Number(p.amount) || 0), 0);
+    const outstanding = allInvoiceTotal - totalRevenue;
+    return {
+      totalExpenses, totalRevenue, allInvoiceTotal, totalReceived, totalPaid, outstanding,
+      netProfit: totalRevenue - totalExpenses,
+      expenseCount: expenses.length, invoiceCount: invoices.length,
+      paidInvoiceCount: paidInvoices.length, paymentCount: payments.length,
+    };
+  }, [expenses, invoices, payments]);
+
+  // ── Chart Data ─────────────────────────────────────────────────────────
+  const revenueVsExpenseChart = useMemo(() => {
+    const map: Record<string, { revenue: number; expenses: number }> = {};
+    expenses.forEach((e: any) => {
+      const d = toDateObj(e.expenseDate || e.date || e.createdAt);
+      if (!d) return;
+      const k = frGetMonthKey(d);
+      if (!map[k]) map[k] = { revenue: 0, expenses: 0 };
+      map[k].expenses += Number(e.amount) || 0;
+    });
+    invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid").forEach((inv: any) => {
+      const d = toDateObj(inv.dateIssue || inv.createdAt);
+      if (!d) return;
+      const k = frGetMonthKey(d);
+      if (!map[k]) map[k] = { revenue: 0, expenses: 0 };
+      map[k].revenue += Number(inv.totalUSD) || Number(inv.total) || 0;
+    });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => ({ month: frGetMonthLabel(k), ...v }));
+  }, [expenses, invoices]);
+
+  const expenseByCostCenter = useMemo(() => {
+    const map: Record<string, number> = {};
+    expenses.forEach((e: any) => { const cc = safeText(e.costCenter) || "Uncategorized"; map[cc] = (map[cc] || 0) + (Number(e.amount) || 0); });
+    return Object.entries(map).sort(([, a], [, b]) => b - a).map(([name, value]) => ({ name, value }));
+  }, [expenses]);
+
+  const topVendors = useMemo(() => {
+    const map: Record<string, number> = {};
+    expenses.forEach((e: any) => { const v = safeText(e.vendorName) || safeText(e.accountName) || "Unknown"; map[v] = (map[v] || 0) + (Number(e.amount) || 0); });
+    return Object.entries(map).sort(([, a], [, b]) => b - a).slice(0, 5).map(([name, total]) => ({ name: name.length > 18 ? name.slice(0, 16) + "…" : name, total }));
+  }, [expenses]);
+
+  // Cash flow
+  const cashFlowData = useMemo(() => {
+    const map: Record<string, { inflow: number; outflow: number }> = {};
+    payments.filter((p: any) => p.type === "received").forEach((p: any) => {
+      const d = toDateObj(p.date || p.createdAt); if (!d) return;
+      const k = frGetMonthKey(d); if (!map[k]) map[k] = { inflow: 0, outflow: 0 };
+      map[k].inflow += Number(p.totalUSD) || Number(p.amount) || 0;
+    });
+    expenses.forEach((e: any) => {
+      const d = toDateObj(e.expenseDate || e.date || e.createdAt); if (!d) return;
+      const k = frGetMonthKey(d); if (!map[k]) map[k] = { inflow: 0, outflow: 0 };
+      map[k].outflow += Number(e.amount) || 0;
+    });
+    payments.filter((p: any) => p.type !== "received").forEach((p: any) => {
+      const d = toDateObj(p.date || p.createdAt); if (!d) return;
+      const k = frGetMonthKey(d); if (!map[k]) map[k] = { inflow: 0, outflow: 0 };
+      map[k].outflow += Number(p.totalUSD) || Number(p.amount) || 0;
+    });
+    let balance = 0;
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => {
+      const net = v.inflow - v.outflow; balance += net;
+      return { month: frGetMonthLabel(k), ...v, net, balance };
+    });
+  }, [expenses, payments]);
+
+  // Grouped expenses
+  const groupedExpenses = useMemo(() => {
+    if (expGroupBy === "none") return null;
+    const map: Record<string, { items: any[]; total: number }> = {};
+    expenses.forEach((e: any) => {
+      let key = "Other";
+      if (expGroupBy === "costCenter") key = safeText(e.costCenter) || "Uncategorized";
+      else if (expGroupBy === "vendor") key = safeText(e.vendorName) || safeText(e.accountName) || "Unknown";
+      else if (expGroupBy === "month") { const d = toDateObj(e.expenseDate || e.date || e.createdAt); key = d ? frGetMonthLabel(frGetMonthKey(d)) : "Unknown"; }
+      if (!map[key]) map[key] = { items: [], total: 0 };
+      map[key].items.push(e);
+      map[key].total += Number(e.amount) || 0;
+    });
+    return Object.entries(map).sort(([, a], [, b]) => b.total - a.total);
+  }, [expenses, expGroupBy]);
+
+  // Grouped revenue
+  const groupedRevenue = useMemo(() => {
+    if (revGroupBy === "none") return null;
+    const paidInvs = invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid");
+    const map: Record<string, { items: any[]; total: number }> = {};
+    paidInvs.forEach((inv: any) => {
+      let key = "Other";
+      if (revGroupBy === "market") key = inv.department || "Unassigned";
+      else if (revGroupBy === "customer") key = inv.customerName || "Unknown";
+      else if (revGroupBy === "month") { const d = toDateObj(inv.dateIssue || inv.createdAt); key = d ? frGetMonthLabel(frGetMonthKey(d)) : "Unknown"; }
+      if (!map[key]) map[key] = { items: [], total: 0 };
+      map[key].items.push(inv);
+      map[key].total += Number(inv.totalUSD) || Number(inv.total) || 0;
+    });
+    return Object.entries(map).sort(([, a], [, b]) => b.total - a.total);
+  }, [invoices, revGroupBy]);
+
+  // Payments grouped by account
+  const paymentsByAccount = useMemo(() => {
+    const map: Record<string, { items: any[]; total: number }> = {};
+    payments.forEach((p: any) => {
+      const acct = p.paymentAccount || p.department || "Unassigned";
+      if (!map[acct]) map[acct] = { items: [], total: 0 };
+      map[acct].items.push(p);
+      map[acct].total += Number(p.totalUSD) || Number(p.amount) || 0;
+    });
+    return Object.entries(map).sort(([, a], [, b]) => b.total - a.total);
+  }, [payments]);
+
+  // ── Export ─────────────────────────────────────────────────────────────
+  const exportExcel = useCallback(() => {
+    const wb = XLSX.utils.book_new();
+    if (subTab === "overview") {
+      const sum = [["Metric", "Value"], ["Total Revenue", metrics.totalRevenue], ["Total Expenses", metrics.totalExpenses], ["Net Profit", metrics.netProfit], ["Total Invoiced", metrics.allInvoiceTotal], ["Payments Received", metrics.totalReceived], ["Outstanding", metrics.outstanding]];
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sum), "Summary");
+      if (revenueVsExpenseChart.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(revenueVsExpenseChart), "Rev vs Exp");
+      if (expenseByCostCenter.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(expenseByCostCenter), "By Cost Center");
+      if (topVendors.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(topVendors), "Top Vendors");
+    } else if (subTab === "expenses") {
+      const rows = expenses.map((e: any, i: number) => ({ "#": i + 1, "Date": formatDateDMY(e.expenseDate || e.date), Vendor: safeText(e.vendorName) || safeText(e.accountName), "Cost Center": safeText(e.costCenter), Reference: safeText(e.reference), Currency: e.currency || "USD", Amount: Number(e.amount) || 0 }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Expenses");
+    } else if (subTab === "revenue") {
+      const rows = invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid").map((inv: any, i: number) => ({ "#": i + 1, "Invoice #": inv.number || "", Date: formatDateDMY(inv.dateIssue || inv.createdAt), Customer: inv.customerName || "", Department: inv.department || "", Currency: inv.currency || "USD", "Total (USD)": Number(inv.totalUSD) || Number(inv.total) || 0 }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Revenue");
+    } else if (subTab === "invoices") {
+      const rows = invoices.map((inv: any, i: number) => ({ "#": i + 1, "Invoice #": inv.number || "", Date: formatDateDMY(inv.dateIssue || inv.createdAt), Customer: inv.customerName || "", Status: inv.status || "", "Total (USD)": Number(inv.totalUSD) || Number(inv.total) || 0 }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Invoices");
+    } else if (subTab === "payments") {
+      const rows = payments.map((p: any, i: number) => ({ "#": i + 1, Date: formatDateDMY(p.date || p.createdAt), Party: p.partyName || "", Type: p.type || "", Amount: Number(p.amount) || 0, "Total (USD)": Number(p.totalUSD) || Number(p.amount) || 0 }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Payments");
+    } else if (subTab === "cashflow") {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cashFlowData), "Cash Flow");
+    }
+    XLSX.writeFile(wb, `Financial_Report_${dateFrom}_to_${dateTo}.xlsx`);
+  }, [subTab, expenses, invoices, payments, cashFlowData, metrics, revenueVsExpenseChart, expenseByCostCenter, topVendors, dateFrom, dateTo]);
+
+  const exportCSV = useCallback(() => {
+    let rows: Record<string, unknown>[] = [];
+    if (subTab === "expenses") rows = expenses.map((e: any, i: number) => ({ "#": i + 1, Date: formatDateDMY(e.expenseDate || e.date), Vendor: safeText(e.vendorName), "Cost Center": safeText(e.costCenter), Currency: e.currency || "USD", Amount: Number(e.amount) || 0 }));
+    else if (subTab === "revenue") rows = invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid").map((inv: any, i: number) => ({ "#": i + 1, "Invoice #": inv.number || "", Customer: inv.customerName || "", "Total (USD)": Number(inv.totalUSD) || Number(inv.total) || 0 }));
+    else if (subTab === "invoices") rows = invoices.map((inv: any, i: number) => ({ "#": i + 1, "Invoice #": inv.number || "", Status: inv.status || "", "Total (USD)": Number(inv.totalUSD) || Number(inv.total) || 0 }));
+    else if (subTab === "payments") rows = payments.map((p: any, i: number) => ({ "#": i + 1, Party: p.partyName || "", Type: p.type || "", Amount: Number(p.amount) || 0 }));
+    else if (subTab === "cashflow") rows = cashFlowData as Record<string, unknown>[];
+    else rows = [{ Metric: "Total Revenue", Value: metrics.totalRevenue }, { Metric: "Total Expenses", Value: metrics.totalExpenses }, { Metric: "Net Profit", Value: metrics.netProfit }];
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `Financial_Report_${dateFrom}_to_${dateTo}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }, [subTab, expenses, invoices, payments, cashFlowData, metrics, dateFrom, dateTo]);
+
+  // ── Render ─────────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-6">
+      {/* Header + Export */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h3 className="text-lg font-bold flex items-center gap-2"><BarChart3 className="h-5 w-5 text-[#0B5E75]" /> Financial Reports</h3>
+          <p className="text-xs text-muted-foreground">Comprehensive financial analysis across all modules</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={exportExcel}><FileSpreadsheet className="h-4 w-4 mr-1" /> Excel</Button>
+          <Button variant="outline" size="sm" onClick={exportCSV}><FileIcon className="h-4 w-4 mr-1" /> CSV</Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="h-4 w-4 mr-1" /> Print</Button>
+        </div>
+      </div>
+
+      {/* Date Range Selector */}
+      <Card>
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end">
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Label className="text-sm font-medium">Date Range</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[155px] h-9" />
+              <span className="text-sm text-muted-foreground">to</span>
+              <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[155px] h-9" />
+            </div>
+            <div className="flex items-center gap-1 flex-wrap">
+              {[
+                { label: "Today", value: "today" }, { label: "This Week", value: "this_week" },
+                { label: "This Month", value: "this_month" }, { label: "Last Month", value: "last_month" },
+                { label: "This Quarter", value: "this_quarter" }, { label: "Last Quarter", value: "last_quarter" },
+                { label: "This Year", value: "this_year" },
+              ].map((p) => (
+                <Button key={p.value} variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => applyPreset(p.value)}>{p.label}</Button>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sub-tabs */}
+      <Tabs value={subTab} onValueChange={setSubTab}>
+        <TabsList className="flex flex-wrap h-auto gap-1">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="expenses">Expenses Report</TabsTrigger>
+          <TabsTrigger value="revenue">Revenue Report</TabsTrigger>
+          <TabsTrigger value="invoices">Invoices Report</TabsTrigger>
+          <TabsTrigger value="payments">Payments Report</TabsTrigger>
+          <TabsTrigger value="cashflow">Cash Flow</TabsTrigger>
+        </TabsList>
+
+        {/* ── OVERVIEW ── */}
+        <TabsContent value="overview" className="space-y-6 mt-4">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+            <FRCard label="Total Revenue" value={frFmtCurrency(metrics.totalRevenue)} sub={`${metrics.paidInvoiceCount} paid invoices`} color="text-green-600" />
+            <FRCard label="Total Expenses" value={frFmtCurrency(metrics.totalExpenses)} sub={`${metrics.expenseCount} entries`} color="text-red-500" />
+            <FRCard label="Net Profit / Loss" value={frFmtCurrency(metrics.netProfit)} color={metrics.netProfit >= 0 ? "text-green-600" : "text-red-500"} />
+            <FRCard label="Total Invoiced" value={frFmtCurrency(metrics.allInvoiceTotal)} sub={`${metrics.invoiceCount} invoices`} />
+            <FRCard label="Payments Received" value={frFmtCurrency(metrics.totalReceived)} color="text-green-600" />
+            <FRCard label="Outstanding" value={frFmtCurrency(metrics.outstanding)} color="text-amber-500" />
+          </div>
+
+          {revenueVsExpenseChart.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Revenue vs Expenses</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart data={revenueVsExpenseChart}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <RechartsTooltip formatter={(v: number) => frFmtCurrency(v)} />
+                    <Legend />
+                    <Line type="monotone" dataKey="revenue" stroke="#10B981" strokeWidth={2} name="Revenue" />
+                    <Line type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} name="Expenses" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {expenseByCostCenter.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Expenses by Cost Center</CardTitle></CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <PieChart>
+                      <Pie data={expenseByCostCenter} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}>
+                        {expenseByCostCenter.map((_, i) => <Cell key={i} fill={FR_PIE_COLORS[i % FR_PIE_COLORS.length]} />)}
+                      </Pie>
+                      <RechartsTooltip formatter={(v: number) => frFmtCurrency(v)} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
+            {topVendors.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Top 5 Vendors by Spend</CardTitle></CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={topVendors} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" tick={{ fontSize: 11 }} />
+                      <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11 }} />
+                      <RechartsTooltip formatter={(v: number) => frFmtCurrency(v)} />
+                      <Bar dataKey="total" fill="#0B5E75" radius={[0, 4, 4, 0]} name="Total Spend" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* ── EXPENSES REPORT ── */}
+        <TabsContent value="expenses" className="space-y-4 mt-4">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            <FRCard label="Total" value={frFmtCurrency(metrics.totalExpenses)} />
+            <FRCard label="Count" value={String(metrics.expenseCount)} />
+            <FRCard label="Average" value={metrics.expenseCount ? frFmtCurrency(metrics.totalExpenses / metrics.expenseCount) : "$0.00"} />
+            <FRCard label="Largest" value={frFmtCurrency(expenses.length ? Math.max(...expenses.map((e: any) => Number(e.amount) || 0)) : 0)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-medium">Group by:</Label>
+            <Select value={expGroupBy} onValueChange={setExpGroupBy}>
+              <SelectTrigger className="w-[160px] h-8"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No grouping</SelectItem>
+                <SelectItem value="costCenter">Cost Center</SelectItem>
+                <SelectItem value="vendor">Vendor</SelectItem>
+                <SelectItem value="month">Month</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {groupedExpenses ? (
+            <div className="space-y-4">
+              {groupedExpenses.map(([group, data]) => (
+                <Card key={group}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex justify-between">
+                      <span>{group}</span>
+                      <span className="text-muted-foreground">{frFmtCurrency(data.total)} ({data.items.length})</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <FRExpenseTable rows={data.items} />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card><CardContent className="pt-4"><FRExpenseTable rows={expenses} /></CardContent></Card>
+          )}
+        </TabsContent>
+
+        {/* ── REVENUE REPORT ── */}
+        <TabsContent value="revenue" className="space-y-4 mt-4">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            <FRCard label="Total Revenue" value={frFmtCurrency(metrics.totalRevenue)} color="text-green-600" />
+            <FRCard label="Paid Invoices" value={String(metrics.paidInvoiceCount)} />
+            <FRCard label="Avg Invoice" value={metrics.paidInvoiceCount ? frFmtCurrency(metrics.totalRevenue / metrics.paidInvoiceCount) : "$0.00"} />
+            <FRCard label="Departments" value={String(new Set(invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid").map((inv: any) => inv.department)).size)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs font-medium">Group by:</Label>
+            <Select value={revGroupBy} onValueChange={setRevGroupBy}>
+              <SelectTrigger className="w-[160px] h-8"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No grouping</SelectItem>
+                <SelectItem value="market">Market / Dept</SelectItem>
+                <SelectItem value="customer">Customer</SelectItem>
+                <SelectItem value="month">Month</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {groupedRevenue ? (
+            <div className="space-y-4">
+              {groupedRevenue.map(([group, data]) => (
+                <Card key={group}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex justify-between">
+                      <span>{group}</span>
+                      <span className="text-muted-foreground">{frFmtCurrency(data.total)} ({data.items.length})</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0"><FRInvoiceTable rows={data.items} /></CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card><CardContent className="pt-4"><FRInvoiceTable rows={invoices.filter((inv: any) => inv.status === "paid" || inv.status === "Paid")} /></CardContent></Card>
+          )}
+        </TabsContent>
+
+        {/* ── INVOICES REPORT ── */}
+        <TabsContent value="invoices" className="space-y-4 mt-4">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            <FRCard label="All Invoiced" value={frFmtCurrency(metrics.allInvoiceTotal)} />
+            <FRCard label="Paid" value={frFmtCurrency(metrics.totalRevenue)} color="text-green-600" />
+            <FRCard label="Outstanding" value={frFmtCurrency(metrics.outstanding)} color="text-amber-500" />
+            <FRCard label="Count" value={String(metrics.invoiceCount)} />
+          </div>
+          <Card>
+            <CardContent className="pt-4">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">#</TableHead>
+                      <TableHead>Invoice #</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Department</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Total (USD)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {invoices.length === 0 ? (
+                      <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No invoices in this range</TableCell></TableRow>
+                    ) : invoices.map((inv: any, i: number) => (
+                      <TableRow key={inv.id}>
+                        <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                        <TableCell className="font-medium">{inv.number || "—"}</TableCell>
+                        <TableCell>{formatDateDMY(inv.dateIssue || inv.createdAt)}</TableCell>
+                        <TableCell>{inv.customerName || "—"}</TableCell>
+                        <TableCell>{inv.department || "—"}</TableCell>
+                        <TableCell>
+                          <Badge className={`text-xs ${inv.status === "paid" || inv.status === "Paid" ? "bg-green-100 text-green-800" : inv.status === "draft" ? "bg-gray-100 text-gray-800" : "bg-amber-100 text-amber-800"}`}>
+                            {inv.status || "draft"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">{frFmtNum(Number(inv.totalUSD) || Number(inv.total) || 0)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── PAYMENTS REPORT ── */}
+        <TabsContent value="payments" className="space-y-4 mt-4">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            <FRCard label="Received" value={frFmtCurrency(metrics.totalReceived)} color="text-green-600" />
+            <FRCard label="Paid Out" value={frFmtCurrency(metrics.totalPaid)} color="text-red-500" />
+            <FRCard label="Net" value={frFmtCurrency(metrics.totalReceived - metrics.totalPaid)} color={metrics.totalReceived - metrics.totalPaid >= 0 ? "text-green-600" : "text-red-500"} />
+            <FRCard label="Transactions" value={String(metrics.paymentCount)} />
+          </div>
+          {paymentsByAccount.length > 0 ? (
+            <div className="space-y-4">
+              {paymentsByAccount.map(([acct, data]) => (
+                <Card key={acct}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex justify-between">
+                      <span>{acct}</span>
+                      <span className="text-muted-foreground">{frFmtCurrency(data.total)} ({data.items.length})</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0"><FRPaymentTable rows={data.items} /></CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card><CardContent className="pt-4"><FRPaymentTable rows={payments} /></CardContent></Card>
+          )}
+        </TabsContent>
+
+        {/* ── CASH FLOW ── */}
+        <TabsContent value="cashflow" className="space-y-4 mt-4">
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+            <FRCard label="Total Inflow" value={frFmtCurrency(cashFlowData.reduce((s, r) => s + r.inflow, 0))} color="text-green-600" />
+            <FRCard label="Total Outflow" value={frFmtCurrency(cashFlowData.reduce((s, r) => s + r.outflow, 0))} color="text-red-500" />
+            <FRCard label="Net Cash Flow" value={frFmtCurrency(cashFlowData.reduce((s, r) => s + r.net, 0))} color={cashFlowData.reduce((s, r) => s + r.net, 0) >= 0 ? "text-green-600" : "text-red-500"} />
+            <FRCard label="Closing Balance" value={cashFlowData.length ? frFmtCurrency(cashFlowData[cashFlowData.length - 1].balance) : "$0.00"} />
+          </div>
+
+          {cashFlowData.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Cash Flow Over Time</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={cashFlowData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <RechartsTooltip formatter={(v: number) => frFmtCurrency(v)} />
+                    <Legend />
+                    <Bar dataKey="inflow" fill="#10B981" name="Inflow" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="outflow" fill="#EF4444" name="Outflow" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardContent className="pt-4">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Month</TableHead>
+                      <TableHead className="text-right">Inflow</TableHead>
+                      <TableHead className="text-right">Outflow</TableHead>
+                      <TableHead className="text-right">Net</TableHead>
+                      <TableHead className="text-right">Balance</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cashFlowData.length === 0 ? (
+                      <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No data in this range</TableCell></TableRow>
+                    ) : cashFlowData.map((r, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-medium">{r.month}</TableCell>
+                        <TableCell className="text-right font-mono text-green-600">{frFmtNum(r.inflow)}</TableCell>
+                        <TableCell className="text-right font-mono text-red-500">{frFmtNum(r.outflow)}</TableCell>
+                        <TableCell className={`text-right font-mono ${r.net >= 0 ? "text-green-600" : "text-red-500"}`}>{frFmtNum(r.net)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">{frFmtNum(r.balance)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ── Sub-components for Financial Reports ──────────────────────────────────
+
+function FRCard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-4">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        <p className={`text-xl font-bold ${color || ""}`}>{value}</p>
+        {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function FRExpenseTable({ rows }: { rows: any[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-10">#</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead>Vendor / Account</TableHead>
+            <TableHead>Cost Center</TableHead>
+            <TableHead>Currency</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.length === 0 ? (
+            <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No expenses</TableCell></TableRow>
+          ) : rows.map((e: any, i: number) => (
+            <TableRow key={e.id}>
+              <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+              <TableCell>{formatDateDMY(e.expenseDate || e.date)}</TableCell>
+              <TableCell className="font-medium">{safeText(e.vendorName) || safeText(e.accountName) || "—"}</TableCell>
+              <TableCell>{safeText(e.costCenter) || "—"}</TableCell>
+              <TableCell><Badge variant="outline" className="text-xs">{e.currency || "USD"}</Badge></TableCell>
+              <TableCell className="text-right font-mono">{frFmtNum(Number(e.amount) || 0)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function FRInvoiceTable({ rows }: { rows: any[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-10">#</TableHead>
+            <TableHead>Invoice #</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead>Customer</TableHead>
+            <TableHead>Department</TableHead>
+            <TableHead className="text-right">Total (USD)</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.length === 0 ? (
+            <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No invoices</TableCell></TableRow>
+          ) : rows.map((inv: any, i: number) => (
+            <TableRow key={inv.id}>
+              <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+              <TableCell className="font-medium">{inv.number || "—"}</TableCell>
+              <TableCell>{formatDateDMY(inv.dateIssue || inv.createdAt)}</TableCell>
+              <TableCell>{inv.customerName || "—"}</TableCell>
+              <TableCell>{inv.department || "—"}</TableCell>
+              <TableCell className="text-right font-mono">{frFmtNum(Number(inv.totalUSD) || Number(inv.total) || 0)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function FRPaymentTable({ rows }: { rows: any[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-10">#</TableHead>
+            <TableHead>Date</TableHead>
+            <TableHead>Party</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Currency</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
+            <TableHead className="text-right">Total (USD)</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.length === 0 ? (
+            <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-6">No payments</TableCell></TableRow>
+          ) : rows.map((p: any, i: number) => (
+            <TableRow key={p.id}>
+              <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+              <TableCell>{formatDateDMY(p.date || p.createdAt)}</TableCell>
+              <TableCell className="font-medium">{p.partyName || "—"}</TableCell>
+              <TableCell>
+                <Badge className={`text-xs ${p.type === "received" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+                  {p.type === "received" ? "Received" : "Paid"}
+                </Badge>
+              </TableCell>
+              <TableCell><Badge variant="outline" className="text-xs">{p.currency || "USD"}</Badge></TableCell>
+              <TableCell className="text-right font-mono">{frFmtNum(Number(p.amount) || 0)}</TableCell>
+              <TableCell className="text-right font-mono">{frFmtNum(Number(p.totalUSD) || Number(p.amount) || 0)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
