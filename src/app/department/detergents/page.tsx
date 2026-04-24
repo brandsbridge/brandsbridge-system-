@@ -66,6 +66,7 @@ import { supplierService } from "@/services/supplier-service";
 import { customerService } from "@/services/customer-service";
 import { toast } from "@/hooks/use-toast";
 import { Progress } from "@/components/ui/progress";
+import { MarketCustomersTab } from "@/components/department/market-customers-tab";
 
 const StarRating = ({ rating }: { rating: number }) => (
   <div className="flex gap-0.5">{[1,2,3,4,5].map(i => <Star key={i} className={cn("h-3 w-3", i <= rating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30")} />)}</div>
@@ -469,91 +470,7 @@ export default function DetergentsDepartmentPage() {
         </TabsContent>
 
         <TabsContent value="customers" className="space-y-4 pt-4">
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Company Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Markets</TableHead>
-                  <TableHead>Health</TableHead>
-                  <TableHead>Rating</TableHead>
-                  <TableHead className="text-right">Total Revenue</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loadingCustomers ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
-                ) : customers.map(c => (
-                  <TableRow key={c.id} className="group">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded bg-accent/10 flex items-center justify-center text-xs font-bold text-accent">{c.name?.[0] || 'C'}</div>
-                        <div>
-                          <Link href={`/customers/${c.id}`} className="font-bold hover:text-primary flex items-center gap-1 group/link">
-                            {c.name}
-                            <ExternalLink className="h-3 w-3 opacity-0 group-hover/link:opacity-100 transition-opacity" />
-                          </Link>
-                          <div className="text-[10px] text-muted-foreground flex items-center gap-2">
-                            <span>{c.country || "Global"}</span>
-                            <span>•</span>
-                            <span>{c.assignedManager || '-'}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell><span className="text-xs">{c.companyType}</span></TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={cn("text-[9px] capitalize",
-                        c.accountStatus === 'active' && "bg-green-500 text-white border-none",
-                        c.accountStatus === 'key account' && "bg-primary text-white border-none",
-                        c.accountStatus === 'at risk' && "bg-yellow-500 text-white border-none"
-                      )}>{c.accountStatus}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1 max-w-[150px]">
-                        {Array.isArray(c.markets) && c.markets.map((m: string) => (
-                          <Badge key={m} variant="outline" className="text-[8px] h-4 capitalize"
-                            style={{
-                              color: m === 'chocolate' ? '#7B3F00' : m === 'cosmetics' ? '#C2185B' : m === 'detergents' ? '#0B5E75' : 'inherit',
-                              backgroundColor: m === 'chocolate' ? '#7B3F0015' : m === 'cosmetics' ? '#C2185B15' : m === 'detergents' ? '#0B5E7515' : 'transparent',
-                              borderColor: m === 'chocolate' ? '#7B3F0040' : m === 'cosmetics' ? '#C2185B40' : m === 'detergents' ? '#0B5E7540' : 'inherit'
-                            }}>{m.replace('_', ' ')}</Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <HeartPulse className={cn("h-3 w-3", c.accountHealth === 'healthy' ? "text-green-500" : "text-destructive")} />
-                        <span className="text-[10px] capitalize font-medium">{c.accountHealth}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <StarRating rating={c.internalRating || 0} />
-                        <div className="w-16"><Progress value={c.dataCompleteness} className="h-1" /></div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="text-xs font-bold text-primary">${(c.totalRevenue || 0).toLocaleString()}</div>
-                      <div className="text-[8px] text-muted-foreground">Lifetime Value</div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Link href={`/customers/${c.id}`}><Button variant="ghost" size="icon" className="h-8 w-8"><ExternalLink className="h-4 w-4" /></Button></Link>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Mail className="h-4 w-4" /></Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {!loadingCustomers && customers.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground italic">No customers linked to this market segment.</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </Card>
+          <MarketCustomersTab customers={customers} loading={loadingCustomers} marketId={marketId} departmentId={departmentId} db={db} />
         </TabsContent>
 
         <TabsContent value="catalog" className="space-y-6 pt-4">
