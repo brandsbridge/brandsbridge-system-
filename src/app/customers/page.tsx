@@ -128,6 +128,20 @@ const IMPORT_COLUMN_MAP: Record<string, string> = {
   "price tier": "priceTier",
 };
 
+const normalizeMarketId = (input: string): string | null => {
+  const n = input.trim().toLowerCase();
+  if (n.includes('cosmetic')) return 'cosmetics_market';
+  if (n.includes('chocolate')) return 'chocolate_market';
+  if (n.includes('detergent')) return 'detergents_market';
+  return null;
+};
+
+const MARKET_DISPLAY: Record<string, string> = {
+  cosmetics_market: "Cosmetics Market",
+  chocolate_market: "Chocolate Market",
+  detergents_market: "Detergents Market",
+};
+
 const IMPORT_TEMPLATE_HEADERS = [
   "Company Name", "Country", "Active", "Nature of Business", "Specialized Products",
   "Health", "Rating", "Total Revenue", "Markets", "Interests",
@@ -142,7 +156,7 @@ const IMPORT_TEMPLATE_HEADERS = [
 
 const IMPORT_EXAMPLE_ROW = [
   "Example Customer Ltd", "Qatar", "Active", "Wholesaler", "Confectionery, Snacks",
-  "Healthy", "4", "50000", "chocolate_market, cosmetics_market", "Chocolate, Premium",
+  "Healthy", "4", "50000", "Chocolate, Cosmetics", "Chocolate, Premium",
   "$5.50/kg", "High potential client", "Met at trade show",
   "Doha", "www.example.com",
   "facebook.com/example", "instagram.com/example", "linkedin.com/in/example",
@@ -528,7 +542,18 @@ export default function CustomersPage() {
             k === "dataCompleteness" || k === "compliance" || k === "priceTier") return;
         const displayName = MAPPED_DISPLAY[k];
         if (displayName) {
-          const val = v != null ? String(v).trim() : "";
+          let val = v != null ? String(v).trim() : "";
+          // Normalize market values for preview
+          if (k === "markets" && val) {
+            const rawArr = val.split(/[,;]/).map((m: string) => m.trim()).filter(Boolean);
+            const normalized: string[] = [];
+            rawArr.forEach(m => {
+              const id = normalizeMarketId(m);
+              if (id) normalized.push(MARKET_DISPLAY[id]);
+              else errors.push({ row: idx + 1, message: `Market "${m}" not recognized, will be skipped` });
+            });
+            val = normalized.join(", ");
+          }
           clean[displayName] = val;
         }
       });
@@ -569,7 +594,8 @@ export default function CustomersPage() {
         const existing = existingByEmail || existingByName;
 
         const marketsRaw = mapped.markets || row["Markets"] || "";
-        const marketsArr = typeof marketsRaw === "string" ? marketsRaw.split(/[,;]/).map((m: string) => m.trim()).filter(Boolean) : Array.isArray(marketsRaw) ? marketsRaw : [];
+        const rawMarkets = typeof marketsRaw === "string" ? marketsRaw.split(/[,;]/).map((m: string) => m.trim()).filter(Boolean) : Array.isArray(marketsRaw) ? marketsRaw : [];
+        const marketsArr = [...new Set(rawMarkets.map(m => normalizeMarketId(m)).filter(Boolean) as string[])];
         const interestsRaw = mapped.interests || row["Interests"] || "";
         const interestsStr = typeof interestsRaw === "string" ? interestsRaw : Array.isArray(interestsRaw) ? interestsRaw.join(", ") : "";
 

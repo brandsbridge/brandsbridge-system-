@@ -71,7 +71,7 @@ const IMPORT_TEMPLATE_HEADERS = [
   "Social Media - Facebook", "Social Media - Instagram", "Social Media - Linkedin",
   "Sales Manager", "Export Manager",
   "support - Customer Service number", "support - Customer Service email",
-  "Company Overview", "Organic / Halal Certifications", "Record Status"
+  "Company Overview", "Organic / Halal Certifications", "Markets", "Record Status"
 ];
 
 const IMPORT_EXAMPLE_ROW = [
@@ -82,10 +82,18 @@ const IMPORT_EXAMPLE_ROW = [
   "www.example.com", "fb.com/example", "instagram.com/example", "linkedin.com/example",
   "John Smith", "Jane Doe",
   "+905550000000", "support@example.com",
-  "Leading manufacturer of premium chocolate products", "Halal, ISO 9001", "Active - Verified"
+  "Leading manufacturer of premium chocolate products", "Halal, ISO 9001", "Chocolate, Cosmetics", "Active - Verified"
 ];
 
-const PRIORITY_KEYS = ["Company Name", "Country", "Nature of Business", "Price Tier", "Record Status"];
+const PRIORITY_KEYS = ["Company Name", "Country", "Nature of Business", "Price Tier", "Markets", "Record Status"];
+
+const normalizeMarketId = (input: string): string | null => {
+  const n = input.trim().toLowerCase();
+  if (n.includes('cosmetic')) return 'cosmetics_market';
+  if (n.includes('chocolate')) return 'chocolate_market';
+  if (n.includes('detergent')) return 'detergents_market';
+  return null;
+};
 
 /** Trim a value; return null if empty. */
 const clean = (v: any): string | null => {
@@ -379,9 +387,16 @@ export default function SuppliersPage() {
           supportPhone: clean(ci("support - Customer Service number")),
           supportEmail: supportEmail || null,
           recordStatus: clean(ci("Record Status")) || "Active - Verified",
-          markets: importMarket === "all"
-            ? ["chocolate_market", "cosmetics_market", "detergents_market"]
-            : importMarket !== "none" ? [importMarket] : [] as string[],
+          markets: (() => {
+            // If dropdown overrides to "all", assign all markets
+            if (importMarket === "all") return ["chocolate_market", "cosmetics_market", "detergents_market"];
+            // Parse CSV Markets column and normalize values
+            const csvMarketsRaw = ci("Markets") || "";
+            const csvMarkets = csvMarketsRaw ? csvMarketsRaw.toString().split(/[,;]/).map((m: string) => normalizeMarketId(m)).filter(Boolean) as string[] : [];
+            // If dropdown selects a specific market, add it
+            if (importMarket !== "none" && !csvMarkets.includes(importMarket)) csvMarkets.push(importMarket);
+            return [...new Set(csvMarkets)];
+          })(),
           updatedAt: new Date().toISOString()
         };
 
@@ -664,7 +679,7 @@ export default function SuppliersPage() {
                       <Select value={importMarket} onValueChange={setImportMarket}>
                         <SelectTrigger className="w-[220px] h-9"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">None (Manual Later)</SelectItem>
+                          <SelectItem value="none">Auto from CSV</SelectItem>
                           <SelectItem value="chocolate_market">Chocolate Market</SelectItem>
                           <SelectItem value="cosmetics_market">Cosmetics Market</SelectItem>
                           <SelectItem value="detergents_market">Detergents Market</SelectItem>
