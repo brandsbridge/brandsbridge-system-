@@ -537,6 +537,8 @@ export function MarketCustomersTab({ customers, loading, marketId, departmentId,
     setImportProgress(0);
     setImportProgressLabel("");
     let success = 0, updates = 0, failed = 0;
+    const baseTime = Date.now();
+    let rowIndex = 0;
     const BATCH_SIZE = 500;
     for (let i = 0; i < fullValidData.length; i += BATCH_SIZE) {
       const batch = writeBatch(db);
@@ -593,11 +595,12 @@ export function MarketCustomersTab({ customers, loading, marketId, departmentId,
           if (existing && existing.id) {
             if (duplicateMode === "update") { batch.update(doc(db, "customers", existing.id), customerData); updates++; }
           } else {
-            customerData.createdAt = new Date().toISOString();
+            customerData.createdAt = new Date(baseTime + rowIndex).toISOString();
             batch.set(doc(collection(db, "customers")), customerData);
             success++;
           }
         } catch { failed++; }
+        rowIndex++;
       }
       try {
         await batch.commit();

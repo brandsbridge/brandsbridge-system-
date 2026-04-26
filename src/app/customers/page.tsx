@@ -39,7 +39,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, writeBatch, doc, setDoc, deleteDoc } from "firebase/firestore";
+import { collection, query, orderBy, writeBatch, doc, setDoc, deleteDoc } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { MOCK_CUSTOMERS } from "@/lib/mock-data";
@@ -203,7 +203,7 @@ export default function CustomersPage() {
   const { user } = useUser();
   const customersQuery = useMemoFirebase(() => {
     if (!user) return null;
-    return collection(db, "customers");
+    return query(collection(db, "customers"), orderBy("createdAt", "asc"));
   }, [db, user]);
 
   const { data: firestoreCustomers, isLoading: loading } = useCollection(customersQuery);
@@ -578,6 +578,8 @@ export default function CustomersPage() {
     setImportProgress(0);
     setImportProgressLabel("");
     let success = 0, updates = 0, failed = 0;
+    const baseTime = Date.now();
+    let rowIndex = 0;
 
     const BATCH_SIZE = 500;
     for (let i = 0; i < fullValidData.length; i += BATCH_SIZE) {
@@ -644,11 +646,12 @@ export default function CustomersPage() {
               updates++;
             }
           } else {
-            customerData.createdAt = new Date().toISOString();
+            customerData.createdAt = new Date(baseTime + rowIndex).toISOString();
             batch.set(doc(collection(db, "customers")), customerData);
             success++;
           }
         } catch { failed++; }
+        rowIndex++;
       }
 
       try {

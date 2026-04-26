@@ -59,7 +59,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, query, where, doc, updateDoc, arrayUnion, arrayRemove, setDoc } from "firebase/firestore";
+import { collection, query, where, orderBy, doc, updateDoc, arrayUnion, arrayRemove, setDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { app } from "@/lib/firebase";
 import { supplierService } from "@/services/supplier-service";
@@ -85,8 +85,8 @@ export default function ChocolateDepartmentPage() {
   const db = useFirestore();
 
   // Firestore Queries for this specific market
-  const suppliersQuery = useMemoFirebase(() => query(collection(db, "suppliers"), where("markets", "array-contains", marketId)), [db, marketId]);
-  const customersQuery = useMemoFirebase(() => query(collection(db, "customers"), where("markets", "array-contains", marketId)), [db, marketId]);
+  const suppliersQuery = useMemoFirebase(() => query(collection(db, "suppliers"), where("markets", "array-contains", marketId), orderBy("createdAt", "asc")), [db, marketId]);
+  const customersQuery = useMemoFirebase(() => query(collection(db, "customers"), where("markets", "array-contains", marketId), orderBy("createdAt", "asc")), [db, marketId]);
   const productsQuery = useMemoFirebase(() => query(collection(db, "products"), where("department", "==", departmentId)), [db, departmentId]);
   const stocksQuery = useMemoFirebase(() => query(collection(db, "stocks"), where("department", "==", departmentId)), [db, departmentId]);
 

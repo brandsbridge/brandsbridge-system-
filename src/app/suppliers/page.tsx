@@ -199,7 +199,7 @@ export default function SuppliersPage() {
   const { user } = useUser();
   const suppliersQuery = useMemoFirebase(() => {
     if (!user) return null;
-    return query(collection(db, "suppliers"), orderBy("createdAt", "desc"));
+    return query(collection(db, "suppliers"), orderBy("createdAt", "asc"));
   }, [db, user]);
   const { data: suppliers = [], isLoading: loading } = useCollection(suppliersQuery);
 
@@ -332,6 +332,8 @@ export default function SuppliersPage() {
     let updates = 0;
     let failed = 0;
     let skipped = 0;
+    const baseTime = Date.now();
+    let rowIndex = 0;
 
     const savedUser = localStorage.getItem("demoUser");
     const manager = savedUser ? JSON.parse(savedUser) : { name: "System", department: "all" };
@@ -417,11 +419,12 @@ export default function SuppliersPage() {
             skipped++;
           }
         } else {
-          cleanData.createdAt = new Date().toISOString();
+          cleanData.createdAt = new Date(baseTime + rowIndex).toISOString();
           const newDocRef = doc(collection(db, "suppliers"));
           batch.set(newDocRef, cleanData);
           success++;
         }
+        rowIndex++;
       }
 
       try {
