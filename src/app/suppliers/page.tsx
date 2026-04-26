@@ -40,15 +40,20 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase";
-import { collection, doc, writeBatch, setDoc, updateDoc, query, where, orderBy } from "firebase/firestore";
+import { collection, doc, writeBatch, setDoc, updateDoc, deleteDoc, query, where, orderBy } from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { supplierService } from "@/services/supplier-service";
@@ -119,6 +124,11 @@ export default function SuppliersPage() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
   const [marketAssignTarget, setMarketAssignTarget] = useState<any>(null);
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleCreateSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -489,6 +499,39 @@ export default function SuppliersPage() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    setIsDeleting(true);
+    let deleted = 0;
+    try {
+      for (const id of selectedIds) {
+        await deleteDoc(doc(db, "suppliers", id));
+        deleted++;
+      }
+      toast({ title: "Suppliers Deleted", description: `${deleted} supplier(s) removed.` });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Bulk Delete Failed", description: `${deleted} deleted before error: ${err.message}` });
+    }
+    setIsDeleting(false);
+    setIsBulkDeleteOpen(false);
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredSuppliers.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredSuppliers.map((s: any) => s.id)));
+    }
+  };
+
   const migrateMarkets = async () => {
     if (!suppliers || suppliers.length === 0) return;
     const chocolateKeywords = /chocolate|confectionery|cocoa|candy|sweets|biscuit|wafer|snack/i;
@@ -847,10 +890,23 @@ export default function SuppliersPage() {
         </CardContent>
       </Card>
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3">
+          <Button variant="destructive" size="sm" onClick={() => setIsBulkDeleteOpen(true)}>
+            <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({selectedIds.size})
+          </Button>
+          <button className="text-xs text-muted-foreground hover:underline" onClick={() => setSelectedIds(new Set())}>Clear selection</button>
+        </div>
+      )}
+
       <Card>
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]">
+                <Checkbox checked={filteredSuppliers.length > 0 && selectedIds.size === filteredSuppliers.length} onCheckedChange={toggleSelectAll} />
+              </TableHead>
+              <TableHead className="w-10">#</TableHead>
               <TableHead className="w-[200px]">Company Name</TableHead>
               <TableHead>Country</TableHead>
               <TableHead>Nature of Business</TableHead>
@@ -866,13 +922,17 @@ export default function SuppliersPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-12">
+                <TableCell colSpan={12} className="text-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
                   <p className="text-xs text-muted-foreground">Loading suppliers...</p>
                 </TableCell>
               </TableRow>
-            ) : filteredSuppliers.map((supplier) => (
+            ) : filteredSuppliers.map((supplier, idx) => (
               <TableRow key={supplier.id} className="group">
+                <TableCell>
+                  <Checkbox checked={selectedIds.has(supplier.id)} onCheckedChange={() => toggleSelect(supplier.id)} />
+                </TableCell>
+                <TableCell className="text-muted-foreground text-xs">{idx + 1}</TableCell>
                 <TableCell>
                   <Link href={`/suppliers/${supplier.id}`} className="font-bold hover:text-primary flex items-center gap-2 group/link">
                     <span className="text-lg">{supplier.flag || '🏭'}</span>
@@ -1104,6 +1164,22 @@ export default function SuppliersPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Delete */}
+      <AlertDialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} Supplier{selectedIds.size > 1 ? 's' : ''}</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete {selectedIds.size} supplier{selectedIds.size > 1 ? 's' : ''}? This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground" disabled={isDeleting} onClick={(e) => { e.preventDefault(); handleBulkDelete(); }}>
+              {isDeleting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : `Delete ${selectedIds.size}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

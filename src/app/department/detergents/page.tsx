@@ -57,9 +57,14 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useCollection, useFirestore, useMemoFirebase, useDoc } from "@/firebase";
-import { collection, query, where, orderBy, doc, updateDoc, arrayUnion, arrayRemove, setDoc } from "firebase/firestore";
+import { collection, query, where, orderBy, doc, updateDoc, deleteDoc, arrayUnion, arrayRemove, setDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { app } from "@/lib/firebase";
 import { supplierService } from "@/services/supplier-service";
@@ -82,6 +87,9 @@ export default function DetergentsDepartmentPage() {
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [selectedSupplierIds, setSelectedSupplierIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+  const [isDeletingBulk, setIsDeletingBulk] = useState(false);
   const db = useFirestore();
 
   // Firestore Queries for this specific market
@@ -99,6 +107,31 @@ export default function DetergentsDepartmentPage() {
   const customers = customersData || [];
   const products = productsData || [];
   const stocks = stocksData || [];
+
+  const toggleSupplierSelect = (id: string) => {
+    setSelectedSupplierIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleSupplierSelectAll = () => {
+    if (selectedSupplierIds.size === suppliers.length) setSelectedSupplierIds(new Set());
+    else setSelectedSupplierIds(new Set(suppliers.map((s: any) => s.id)));
+  };
+  const handleBulkDeleteSuppliers = async () => {
+    setIsDeletingBulk(true);
+    let deleted = 0;
+    try {
+      for (const id of selectedSupplierIds) { await deleteDoc(doc(db, "suppliers", id)); deleted++; }
+      toast({ title: "Suppliers Deleted", description: `${deleted} supplier(s) removed.` });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Bulk Delete Failed", description: `${deleted} deleted before error: ${err.message}` });
+    }
+    setIsDeletingBulk(false);
+    setIsBulkDeleteOpen(false);
+    setSelectedSupplierIds(new Set());
+  };
 
   // Market Assets logic
   const assetsRef = useMemoFirebase(() => doc(db, "market_assets", departmentId), [db, departmentId]);
@@ -379,10 +412,22 @@ export default function DetergentsDepartmentPage() {
         </TabsList>
 
         <TabsContent value="suppliers" className="space-y-4 pt-4">
+          {selectedSupplierIds.size > 0 && (
+            <div className="flex items-center gap-3">
+              <Button variant="destructive" size="sm" onClick={() => setIsBulkDeleteOpen(true)}>
+                <Trash2 className="mr-2 h-4 w-4" /> Delete Selected ({selectedSupplierIds.size})
+              </Button>
+              <button className="text-xs text-muted-foreground hover:underline" onClick={() => setSelectedSupplierIds(new Set())}>Clear selection</button>
+            </div>
+          )}
           <Card>
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <Checkbox checked={suppliers.length > 0 && selectedSupplierIds.size === suppliers.length} onCheckedChange={toggleSupplierSelectAll} />
+                  </TableHead>
+                  <TableHead className="w-10">#</TableHead>
                   <TableHead className="w-[250px]">Company Name</TableHead>
                   <TableHead>Country</TableHead>
                   <TableHead>Nature</TableHead>
@@ -395,9 +440,13 @@ export default function DetergentsDepartmentPage() {
               </TableHeader>
               <TableBody>
                 {loadingSuppliers ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
-                ) : suppliers.map(s => (
+                  <TableRow><TableCell colSpan={10} className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></TableCell></TableRow>
+                ) : suppliers.map((s, idx) => (
                   <TableRow key={s.id} className="group">
+                    <TableCell>
+                      <Checkbox checked={selectedSupplierIds.has(s.id)} onCheckedChange={() => toggleSupplierSelect(s.id)} />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-xs">{idx + 1}</TableCell>
                     <TableCell>
                       <div>
                         <Link href={`/suppliers/${s.id}`} className="font-bold hover:text-primary flex items-center gap-2 group/link">
@@ -462,7 +511,7 @@ export default function DetergentsDepartmentPage() {
                   </TableRow>
                 ))}
                 {!loadingSuppliers && suppliers.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground italic">No suppliers linked to this market segment.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center py-12 text-muted-foreground italic">No suppliers linked to this market segment.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -582,6 +631,22 @@ export default function DetergentsDepartmentPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Bulk Delete Suppliers */}
+      <AlertDialog open={isBulkDeleteOpen} onOpenChange={setIsBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedSupplierIds.size} Supplier{selectedSupplierIds.size > 1 ? 's' : ''}</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure? This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground" disabled={isDeletingBulk} onClick={(e) => { e.preventDefault(); handleBulkDeleteSuppliers(); }}>
+              {isDeletingBulk ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : `Delete ${selectedSupplierIds.size}`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
