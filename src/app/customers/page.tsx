@@ -506,7 +506,7 @@ export default function CustomersPage() {
     "Best Product Price AI", "Notes from AI", "Notes from Staff",
     "Governorate / City", "Website", "Facebook", "Instagram", "LinkedIn",
     "WhatsApp", "Sales Manager", "Export Manager", "CS Number", "CS Email",
-    "Company Overview", "Consignee", "Contact Person", "Specific Notes",
+    "Company Overview", "Company Docs", "Consignee", "Contact Person", "Specific Notes",
   ];
 
   const MAPPED_DISPLAY: Record<string, string> = {
@@ -519,8 +519,8 @@ export default function CustomersPage() {
     socialFacebook: "Facebook", socialInstagram: "Instagram", socialLinkedin: "LinkedIn",
     whatsapp: "WhatsApp", salesManager: "Sales Manager", exportManager: "Export Manager",
     customerServiceNumber: "CS Number", customerServiceEmail: "CS Email",
-    companyOverview: "Company Overview", consignee: "Consignee",
-    contactPerson: "Contact Person", specificNotes: "Specific Notes",
+    companyOverview: "Company Overview", companyDocs: "Company Docs",
+    consignee: "Consignee", contactPerson: "Contact Person", specificNotes: "Specific Notes",
   };
 
   const validateAndPreview = (data: any[]) => {
@@ -537,7 +537,7 @@ export default function CustomersPage() {
       // Build a clean mapped row with display-friendly column names
       const clean: Record<string, string> = {};
       Object.entries(mapped).forEach(([k, v]) => {
-        if (k === "__skip__" || k === "companyDocs" || k === "email" || k === "phone" || k === "city" ||
+        if (k === "__skip__" || k === "email" || k === "phone" || k === "city" ||
             k === "accountStatus" || k === "department" || k === "assignedManager" ||
             k === "dataCompleteness" || k === "compliance" || k === "priceTier") return;
         const displayName = MAPPED_DISPLAY[k];
@@ -630,6 +630,7 @@ export default function CustomersPage() {
           contactPerson: mapped.contactPerson || "",
           consignee: mapped.consignee || "",
           companyOverview: mapped.companyOverview || "",
+          companyDocsNotes: mapped.companyDocs || "",
           specificNotes: mapped.specificNotes || "",
           departments: marketsArr.map((m: string) => m.split('_')[0]),
           updatedAt: new Date().toISOString(),

@@ -64,6 +64,7 @@ export default function CustomerClient({ id }: { id: string }) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const overviewFileRef = useRef<HTMLInputElement>(null);
 
   // Inline edit mode
   const [isEditing, setIsEditing] = useState(false);
@@ -750,6 +751,66 @@ export default function CustomerClient({ id }: { id: string }) {
                       <p className="text-sm mt-1">{customer.notesFromStaff || <span className="text-muted-foreground italic">No staff notes</span>}</p>
                     )}
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Company Documents */}
+              <Card className="border-[#0B5E75]/20">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+                  <CardTitle className="text-sm font-bold uppercase flex items-center gap-2"><Paperclip className="h-4 w-4 text-[#0B5E75]" /> Company Documents</CardTitle>
+                  <div className="relative">
+                    <input type="file" ref={overviewFileRef} className="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx" onChange={handleFileUpload} />
+                    <Button variant="outline" size="sm" onClick={() => overviewFileRef.current?.click()} disabled={isUploading}>
+                      {isUploading ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Upload className="h-3 w-3 mr-2" />}
+                      Upload Document
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {isUploading && (
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px] font-bold uppercase text-muted-foreground">
+                        <span>Uploading...</span>
+                        <span>{Math.round(uploadProgress)}%</span>
+                      </div>
+                      <Progress value={uploadProgress} className="h-1" />
+                    </div>
+                  )}
+
+                  {customer.companyDocsNotes && (
+                    <div className="bg-secondary/30 rounded-lg p-3 border border-dashed">
+                      <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1">Notes about Documents</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{customer.companyDocsNotes}</p>
+                    </div>
+                  )}
+
+                  {attachments.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {attachments.slice(0, 5).map((att: any) => (
+                        <div key={att.id} className="flex items-center justify-between py-1.5 px-2 rounded-lg hover:bg-muted/30 group">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="h-4 w-4 text-[#0B5E75] shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{att.fileName}</p>
+                              <p className="text-[10px] text-muted-foreground">{new Date(att.uploadedAt).toLocaleDateString()} · {att.uploadedBy}</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" asChild><a href={att.fileUrl} target="_blank" rel="noopener noreferrer"><Download className="h-3 w-3" /></a></Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteAttachment(att)}><Trash className="h-3 w-3" /></Button>
+                          </div>
+                        </div>
+                      ))}
+                      {attachments.length > 5 && (
+                        <p className="text-xs text-muted-foreground text-center pt-1">+{attachments.length - 5} more — see Attachments tab</p>
+                      )}
+                    </div>
+                  ) : !customer.companyDocsNotes && (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <Paperclip className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-xs italic">No documents uploaded yet</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
